@@ -1,0 +1,198 @@
+"use client"
+
+import { useState } from "react"
+import Link from "next/link"
+import { mockGeneratedDocuments, mockJobs } from "@/lib/mock-data"
+import type { DocType } from "@/lib/types"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import {
+  FileText,
+  Mail,
+  MessageSquare,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+} from "lucide-react"
+import { toast } from "sonner"
+
+const docTypeConfig: Record<DocType, { label: string; icon: typeof FileText }> = {
+  RESUME: { label: "Resume", icon: FileText },
+  COVER_LETTER: { label: "Cover Letter", icon: Mail },
+  APPLICATION_ANSWERS: { label: "Application Answers", icon: MessageSquare },
+}
+
+export default function DocumentsPage() {
+  const [openJobs, setOpenJobs] = useState<string[]>([])
+
+  // Group documents by job
+  const documentsByJob = mockGeneratedDocuments.reduce((acc, doc) => {
+    if (!acc[doc.job_id]) {
+      acc[doc.job_id] = []
+    }
+    acc[doc.job_id].push(doc)
+    return acc
+  }, {} as Record<string, typeof mockGeneratedDocuments>)
+
+  const toggleJob = (jobId: string) => {
+    setOpenJobs(prev =>
+      prev.includes(jobId)
+        ? prev.filter(id => id !== jobId)
+        : [...prev, jobId]
+    )
+  }
+
+  const handleCopy = (content: string, type: string) => {
+    navigator.clipboard.writeText(content)
+    toast.success(`${type} copied to clipboard`)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Documents</h1>
+        <p className="text-muted-foreground">
+          Generated resumes, cover letters, and application answers
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Documents
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{mockGeneratedDocuments.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Jobs with Documents
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{Object.keys(documentsByJob).length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Avg per Job
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {(mockGeneratedDocuments.length / Object.keys(documentsByJob).length).toFixed(1)}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="space-y-4">
+        {Object.entries(documentsByJob).map(([jobId, docs]) => {
+          const job = mockJobs.find(j => j.id === jobId)
+          const isOpen = openJobs.includes(jobId)
+
+          return (
+            <Collapsible
+              key={jobId}
+              open={isOpen}
+              onOpenChange={() => toggleJob(jobId)}
+            >
+              <Card>
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <ChevronDown
+                          className={`h-5 w-5 transition-transform ${
+                            isOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                        <div>
+                          <CardTitle className="text-lg">
+                            {job?.title || "Unknown Job"}
+                          </CardTitle>
+                          <CardDescription>
+                            {job?.company || "Unknown Company"}
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{docs.length} documents</Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          asChild
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Link href={`/jobs/${jobId}`}>
+                            <ExternalLink className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="pt-0">
+                    <div className="space-y-4">
+                      {docs.map((doc) => {
+                        const config = docTypeConfig[doc.doc_type]
+                        const Icon = config.icon
+
+                        return (
+                          <div
+                            key={doc.id}
+                            className="rounded-lg border bg-muted/30 p-4"
+                          >
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <Icon className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">{config.label}</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {doc.model_used}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {doc.prompt_version}
+                                </Badge>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleCopy(doc.content, config.label)}
+                              >
+                                <Copy className="mr-1 h-3 w-3" />
+                                Copy
+                              </Button>
+                            </div>
+                            <ScrollArea className="h-[200px]">
+                              <pre className="text-sm whitespace-pre-wrap font-mono bg-background p-3 rounded">
+                                {doc.content.substring(0, 500)}
+                                {doc.content.length > 500 && "..."}
+                              </pre>
+                            </ScrollArea>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

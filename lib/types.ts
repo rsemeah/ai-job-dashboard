@@ -1,5 +1,5 @@
 // Enums matching Supabase schema exactly
-export type JobSource = 'JOBOT' | 'ZIPRECRUITER' | 'GREENHOUSE' | 'MANUAL'
+export type JobSource = 'JOBOT' | 'ZIPRECRUITER' | 'GREENHOUSE' | 'MANUAL' | string
 
 export type JobStatus = 
   | 'NEW' 
@@ -10,8 +10,9 @@ export type JobStatus =
   | 'INTERVIEW' 
   | 'OFFER' 
   | 'ARCHIVED'
+  | string
 
-export type JobFit = 'HIGH' | 'MEDIUM' | 'LOW' | 'UNSCORED'
+export type JobFit = 'HIGH' | 'MEDIUM' | 'LOW' | 'UNSCORED' | string
 
 export type DocType = 'RESUME' | 'COVER_LETTER' | 'APPLICATION_ANSWERS'
 
@@ -21,27 +22,28 @@ export type InterviewType = 'PHONE' | 'VIDEO' | 'ONSITE' | 'TECHNICAL'
 
 export type SubmissionMethod = 'MANUAL' | 'API' | 'EMAIL'
 
-// Database table interfaces
+// Simplified Job interface matching user's Supabase schema
 export interface Job {
   id: string
   title: string
   company: string
   source: JobSource
-  source_url: string | null
-  raw_description: string
-  location: string | null
-  salary_range: string | null
-  is_remote: boolean
-  status: JobStatus
-  fit: JobFit
+  raw_description: string | null
   score: number | null
-  score_reasoning: Record<string, unknown> | null
-  score_strengths: string[] | null
-  score_gaps: string[] | null
-  keywords_extracted: string[] | null
+  fit: JobFit | null
+  status: JobStatus
   created_at: string
-  scored_at: string | null
-  applied_at: string | null
+  // Optional extended fields that may exist
+  source_url?: string | null
+  location?: string | null
+  salary_range?: string | null
+  is_remote?: boolean
+  score_reasoning?: Record<string, unknown> | null
+  score_strengths?: string[] | null
+  score_gaps?: string[] | null
+  keywords_extracted?: string[] | null
+  scored_at?: string | null
+  applied_at?: string | null
 }
 
 export interface GeneratedDocument {

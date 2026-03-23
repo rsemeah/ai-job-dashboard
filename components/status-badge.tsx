@@ -21,23 +21,25 @@ const fitColors: Record<JobFit, string> = {
 }
 
 export function StatusBadge({ status }: { status: JobStatus }) {
+  const colorClass = statusColors[status as keyof typeof statusColors] || "bg-muted text-muted-foreground hover:bg-muted/80"
   return (
     <Badge 
       variant="outline" 
-      className={cn("border-transparent font-medium", statusColors[status])}
+      className={cn("border-transparent font-medium", colorClass)}
     >
-      {status.replace(/_/g, " ")}
+      {String(status).replace(/_/g, " ")}
     </Badge>
   )
 }
 
 export function FitBadge({ fit }: { fit: JobFit }) {
+  const colorClass = fitColors[fit as keyof typeof fitColors] || "bg-muted text-muted-foreground hover:bg-muted/80"
   return (
     <Badge 
       variant="outline" 
-      className={cn("border-transparent font-medium", fitColors[fit])}
+      className={cn("border-transparent font-medium", colorClass)}
     >
-      {fit}
+      {fit || "UNSCORED"}
     </Badge>
   )
 }

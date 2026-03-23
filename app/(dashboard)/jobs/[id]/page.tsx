@@ -221,11 +221,13 @@ export default function JobDetailPage({ params }: PageProps) {
                     <>
                       <div>
                         <h4 className="font-medium mb-2">Reasoning</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {typeof job.score_reasoning === "object" 
-                            ? (job.score_reasoning as Record<string, unknown>).overall as string
-                            : String(job.score_reasoning)}
-                        </p>
+                        <ul className="space-y-1">
+                          {job.score_reasoning.map((line, idx) => (
+                            <li key={idx} className="text-sm text-muted-foreground">
+                              {line}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
 
                       {job.score_strengths && job.score_strengths.length > 0 && (
@@ -262,11 +264,15 @@ export default function JobDetailPage({ params }: PageProps) {
                         </div>
                       )}
 
-                      {job.keywords_extracted && job.keywords_extracted.length > 0 && (
+                      {job.keywords_extracted && (
                         <div>
                           <h4 className="font-medium mb-2">Keywords</h4>
                           <div className="flex flex-wrap gap-2">
-                            {job.keywords_extracted.map((keyword, idx) => (
+                            {[
+                              ...(job.keywords_extracted.skills ?? []),
+                              ...(job.keywords_extracted.tools ?? []),
+                              ...(job.keywords_extracted.responsibilities ?? []),
+                            ].map((keyword, idx) => (
                               <Badge key={idx} variant="secondary">
                                 {keyword}
                               </Badge>

@@ -35,7 +35,7 @@ export default async function ApplicationsPage() {
     .from("jobs")
     .select("*")
     .in("status", ["APPLIED", "INTERVIEW", "OFFER", "REJECTED"])
-    .order("applied_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
 
   if (error) {
     return (
@@ -143,7 +143,7 @@ export default async function ApplicationsPage() {
                         <StatusBadge status={job.status} />
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {formatDate(job.applied_at)}
+                        {formatDate(job.created_at)}
                       </TableCell>
                       <TableCell>
                         {job.score !== null ? (

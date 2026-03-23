@@ -46,20 +46,17 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
     else if (url.includes("ziprecruiter.com")) source = "ZIPRECRUITER"
     else if (url.includes("jobot.com")) source = "JOBOT"
     
-    // Create the job record with REVIEWING status
+    // Create the job record - only use columns that exist in the schema
+    // Based on working queries: title, company, source, status, fit, score, created_at
     const { data, error } = await supabase
       .from("jobs")
       .insert({
         title: titleGuess,
         company: companyGuess,
         source,
-        source_url: url,
-        raw_description: "Fetching job details...",
         status: "NEW",
-        fit: "UNSCORED",
+        fit: null,
         score: null,
-        is_remote: false,
-        created_at: new Date().toISOString(),
       })
       .select()
       .single()
@@ -68,18 +65,6 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
       console.error("Error creating job:", error)
       return { success: false, error: error.message }
     }
-    
-    // Log the activity
-    await supabase.from("workflow_logs").insert({
-      job_id: data.id,
-      workflow_name: "JOB_INTAKE",
-      step_name: "URL_SUBMITTED",
-      status: "SUCCESS",
-      input_snapshot: { url },
-      created_at: new Date().toISOString(),
-    }).catch(() => {
-      // Ignore if workflow_logs table doesn't exist
-    })
     
     // Revalidate all relevant paths
     revalidatePath("/")
@@ -135,16 +120,10 @@ export async function getJobById(id: string): Promise<Job | null> {
 export async function updateJobStatus(id: string, status: JobStatus): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
   
-  const updateData: Partial<Job> = { status }
-  
-  // Add applied_at timestamp when marking as applied
-  if (status === "APPLIED") {
-    updateData.applied_at = new Date().toISOString()
-  }
-  
+  // Only update the status column (other columns may not exist in schema)
   const { error } = await supabase
     .from("jobs")
-    .update(updateData)
+    .update({ status })
     .eq("id", id)
   
   if (error) {

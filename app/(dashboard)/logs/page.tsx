@@ -11,10 +11,11 @@ export default async function LogsPage() {
   const supabase = await createClient()
   
   // Fetch recent jobs as a proxy for activity log
+  // Only query columns that exist in the schema
   const { data: recentJobs, error } = await supabase
     .from("jobs")
-    .select("id, title, company, status, fit, score, created_at, updated_at, scored_at, applied_at")
-    .order("updated_at", { ascending: false })
+    .select("id, title, company, status, fit, score, created_at")
+    .order("created_at", { ascending: false })
     .limit(50)
 
   if (error) {
@@ -40,10 +41,11 @@ export default async function LogsPage() {
   const activities = jobs.flatMap(job => {
     const items = []
     
+    // Job created event
     if (job.created_at) {
       items.push({
         id: `${job.id}-created`,
-        type: "created",
+        type: "created" as const,
         title: `Job added: ${job.title}`,
         company: job.company,
         timestamp: job.created_at,
@@ -51,25 +53,27 @@ export default async function LogsPage() {
       })
     }
     
-    if (job.scored_at && job.score !== null) {
+    // Show scored jobs (score exists)
+    if (job.score !== null && job.created_at) {
       items.push({
         id: `${job.id}-scored`,
-        type: "scored",
+        type: "scored" as const,
         title: `Scored: ${job.title}`,
         company: job.company,
-        detail: `Score: ${job.score}, Fit: ${job.fit}`,
-        timestamp: job.scored_at,
+        detail: `Score: ${job.score}, Fit: ${job.fit || "UNSCORED"}`,
+        timestamp: job.created_at, // Use created_at as proxy
         status: "success" as const,
       })
     }
     
-    if (job.applied_at) {
+    // Show applied jobs
+    if (job.status === "APPLIED" && job.created_at) {
       items.push({
         id: `${job.id}-applied`,
-        type: "applied",
+        type: "applied" as const,
         title: `Applied: ${job.title}`,
         company: job.company,
-        timestamp: job.applied_at,
+        timestamp: job.created_at, // Use created_at as proxy
         status: "success" as const,
       })
     }

@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { Job, JobStatus } from "@/lib/types"
 
@@ -13,9 +13,10 @@ export type CreateJobResult =
   | { success: false; error: string }
 
 // Create a new job from a URL submission
+// Uses admin client to bypass RLS since this is a server-side operation
 export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
   try {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
     
     // Extract domain/company name from URL as a fallback
     let companyGuess = "Unknown Company"
@@ -118,7 +119,8 @@ export async function getJobById(id: string): Promise<Job | null> {
 }
 
 export async function updateJobStatus(id: string, status: JobStatus): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
+  // Use admin client to bypass RLS for status updates
+  const supabase = createAdminClient()
   
   // Only update the status column (other columns may not exist in schema)
   const { error } = await supabase

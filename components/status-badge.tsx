@@ -20,34 +20,55 @@ const fitColors: Record<JobFit, string> = {
   UNSCORED: "bg-muted text-muted-foreground hover:bg-muted/80",
 }
 
-export function StatusBadge({ status }: { status: JobStatus }) {
-  const colorClass = statusColors[status as keyof typeof statusColors] || "bg-muted text-muted-foreground hover:bg-muted/80"
+export function StatusBadge({ status }: { status: JobStatus | null | undefined }) {
+  // Handle missing or invalid status gracefully
+  const safeStatus = status || "UNKNOWN"
+  const colorClass = statusColors[safeStatus as keyof typeof statusColors] || "bg-muted/50 text-muted-foreground hover:bg-muted/60"
+  const displayText = safeStatus === "UNKNOWN" ? "Unknown" : String(safeStatus).replace(/_/g, " ")
+  
   return (
     <Badge 
       variant="outline" 
       className={cn("border-transparent font-medium", colorClass)}
     >
-      {String(status).replace(/_/g, " ")}
+      {displayText}
     </Badge>
   )
 }
 
-export function FitBadge({ fit }: { fit: JobFit }) {
-  const colorClass = fitColors[fit as keyof typeof fitColors] || "bg-muted text-muted-foreground hover:bg-muted/80"
+export function FitBadge({ fit }: { fit: JobFit | null | undefined }) {
+  // Handle missing fit gracefully
+  const safeFit = fit || "UNSCORED"
+  const colorClass = fitColors[safeFit as keyof typeof fitColors] || "bg-muted/50 text-muted-foreground hover:bg-muted/60"
+  
   return (
     <Badge 
       variant="outline" 
       className={cn("border-transparent font-medium", colorClass)}
     >
-      {fit || "UNSCORED"}
+      {safeFit}
     </Badge>
   )
 }
 
-export function SourceBadge({ source }: { source: string }) {
+export function ScoreBadge({ score }: { score: number | null | undefined }) {
+  // Handle missing score - show "Pending" with muted styling
+  if (score === null || score === undefined) {
+    return (
+      <span className="text-muted-foreground text-sm italic">Pending</span>
+    )
+  }
+  
+  return (
+    <span className="font-mono font-medium">{score}</span>
+  )
+}
+
+export function SourceBadge({ source }: { source: string | null | undefined }) {
+  const safeSource = source || "Unknown"
   return (
     <Badge variant="secondary" className="font-medium">
-      {source}
+      {safeSource}
     </Badge>
   )
 }

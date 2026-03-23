@@ -21,6 +21,8 @@ interface DashboardChartsProps {
     byStatus: Record<string, number>
     byFit: Record<string, number>
     bySource: Record<string, number>
+    lastJobCreated?: string | null
+    hasWorkflowOutputs?: boolean
   }
   jobs: Job[]
 }

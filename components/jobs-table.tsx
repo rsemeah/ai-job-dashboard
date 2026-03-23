@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react"
 import Link from "next/link"
 import type { Job, JobStatus, JobFit, JobSource } from "@/lib/types"
-import { StatusBadge, FitBadge, SourceBadge } from "@/components/status-badge"
+import { StatusBadge, FitBadge, SourceBadge, ScoreBadge } from "@/components/status-badge"
 import {
   Table,
   TableBody,
@@ -226,11 +226,7 @@ export function JobsTable({ jobs }: JobsTableProps) {
                       <SourceBadge source={job.source} />
                     </TableCell>
                     <TableCell className="text-center">
-                      {job.score !== null ? (
-                        <span className="font-mono font-medium">{job.score}</span>
-                      ) : (
-                        <span className="text-muted-foreground">--</span>
-                      )}
+                      <ScoreBadge score={job.score} />
                     </TableCell>
                     <TableCell>
                       <FitBadge fit={job.fit || "UNSCORED"} />

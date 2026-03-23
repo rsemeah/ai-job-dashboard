@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import Link from "next/link"
 import type { Job, JobStatus } from "@/lib/types"
 import { updateJobStatus } from "@/lib/actions/jobs"
-import { StatusBadge, FitBadge, SourceBadge } from "@/components/status-badge"
+import { StatusBadge, FitBadge, SourceBadge, ScoreBadge } from "@/components/status-badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -105,12 +105,10 @@ export function JobDetail({ job }: JobDetailProps) {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-6 text-sm">
-                {job.score !== null && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Score:</span>
-                    <span className="font-mono font-bold text-lg">{job.score}</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Score:</span>
+                  <span className="text-lg"><ScoreBadge score={job.score} /></span>
+                </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Calendar className="h-4 w-4" />
                   {new Date(job.created_at).toLocaleDateString()}
@@ -182,16 +180,28 @@ export function JobDetail({ job }: JobDetailProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {job.score !== null ? (
-                    <>
-                      <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4">
+                    {job.score !== null ? (
+                      <>
                         <div className="text-4xl font-bold">{job.score}</div>
                         <div>
                           <p className="font-medium">Fit Score</p>
                           <p className="text-sm text-muted-foreground">out of 100</p>
                         </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-3 text-muted-foreground">
+                        <div className="text-4xl font-bold opacity-30">--</div>
+                        <div>
+                          <p className="font-medium">Pending Score</p>
+                          <p className="text-sm">Awaiting workflow processing</p>
+                        </div>
                       </div>
+                    )}
+                  </div>
 
+                  {job.score !== null && (
+                    <>
                       {job.score_reasoning && (
                         <div>
                           <h4 className="font-medium mb-2">Reasoning</h4>
@@ -250,10 +260,6 @@ export function JobDetail({ job }: JobDetailProps) {
                         </div>
                       )}
                     </>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      This job has not been scored yet.
-                    </div>
                   )}
                 </CardContent>
               </Card>

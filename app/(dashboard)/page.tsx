@@ -1,16 +1,39 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getJobStats, getJobs } from "@/lib/actions/jobs"
 import {
   Briefcase,
   TrendingUp,
   TrendingDown,
   Minus,
-  Sparkles,
 } from "lucide-react"
 import { DashboardCharts } from "@/components/dashboard-charts"
+import { SystemStatus } from "@/components/system-status"
+import { EmptyState } from "@/components/empty-state"
+import { ErrorState } from "@/components/error-state"
 
 export default async function DashboardPage() {
-  const [stats, jobs] = await Promise.all([getJobStats(), getJobs()])
+  const [statsResult, jobsResult] = await Promise.all([getJobStats(), getJobs()])
+
+  // Error state
+  if (!statsResult.success) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Overview of your job application pipeline
+          </p>
+        </div>
+        <ErrorState 
+          title="Unable to load dashboard"
+          message={statsResult.error || "The backend workflow or database configuration may still be in progress."}
+        />
+      </div>
+    )
+  }
+
+  const stats = statsResult
+  const jobs = jobsResult.success ? jobsResult.data : []
 
   const statCards = [
     {
@@ -50,25 +73,12 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="rounded-full bg-muted p-4 mb-4">
-              <Sparkles className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">No jobs yet</h3>
-            <p className="text-muted-foreground max-w-md mb-4">
-              Jobs will appear here once n8n successfully scores them. Make sure your workflow is running and connected to this Supabase instance.
-            </p>
-            <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-              <p>Waiting for jobs from:</p>
-              <div className="flex gap-2 justify-center">
-                <span className="px-2 py-1 bg-muted rounded text-xs">Jobot</span>
-                <span className="px-2 py-1 bg-muted rounded text-xs">ZipRecruiter</span>
-                <span className="px-2 py-1 bg-muted rounded text-xs">Greenhouse</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <SystemStatus 
+          lastJobCreated={stats.lastJobCreated} 
+          hasWorkflowOutputs={stats.hasWorkflowOutputs} 
+        />
+
+        <EmptyState variant="jobs" />
       </div>
     )
   }
@@ -81,6 +91,12 @@ export default async function DashboardPage() {
           Overview of your job application pipeline
         </p>
       </div>
+
+      {/* System Status */}
+      <SystemStatus 
+        lastJobCreated={stats.lastJobCreated} 
+        hasWorkflowOutputs={stats.hasWorkflowOutputs} 
+      />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

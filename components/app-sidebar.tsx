@@ -39,6 +39,7 @@ const navigation = [
   { name: "Logs", href: "/logs", icon: ScrollText },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Manual Job Entry", href: "/manual-entry", icon: PlusCircle },
+  { name: "Manual Entry", href: "/manual-entry", icon: PlusCircle },
 ]
 
 const bottomNavigation = [

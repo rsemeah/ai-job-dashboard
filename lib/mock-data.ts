@@ -1,670 +1,680 @@
-import type { 
-  Job, 
-  GeneratedDocument, 
-  Application, 
-  WorkflowLog, 
+/**
+ * Mock data — AI PM / TPM persona (Rory Semeah)
+ * Target: remote-first, $140k–$165k, AI / LLM / API product roles
+ * All data is schema-aligned to lib/types.ts
+ */
+import type {
+  Job,
+  GeneratedDocument,
+  Application,
+  WorkflowLog,
   ReadyQueueItem,
-  Settings 
-} from './types'
+  JobDetail,
+  BaseResume,
+  Settings,
+} from "@/lib/types"
+import { enrichJob } from "@/lib/utils"
 
+// ── Time helpers ──────────────────────────────────────────────────────────────
+const now = Date.now()
+const h = (n: number) => new Date(now - n * 3_600_000).toISOString()
+const d = (n: number) => new Date(now - n * 86_400_000).toISOString()
+const f = (n: number) => new Date(now + n * 86_400_000).toISOString()
+
+// ── Base resume ───────────────────────────────────────────────────────────────
+export const MOCK_BASE_RESUME: BaseResume = {
+  id: "br-001",
+  version: 1,
+  is_active: true,
+  raw_text: `RORY SEMEAH
+AI Product Manager | Technical PM
+San Diego, CA  ·  rory@example.com
+
+SUMMARY
+Product leader with 6+ years shipping AI-powered platforms and API-first products at enterprise scale. Deep technical fluency with LLM orchestration, REST APIs, and data pipelines. Proven ability to align cross-functional teams and translate ambiguous ML problems into shipped product.
+
+EXPERIENCE
+
+Sr. Product Manager · Ingram Micro · 2021–2024
+- Led AI forecasting platform for 2,000+ channel resellers; drove 40% increase in partner API adoption
+- Defined partner API strategy and roadmap; collaborated with 8 engineering teams across 3 time zones
+- Shipped GPT-4 content generation feature cutting manual content ops by 60%; 200k+ monthly outputs
+- Managed $2.4M product budget; delivered on time across 4 consecutive quarters
+
+Product Manager · TechStartup · 2019–2021
+- Built 0→1 LLM text classification platform; grew from internal tool to 12 enterprise customers
+- Wrote PRDs, led user research, owned backlog from discovery through launch
+
+SKILLS
+LLM orchestration, OpenAI API, Anthropic API, Next.js, Supabase, Node.js, Python, SQL, REST API design, Jira, Figma
+
+EDUCATION
+B.S. Computer Science · UC San Diego · 2019`,
+  created_at: d(14),
+  updated_at: d(3),
+}
+
+// ── Jobs ──────────────────────────────────────────────────────────────────────
 export const mockJobs: Job[] = [
   {
-    id: '1',
-    title: 'Senior Software Engineer',
-    company: 'TechCorp Inc',
-    source: 'JOBOT',
-    source_url: 'https://jobot.com/jobs/123',
-    raw_description: `We are looking for a Senior Software Engineer to join our team.
+    id: "1",
+    title: "AI Product Manager",
+    company: "Scale AI",
+    source: "GREENHOUSE",
+    source_url: "https://boards.greenhouse.io/scaleai/jobs/4982341",
+    source_job_id: "scaleai-4982341",
+    raw_description: `Scale AI is looking for an AI Product Manager to own our data labeling platform roadmap.
 
-**Responsibilities:**
-- Design and implement scalable backend systems
-- Lead technical discussions and code reviews
-- Mentor junior engineers
-- Collaborate with product and design teams
+You will work directly with ML engineers to translate data quality requirements into product features, define API contracts for our labeling workforce tools, and drive adoption across enterprise customers.
 
-**Requirements:**
-- 5+ years of experience with TypeScript/JavaScript
-- Experience with React and Node.js
-- Strong understanding of distributed systems
-- Excellent communication skills
+Requirements:
+- 5+ years product management experience
+- Deep familiarity with LLMs, embeddings, or ML data pipelines
+- Strong API and systems thinking
+- Excellent written and verbal communication
+- Experience shipping B2B SaaS products
 
-**Benefits:**
-- Competitive salary ($180k-$220k)
-- Remote-first culture
-- Unlimited PTO
-- Health, dental, and vision insurance`,
-    location: 'San Francisco, CA',
-    salary_range: '$180,000 - $220,000',
+Nice to have:
+- Prior experience with data labeling or RLHF workflows
+- Familiarity with workforce management tools
+
+Compensation: $150,000 – $175,000 + equity
+Location: Remote (US)`,
+    location: "Remote",
+    salary_range: "$150,000 – $175,000",
     is_remote: true,
-    status: 'READY_TO_APPLY',
-    fit: 'HIGH',
-    score: 92,
-    score_reasoning: {
-      overall: 'Strong match based on technical skills and experience level',
-      technical_match: 0.95,
-      experience_match: 0.90,
-      culture_fit: 0.88
-    },
+    status: "READY_TO_APPLY",
+    fit: "HIGH",
+    score: 91,
+    score_reasoning: [
+      "Direct AI PM role with LLM platform focus matches core background",
+      "API-first product experience aligns with labeling platform context",
+      "Remote with salary 8% above target range",
+    ],
     score_strengths: [
-      'Strong TypeScript/JavaScript experience matches requirements',
-      'React and Node.js expertise aligns perfectly',
-      'Remote work preference matches company culture',
-      'Salary range within expectations'
+      "LLM orchestration and OpenAI API experience directly applicable",
+      "API product ownership at scale (2,000+ resellers)",
+      "B2B SaaS shipping track record",
     ],
     score_gaps: [
-      'No specific distributed systems projects mentioned',
-      'Leadership experience could be more prominent'
+      "Data labeling / RLHF domain is new — fast ramp required",
     ],
-    keywords_extracted: ['TypeScript', 'React', 'Node.js', 'distributed systems', 'remote'],
-    created_at: '2024-01-15T10:30:00Z',
-    scored_at: '2024-01-15T10:35:00Z',
-    applied_at: null
+    keywords_extracted: {
+      skills: ["LLM", "API design", "B2B SaaS", "data quality"],
+      tools: ["Python", "SQL", "REST APIs"],
+      responsibilities: ["roadmapping", "ML collaboration", "enterprise adoption"],
+    },
+    dedup_hash: "hash_scaleai_aipm_4982341",
+    posted_at: h(18),
+    scored_at: h(12),
+    applied_at: null,
+    created_at: h(20),
+    updated_at: h(10),
   },
   {
-    id: '2',
-    title: 'Full Stack Developer',
-    company: 'StartupXYZ',
-    source: 'GREENHOUSE',
-    source_url: 'https://boards.greenhouse.io/startupxyz/jobs/456',
-    raw_description: `Join our fast-growing startup as a Full Stack Developer!
+    id: "2",
+    title: "Technical PM – Platform",
+    company: "Rippling",
+    source: "ZIPRECRUITER",
+    source_url: "https://www.ziprecruiter.com/jobs/rippling-457329",
+    source_job_id: "zr-457329",
+    raw_description: `Rippling is hiring a Technical Product Manager to own our workflow automation platform.
 
-**About the Role:**
-Build and maintain our customer-facing web application. Work directly with founders.
+You'll define the roadmap for our no-code workflow builder, work with backend engineers on API design, write detailed technical specs, and partner with enterprise customers to understand integration needs.
 
-**Tech Stack:**
-- Frontend: React, Next.js, Tailwind CSS
-- Backend: Python, FastAPI, PostgreSQL
-- Infrastructure: AWS, Docker, Kubernetes
+Requirements:
+- 4–8 years PM experience, ideally with workflow or integration products
+- Strong API and systems thinking
+- Comfort reading code and writing technical specs
+- Experience with enterprise sales cycles
 
-**What We Offer:**
-- Equity package
-- Flexible hours
-- Learning budget`,
-    location: 'New York, NY',
-    salary_range: '$140,000 - $170,000',
+Compensation: $140,000 – $165,000
+Location: San Francisco, CA (Remote-first team)`,
+    location: "SF, CA (Remote-first)",
+    salary_range: "$140,000 – $165,000",
+    is_remote: true,
+    status: "READY_TO_APPLY",
+    fit: "HIGH",
+    score: 84,
+    score_reasoning: [
+      "TPM workflow automation role aligns with partner integration background",
+      "API and systems thinking explicitly valued — strong match",
+      "Salary fits target range exactly ($140k–$165k)",
+    ],
+    score_strengths: [
+      "Workflow automation experience at Ingram Micro directly applicable",
+      "API roadmap ownership matches TPM spec-writing requirement",
+    ],
+    score_gaps: [
+      "HR/payroll domain (Rippling's core) is unfamiliar",
+    ],
+    keywords_extracted: {
+      skills: ["workflow automation", "API design", "technical specs"],
+      tools: ["REST APIs", "SQL", "Jira"],
+      responsibilities: ["roadmapping", "spec writing", "enterprise partnerships"],
+    },
+    dedup_hash: "hash_rippling_tpm_457329",
+    posted_at: d(2),
+    scored_at: d(2),
+    applied_at: null,
+    created_at: d(2),
+    updated_at: d(1),
+  },
+  {
+    id: "3",
+    title: "PM, AI Features",
+    company: "Notion",
+    source: "GREENHOUSE",
+    source_url: "https://boards.greenhouse.io/notion/jobs/5014782",
+    source_job_id: "notion-5014782",
+    raw_description: `Notion is looking for a PM to lead our AI feature development.
+
+You will own the roadmap for Notion AI — LLM-powered writing, summarization, and workflow features. You'll work closely with ML engineers, design, and GTM to ship AI features used by millions of users.
+
+Requirements:
+- 3+ years PM experience at a SaaS company
+- Strong intuition for consumer and B2B product experiences
+- Excitement about AI and LLMs
+- Excellent communication and cross-functional skills
+
+Compensation: $145,000 – $170,000
+Location: Remote`,
+    location: "Remote",
+    salary_range: "$145,000 – $170,000",
+    is_remote: true,
+    status: "SCORED",
+    fit: "HIGH",
+    score: 78,
+    score_reasoning: [
+      "AI feature ownership matches LLM product background",
+      "B2B SaaS experience relevant though consumer-facing aspect is new",
+      "Salary at top of target range",
+    ],
+    score_strengths: [
+      "LLM product experience (GPT-4 feature at Ingram) directly applicable",
+      "B2B SaaS background relevant",
+    ],
+    score_gaps: [
+      "Consumer-facing product at massive scale (millions of users) is new territory",
+      "Score just below APPLY threshold (80) — strong REVIEW",
+    ],
+    keywords_extracted: {
+      skills: ["LLM features", "AI writing", "B2B + consumer SaaS"],
+      tools: ["Figma", "Amplitude"],
+      responsibilities: ["feature discovery", "user research", "GTM partnership"],
+    },
+    dedup_hash: "hash_notion_pm_ai_5014782",
+    posted_at: h(5),
+    scored_at: h(2),
+    applied_at: null,
+    created_at: h(6),
+    updated_at: h(2),
+  },
+  {
+    id: "4",
+    title: "PM – Enterprise Integrations",
+    company: "HubSpot",
+    source: "JOBOT",
+    source_url: "https://www.jobot.com/jobs/hubspot-101",
+    source_job_id: "jobot-101",
+    raw_description: `HubSpot is seeking a PM for our Enterprise Integrations team.
+
+You'll own the partner ecosystem roadmap, define integration standards for our App Marketplace, and work with enterprise sales teams to deliver the integrations that close deals.
+
+Requirements:
+- PM experience with API/integration products
+- Familiarity with CRM or marketing technology
+- Strong stakeholder management skills
+
+Compensation: $130,000 – $155,000
+Location: Cambridge, MA (Hybrid — 3 days/week)`,
+    location: "Cambridge, MA (Hybrid)",
+    salary_range: "$130,000 – $155,000",
     is_remote: false,
-    status: 'SCORED',
-    fit: 'MEDIUM',
-    score: 75,
-    score_reasoning: {
-      overall: 'Good technical match but Python backend is a gap',
-      technical_match: 0.70,
-      experience_match: 0.80,
-      culture_fit: 0.75
-    },
-    score_strengths: [
-      'React and Next.js experience is a strong match',
-      'Startup experience could be valuable',
-      'Frontend skills align well'
+    status: "APPLIED",
+    fit: "MEDIUM",
+    score: 72,
+    score_reasoning: [
+      "Enterprise API integration experience is a match",
+      "Hybrid location requirement is a constraint for remote-first search",
+      "Below salary target by $10k–$15k",
     ],
+    score_strengths: ["Enterprise API integration background"],
     score_gaps: [
-      'Python/FastAPI experience not demonstrated',
-      'Kubernetes experience limited',
-      'Not remote - requires relocation consideration'
+      "Hybrid mandate conflicts with remote-first preference",
+      "CRM / marketing domain unfamiliar",
+      "Salary $10k–$15k below target",
     ],
-    keywords_extracted: ['React', 'Next.js', 'Python', 'FastAPI', 'PostgreSQL', 'AWS', 'Kubernetes'],
-    created_at: '2024-01-14T14:20:00Z',
-    scored_at: '2024-01-14T14:25:00Z',
-    applied_at: null
+    keywords_extracted: {
+      skills: ["enterprise integrations", "partner ecosystem"],
+      tools: ["HubSpot CRM", "REST APIs"],
+      responsibilities: ["partner roadmap", "App Marketplace", "enterprise sales"],
+    },
+    dedup_hash: "hash_hubspot_pm_integrations_101",
+    posted_at: d(4),
+    scored_at: d(3),
+    applied_at: d(2),
+    created_at: d(4),
+    updated_at: d(2),
   },
   {
-    id: '3',
-    title: 'Frontend Engineer',
-    company: 'DesignStudio',
-    source: 'ZIPRECRUITER',
-    source_url: 'https://ziprecruiter.com/jobs/789',
-    raw_description: `DesignStudio is hiring a Frontend Engineer to work on our design tools platform.
+    id: "5",
+    title: "Senior AI PM",
+    company: "Anthropic",
+    source: "GREENHOUSE",
+    source_url: "https://boards.greenhouse.io/anthropic/jobs/4856123",
+    source_job_id: "anthropic-4856123",
+    raw_description: `Anthropic is hiring a Senior AI PM to shape the product strategy for Claude.
 
-**Requirements:**
-- 3+ years React experience
-- Strong CSS/Tailwind skills
-- Animation experience (Framer Motion, GSAP)
-- Eye for design
+You will own the roadmap for Claude's API and developer experience, define how enterprise customers deploy Claude in their products, and work with research teams to translate model capabilities into product features.
 
-**Perks:**
-- Creative environment
-- Design tool subscriptions
-- Conference budget`,
-    location: 'Austin, TX',
-    salary_range: '$120,000 - $150,000',
+Requirements:
+- 7+ years product management experience
+- Deep understanding of LLMs and AI safety principles
+- Experience shipping API products for developers
+- Excellent judgment in ambiguous, fast-moving environments
+
+Compensation: $175,000 – $220,000
+Location: San Francisco (Remote-friendly)`,
+    location: "San Francisco (Remote-friendly)",
+    salary_range: "$175,000 – $220,000",
     is_remote: true,
-    status: 'NEW',
-    fit: 'UNSCORED',
+    status: "INTERVIEW",
+    fit: "HIGH",
+    score: 95,
+    score_reasoning: [
+      "Near-perfect alignment: AI/LLM/API and enterprise deployment all match core background",
+      "API developer experience ownership directly applicable",
+      "Salary 31% above target — significantly above range",
+    ],
+    score_strengths: [
+      "LLM orchestration and Anthropic/OpenAI API experience directly applicable",
+      "API product ownership at enterprise scale matches exactly",
+      "Technical depth in AI safety context is learnable given ML PM background",
+    ],
+    score_gaps: [
+      "AI safety as a discipline is specialized — ramp time expected",
+    ],
+    keywords_extracted: {
+      skills: ["LLM products", "AI safety", "API developer experience"],
+      tools: ["Python", "SQL"],
+      responsibilities: ["product strategy", "developer experience", "enterprise deployments"],
+    },
+    dedup_hash: "hash_anthropic_senior_ai_pm_4856123",
+    posted_at: d(11),
+    scored_at: d(10),
+    applied_at: d(10),
+    created_at: d(11),
+    updated_at: d(1),
+  },
+  {
+    id: "6",
+    title: "PM, Developer Platform",
+    company: "Stripe",
+    source: "GREENHOUSE",
+    source_url: "https://boards.greenhouse.io/stripe/jobs/5109877",
+    source_job_id: "stripe-5109877",
+    raw_description: `Stripe is looking for a PM to own our developer platform experience.
+
+You will define the roadmap for how developers discover, adopt, and integrate Stripe APIs. You'll improve our documentation, SDKs, and sandbox tooling, and work with enterprise customers to reduce time-to-first-transaction.
+
+Requirements:
+- 4+ years PM experience with developer tools or API products
+- Strong technical empathy — you understand what great DX feels like
+- Experience with enterprise software sales and onboarding
+- Analytical — comfortable with funnel metrics and cohort analysis
+
+Compensation: $160,000 – $190,000
+Location: Remote (US)`,
+    location: "Remote (US)",
+    salary_range: "$160,000 – $190,000",
+    is_remote: true,
+    status: "NEW",
+    fit: "UNSCORED",
     score: null,
     score_reasoning: null,
     score_strengths: null,
     score_gaps: null,
     keywords_extracted: null,
-    created_at: '2024-01-16T09:00:00Z',
+    dedup_hash: "hash_stripe_pm_devplatform_5109877",
+    posted_at: h(1),
     scored_at: null,
-    applied_at: null
+    applied_at: null,
+    created_at: h(2),
+    updated_at: h(1),
   },
-  {
-    id: '4',
-    title: 'Staff Engineer',
-    company: 'BigTech Global',
-    source: 'MANUAL',
-    source_url: 'https://careers.bigtech.com/staff-eng',
-    raw_description: `Staff Engineer position in our Platform team.
-
-**Scope:**
-- Architect systems serving 100M+ users
-- Drive technical strategy across multiple teams
-- Establish best practices and standards
-- Hire and develop engineering talent
-
-**Requirements:**
-- 8+ years software engineering experience
-- Track record of leading large-scale projects
-- Strong system design skills
-- Experience with cloud platforms`,
-    location: 'Seattle, WA',
-    salary_range: '$250,000 - $350,000',
-    is_remote: true,
-    status: 'APPLIED',
-    fit: 'HIGH',
-    score: 88,
-    score_reasoning: {
-      overall: 'Excellent match for senior technical leadership role',
-      technical_match: 0.85,
-      experience_match: 0.92,
-      culture_fit: 0.87
-    },
-    score_strengths: [
-      'Leadership experience aligns with Staff role',
-      'System design skills demonstrated',
-      'Cloud platform experience matches'
-    ],
-    score_gaps: [
-      'Experience level slightly below 8 years',
-      'No specific 100M+ user experience'
-    ],
-    keywords_extracted: ['system design', 'cloud', 'leadership', 'platform', 'architecture'],
-    created_at: '2024-01-10T08:00:00Z',
-    scored_at: '2024-01-10T08:10:00Z',
-    applied_at: '2024-01-12T16:30:00Z'
-  },
-  {
-    id: '5',
-    title: 'React Developer',
-    company: 'AgencyPro',
-    source: 'JOBOT',
-    source_url: 'https://jobot.com/jobs/321',
-    raw_description: `Agency seeking React Developer for client projects.
-
-**Day to Day:**
-- Build React applications for various clients
-- Work with designers on implementation
-- Maintain existing codebases
-
-**Must Have:**
-- React, Redux, TypeScript
-- CSS/SCSS expertise
-- Agency experience preferred`,
-    location: 'Remote',
-    salary_range: '$100,000 - $130,000',
-    is_remote: true,
-    status: 'REJECTED',
-    fit: 'LOW',
-    score: 55,
-    score_reasoning: {
-      overall: 'Below target salary and agency work not preferred',
-      technical_match: 0.80,
-      experience_match: 0.60,
-      culture_fit: 0.40
-    },
-    score_strengths: [
-      'React and TypeScript skills match'
-    ],
-    score_gaps: [
-      'Salary below target range',
-      'Agency work style not preferred',
-      'Limited growth opportunity'
-    ],
-    keywords_extracted: ['React', 'Redux', 'TypeScript', 'CSS', 'agency'],
-    created_at: '2024-01-13T11:00:00Z',
-    scored_at: '2024-01-13T11:05:00Z',
-    applied_at: null
-  },
-  {
-    id: '6',
-    title: 'Principal Engineer',
-    company: 'FinanceApp',
-    source: 'GREENHOUSE',
-    source_url: 'https://boards.greenhouse.io/financeapp/jobs/999',
-    raw_description: `Principal Engineer to lead our payments infrastructure team.
-
-**Impact:**
-- Own the technical vision for payments
-- Scale systems to handle $1B+ transactions
-- Build and lead a team of 8 engineers
-
-**Requirements:**
-- 10+ years experience
-- Fintech or payments background
-- Strong security mindset`,
-    location: 'San Francisco, CA',
-    salary_range: '$280,000 - $380,000',
-    is_remote: false,
-    status: 'INTERVIEW',
-    fit: 'HIGH',
-    score: 85,
-    score_reasoning: {
-      overall: 'Strong technical match, location requires consideration',
-      technical_match: 0.88,
-      experience_match: 0.82,
-      culture_fit: 0.85
-    },
-    score_strengths: [
-      'Technical leadership experience',
-      'Systems scaling experience',
-      'Excellent compensation package'
-    ],
-    score_gaps: [
-      'No direct fintech experience',
-      'On-site requirement in SF'
-    ],
-    keywords_extracted: ['payments', 'fintech', 'infrastructure', 'security', 'leadership'],
-    created_at: '2024-01-08T15:00:00Z',
-    scored_at: '2024-01-08T15:10:00Z',
-    applied_at: '2024-01-09T10:00:00Z'
-  },
-  {
-    id: '7',
-    title: 'Backend Engineer',
-    company: 'DataCo',
-    source: 'ZIPRECRUITER',
-    source_url: 'https://ziprecruiter.com/jobs/backend-555',
-    raw_description: `Backend Engineer for our data pipeline team.
-
-**Stack:**
-- Go, Python
-- Apache Kafka, Spark
-- PostgreSQL, Redis
-- AWS/GCP
-
-**Nice to Have:**
-- ML/Data Science exposure
-- Real-time systems experience`,
-    location: 'Denver, CO',
-    salary_range: '$150,000 - $190,000',
-    is_remote: true,
-    status: 'READY_TO_APPLY',
-    fit: 'MEDIUM',
-    score: 72,
-    score_reasoning: {
-      overall: 'Good backend fit but Go experience is limited',
-      technical_match: 0.68,
-      experience_match: 0.75,
-      culture_fit: 0.73
-    },
-    score_strengths: [
-      'Python experience matches',
-      'Database skills align',
-      'Remote friendly'
-    ],
-    score_gaps: [
-      'Go experience not demonstrated',
-      'Kafka/Spark experience limited'
-    ],
-    keywords_extracted: ['Go', 'Python', 'Kafka', 'Spark', 'PostgreSQL', 'Redis'],
-    created_at: '2024-01-15T16:00:00Z',
-    scored_at: '2024-01-15T16:10:00Z',
-    applied_at: null
-  },
-  {
-    id: '8',
-    title: 'Engineering Manager',
-    company: 'ScaleUp Inc',
-    source: 'MANUAL',
-    source_url: 'https://scaleup.com/careers/em',
-    raw_description: `Engineering Manager to lead our Growth team.
-
-**Responsibilities:**
-- Manage team of 6 engineers
-- Drive quarterly OKRs
-- Partner with Product and Design
-- Hands-on coding 30% of time
-
-**Looking For:**
-- 2+ years management experience
-- Strong technical background
-- Growth mindset`,
-    location: 'Boston, MA',
-    salary_range: '$200,000 - $250,000',
-    is_remote: true,
-    status: 'OFFER',
-    fit: 'HIGH',
-    score: 90,
-    score_reasoning: {
-      overall: 'Excellent match for hybrid IC/Manager role',
-      technical_match: 0.88,
-      experience_match: 0.92,
-      culture_fit: 0.90
-    },
-    score_strengths: [
-      'Management experience aligns',
-      'Technical skills allow hands-on work',
-      'Growth team experience relevant'
-    ],
-    score_gaps: [
-      'Boston timezone may require some adjustment'
-    ],
-    keywords_extracted: ['management', 'growth', 'OKRs', 'product', 'technical leadership'],
-    created_at: '2024-01-05T09:00:00Z',
-    scored_at: '2024-01-05T09:15:00Z',
-    applied_at: '2024-01-06T14:00:00Z'
-  }
 ]
 
+// ── Generated documents ───────────────────────────────────────────────────────
 export const mockGeneratedDocuments: GeneratedDocument[] = [
   {
-    id: 'doc-1',
-    job_id: '1',
-    doc_type: 'RESUME',
-    content: `JOHN DOE
-Senior Software Engineer
-john.doe@email.com | (555) 123-4567 | San Francisco, CA
+    id: "doc-1",
+    job_id: "1",
+    base_resume_id: "br-001",
+    doc_type: "RESUME",
+    model_used: "gpt-4o",
+    prompt_version: "resume-v1.0",
+    content: `RORY SEMEAH
+AI Product Manager
+San Diego, CA  ·  rory@example.com
 
 SUMMARY
-Experienced Senior Software Engineer with 6+ years building scalable web applications using TypeScript, React, and Node.js. Proven track record of leading technical initiatives and mentoring engineering teams.
+AI product leader with 6+ years building LLM-powered platforms and API-first products at enterprise scale. Shipped GPT-4 features reducing manual ops by 60% at Ingram Micro; drove 40% increase in partner API adoption across 2,000+ resellers.
 
 EXPERIENCE
 
-Senior Software Engineer | CurrentCompany | 2021 - Present
-• Led development of microservices architecture serving 2M+ daily active users
-• Mentored team of 4 junior engineers, improving code quality metrics by 40%
-• Architected real-time notification system using WebSockets and Redis
-• Reduced API response times by 60% through query optimization
+Sr. Product Manager · Ingram Micro · 2021–2024
+- Led AI forecasting platform for 2,000+ channel resellers; +40% partner API adoption
+- Shipped GPT-4 content generation cutting manual content ops by 60%; 200k+ monthly outputs
+- Defined partner API strategy; collaborated with 8 engineering teams across 3 time zones
+- Managed $2.4M product budget; delivered on time across 4 consecutive quarters
 
-Software Engineer | PreviousCompany | 2018 - 2021
-• Built React component library used across 5 product teams
-• Implemented CI/CD pipeline reducing deployment time from 2 hours to 15 minutes
-• Developed Node.js backend services handling 10K requests/second
+Product Manager · TechStartup · 2019–2021
+- Built 0→1 LLM text classification platform; grew to 12 enterprise customers
 
 SKILLS
-TypeScript, JavaScript, React, Node.js, PostgreSQL, Redis, AWS, Docker, Kubernetes
+LLM orchestration, OpenAI API, API product design, B2B SaaS, Next.js, Supabase, Python, SQL
 
 EDUCATION
-B.S. Computer Science | University of California, Berkeley | 2018`,
-    model_used: 'gpt-4',
-    prompt_version: 'v2.3'
+B.S. Computer Science · UC San Diego · 2019`,
+    created_at: h(10),
+    updated_at: h(10),
   },
   {
-    id: 'doc-2',
-    job_id: '1',
-    doc_type: 'COVER_LETTER',
+    id: "doc-2",
+    job_id: "1",
+    base_resume_id: "br-001",
+    doc_type: "COVER_LETTER",
+    model_used: "gpt-4o",
+    prompt_version: "cover-letter-v1.0",
     content: `Dear Hiring Manager,
 
-I am writing to express my strong interest in the Senior Software Engineer position at TechCorp Inc. With over 6 years of experience building scalable applications using TypeScript, React, and Node.js, I am confident I would be a valuable addition to your team.
+I'm applying for the AI Product Manager role at Scale AI because building reliable data infrastructure for ML systems is the product problem I've spent years working toward — and this role sits at the exact intersection of LLMs, API design, and enterprise product that defines my background.
 
-In my current role, I have led the development of microservices architecture that serves over 2 million daily active users. I have a passion for mentoring junior engineers and have successfully improved our team's code quality metrics by 40% through code reviews and pair programming sessions.
+At Ingram Micro, I led an AI-powered forecasting platform serving 2,000+ enterprise partners and shipped a GPT-4 content generation tool that cut manual operations by 60% across 200k+ monthly outputs. What I learned: AI features fail at the integration layer, not the model layer. Getting API contracts right — and getting adoption — is the hard part.
 
-What excites me most about TechCorp is your commitment to remote-first culture and your focus on distributed systems. I have extensive experience with these challenges and would love to bring my expertise to your platform.
+At Scale, I'd bring technical depth to collaborate with ML engineers on data quality requirements and product instincts to translate labeling workflow problems into a roadmap enterprise customers actually need. I'm ready to own this from day one.
 
-I would welcome the opportunity to discuss how my background in building scalable systems and leading technical teams could benefit TechCorp Inc.
-
-Best regards,
-John Doe`,
-    model_used: 'gpt-4',
-    prompt_version: 'v2.3'
+Rory Semeah`,
+    created_at: h(10),
+    updated_at: h(10),
   },
   {
-    id: 'doc-3',
-    job_id: '1',
-    doc_type: 'APPLICATION_ANSWERS',
-    content: `Q: Why are you interested in this role?
-A: I am drawn to TechCorp's mission of building scalable developer tools. The technical challenges around distributed systems align perfectly with my experience and interests. I'm particularly excited about the remote-first culture and the opportunity to work with a team that values technical excellence.
-
-Q: Describe a challenging technical problem you solved.
-A: At my current company, I led the migration from a monolithic architecture to microservices. The challenge was maintaining zero downtime while serving 2M+ daily users. I implemented a strangler fig pattern, gradually routing traffic to new services while keeping the monolith operational. The migration took 6 months and resulted in 60% faster deployments and improved system reliability.
-
-Q: What's your experience with distributed systems?
-A: I have designed and implemented several distributed systems including a real-time notification service using WebSockets, Redis pub/sub, and Kafka for event streaming. I've also worked extensively with microservices patterns including service discovery, circuit breakers, and distributed tracing.`,
-    model_used: 'gpt-4',
-    prompt_version: 'v2.3'
-  },
-  {
-    id: 'doc-4',
-    job_id: '4',
-    doc_type: 'RESUME',
-    content: `JOHN DOE
-Staff Software Engineer
-john.doe@email.com | (555) 123-4567 | San Francisco, CA
+    id: "doc-3",
+    job_id: "2",
+    base_resume_id: "br-001",
+    doc_type: "RESUME",
+    model_used: "gpt-4o",
+    prompt_version: "resume-v1.0",
+    content: `RORY SEMEAH
+Technical Product Manager
+San Diego, CA (Remote)  ·  rory@example.com
 
 SUMMARY
-Technical leader with 6+ years of experience architecting and scaling complex systems. Proven ability to drive technical strategy and mentor engineering teams.
+TPM with 6+ years building workflow automation and API-first products at enterprise scale. Owned partner integration roadmap at Ingram Micro — +40% API adoption, -3 weeks partner onboarding.
 
-[Full resume content tailored for Staff Engineer role...]`,
-    model_used: 'gpt-4',
-    prompt_version: 'v2.3'
+EXPERIENCE
+
+Sr. Product Manager · Ingram Micro · 2021–2024
+- Owned partner API roadmap; drove 40% adoption increase across 2,000+ enterprise resellers
+- Led workflow automation reducing partner onboarding from 5 weeks to 2 weeks
+- Wrote detailed technical specs collaborating with 8 engineering teams
+- Shipped GPT-4 content automation; -60% manual content ops
+
+Product Manager · TechStartup · 2019–2021
+- Built 0→1 LLM classification platform; 12 enterprise customers
+
+SKILLS
+Workflow automation, API design, technical specs, REST APIs, SQL, Python, Jira, Figma
+
+EDUCATION
+B.S. Computer Science · UC San Diego · 2019`,
+    created_at: d(1),
+    updated_at: d(1),
   },
   {
-    id: 'doc-5',
-    job_id: '4',
-    doc_type: 'COVER_LETTER',
-    content: `Dear Hiring Team,
+    id: "doc-4",
+    job_id: "2",
+    base_resume_id: "br-001",
+    doc_type: "COVER_LETTER",
+    model_used: "gpt-4o",
+    prompt_version: "cover-letter-v1.0",
+    content: `Dear Rippling Team,
 
-I am excited to apply for the Staff Engineer position at BigTech Global...
+Rippling's workflow automation platform is one of the most technically interesting PM challenges in HR tech — and it sits squarely in my core competency.
 
-[Full cover letter for Staff Engineer role...]`,
-    model_used: 'gpt-4',
-    prompt_version: 'v2.3'
+At Ingram Micro I owned the partner integration roadmap and shipped workflow automation that cut onboarding from five weeks to two weeks across thousands of enterprise customers. The product challenge was identical to what Rippling faces: customers need flexible no-code automation that still respects complex business rules and integrates cleanly with upstream APIs.
+
+At Rippling I'd bring strong API systems thinking, a track record of shipping integrations enterprise teams actually adopt, and the technical comfort to write specs that backend engineers can execute directly.
+
+Rory Semeah`,
+    created_at: d(1),
+    updated_at: d(1),
   },
-  {
-    id: 'doc-6',
-    job_id: '7',
-    doc_type: 'RESUME',
-    content: `JOHN DOE
-Backend Engineer
-john.doe@email.com | (555) 123-4567
-
-[Resume tailored for Backend/Data Pipeline role...]`,
-    model_used: 'gpt-4',
-    prompt_version: 'v2.3'
-  },
-  {
-    id: 'doc-7',
-    job_id: '7',
-    doc_type: 'COVER_LETTER',
-    content: `Dear DataCo Team,
-
-I am writing to apply for the Backend Engineer position...
-
-[Cover letter for Backend Engineer role...]`,
-    model_used: 'gpt-4',
-    prompt_version: 'v2.3'
-  }
 ]
 
+// ── Applications ──────────────────────────────────────────────────────────────
 export const mockApplications: Application[] = [
   {
-    id: 'app-1',
-    job_id: '4',
-    submitted_at: '2024-01-12T16:30:00Z',
-    submission_method: 'MANUAL',
-    portal_url: 'https://careers.bigtech.com/apply',
-    confirmation_code: 'BT-2024-5678',
-    response_received: true,
-    response_date: '2024-01-14T10:00:00Z',
+    id: "app-1",
+    job_id: "4",
+    submitted_at: d(2),
+    submission_method: "MANUAL",
+    portal_url: "https://www.hubspot.com/careers/jobs/101/apply",
+    confirmation_code: "HS-APP-2025-0847",
+    response_received: false,
+    response_date: null,
+    response_notes: null,
     interview_date: null,
-    interview_type: null
+    interview_type: null,
+    interview_notes: null,
+    created_at: d(2),
+    updated_at: d(2),
   },
   {
-    id: 'app-2',
-    job_id: '6',
-    submitted_at: '2024-01-09T10:00:00Z',
-    submission_method: 'MANUAL',
-    portal_url: 'https://boards.greenhouse.io/financeapp/apply',
-    confirmation_code: 'FA-98765',
-    response_received: true,
-    response_date: '2024-01-11T14:30:00Z',
-    interview_date: '2024-01-20T15:00:00Z',
-    interview_type: 'VIDEO'
-  },
-  {
-    id: 'app-3',
-    job_id: '8',
-    submitted_at: '2024-01-06T14:00:00Z',
-    submission_method: 'EMAIL',
-    portal_url: null,
+    id: "app-2",
+    job_id: "5",
+    submitted_at: d(10),
+    submission_method: "MANUAL",
+    portal_url: "https://boards.greenhouse.io/anthropic/jobs/4856123/apply",
     confirmation_code: null,
     response_received: true,
-    response_date: '2024-01-08T09:00:00Z',
-    interview_date: '2024-01-15T11:00:00Z',
-    interview_type: 'ONSITE'
-  }
+    response_date: d(5),
+    response_notes:
+      "Recruiter reached out via email. Phone screen scheduled. Prep: Claude API, AI safety product thinking, enterprise deployment models.",
+    interview_date: f(2),
+    interview_type: "PHONE",
+    interview_notes:
+      "Prep topics: Claude API product strategy, AI safety as product constraint, how to balance safety vs. capability in roadmap decisions.",
+    created_at: d(10),
+    updated_at: d(5),
+  },
 ]
 
+// ── Workflow logs ─────────────────────────────────────────────────────────────
 export const mockWorkflowLogs: WorkflowLog[] = [
   {
-    id: 'log-1',
-    job_id: '1',
-    workflow_name: 'job_scoring',
-    step_name: 'extract_keywords',
-    status: 'SUCCESS',
+    id: "lg-1",
+    job_id: "6",
+    workflow_name: "JOB_INTAKE",
+    step_name: "job_inserted",
+    status: "SUCCESS",
+    input_snapshot: null,
+    output_snapshot: { title: "PM, Developer Platform", company: "Stripe" },
     error_message: null,
-    created_at: '2024-01-15T10:31:00Z'
+    duration_ms: 234,
+    created_at: h(2),
   },
   {
-    id: 'log-2',
-    job_id: '1',
-    workflow_name: 'job_scoring',
-    step_name: 'calculate_fit_score',
-    status: 'SUCCESS',
+    id: "lg-2",
+    job_id: "1",
+    workflow_name: "JOB_SCORING",
+    step_name: "scored",
+    status: "SUCCESS",
+    input_snapshot: null,
+    output_snapshot: { score: 91, fit: "HIGH" },
     error_message: null,
-    created_at: '2024-01-15T10:32:00Z'
+    duration_ms: 1840,
+    created_at: h(12),
   },
   {
-    id: 'log-3',
-    job_id: '1',
-    workflow_name: 'document_generation',
-    step_name: 'generate_resume',
-    status: 'SUCCESS',
+    id: "lg-3",
+    job_id: "1",
+    workflow_name: "DOCUMENT_GENERATION",
+    step_name: "docs_generated",
+    status: "SUCCESS",
+    input_snapshot: null,
+    output_snapshot: { docs: ["RESUME", "COVER_LETTER"], model: "gpt-4o" },
     error_message: null,
-    created_at: '2024-01-15T10:33:00Z'
+    duration_ms: 6200,
+    created_at: h(10),
   },
   {
-    id: 'log-4',
-    job_id: '1',
-    workflow_name: 'document_generation',
-    step_name: 'generate_cover_letter',
-    status: 'SUCCESS',
+    id: "lg-4",
+    job_id: null,
+    workflow_name: "JOB_INTAKE",
+    step_name: "dedup_skip",
+    status: "SKIPPED",
+    input_snapshot: null,
+    output_snapshot: { reason: "duplicate hash already in dedup_registry" },
     error_message: null,
-    created_at: '2024-01-15T10:34:00Z'
+    duration_ms: 45,
+    created_at: h(6),
   },
   {
-    id: 'log-5',
-    job_id: '2',
-    workflow_name: 'job_scoring',
-    step_name: 'extract_keywords',
-    status: 'SUCCESS',
+    id: "lg-5",
+    job_id: null,
+    workflow_name: "JOB_INTAKE",
+    step_name: "fetch_jobot",
+    status: "ERROR",
+    input_snapshot: null,
+    output_snapshot: null,
+    error_message:
+      "HTTP 429: Rate limited. Retry-After: 3600s. Note: Jobot has no official API — this connector is fragile and may break without notice.",
+    duration_ms: 5001,
+    created_at: h(3),
+  },
+  {
+    id: "lg-6",
+    job_id: "4",
+    workflow_name: "APPLICATION_TRACKING",
+    step_name: "application_submitted",
+    status: "SUCCESS",
+    input_snapshot: null,
+    output_snapshot: { method: "MANUAL", job_id: "4" },
     error_message: null,
-    created_at: '2024-01-14T14:21:00Z'
+    duration_ms: 180,
+    created_at: d(2),
   },
   {
-    id: 'log-6',
-    job_id: '2',
-    workflow_name: 'job_scoring',
-    step_name: 'calculate_fit_score',
-    status: 'SUCCESS',
+    id: "lg-7",
+    job_id: "5",
+    workflow_name: "APPLICATION_TRACKING",
+    step_name: "status_updated",
+    status: "SUCCESS",
+    input_snapshot: null,
+    output_snapshot: { new_status: "INTERVIEW", interview_type: "PHONE" },
     error_message: null,
-    created_at: '2024-01-14T14:22:00Z'
+    duration_ms: 145,
+    created_at: d(5),
   },
   {
-    id: 'log-7',
-    job_id: '3',
-    workflow_name: 'job_ingestion',
-    step_name: 'fetch_description',
-    status: 'SUCCESS',
+    id: "lg-8",
+    job_id: null,
+    workflow_name: "JOB_SCORING",
+    step_name: "parse_error",
+    status: "ERROR",
+    input_snapshot: null,
+    output_snapshot: null,
+    error_message:
+      "JSON.parse failed: model returned markdown-wrapped block instead of raw JSON. Retried once — still failed. Job left as UNSCORED.",
+    duration_ms: 2100,
+    created_at: d(1),
+  },
+  {
+    id: "lg-9",
+    job_id: "2",
+    workflow_name: "JOB_SCORING",
+    step_name: "scored",
+    status: "SUCCESS",
+    input_snapshot: null,
+    output_snapshot: { score: 84, fit: "HIGH" },
     error_message: null,
-    created_at: '2024-01-16T09:01:00Z'
+    duration_ms: 1640,
+    created_at: d(2),
   },
   {
-    id: 'log-8',
-    job_id: '3',
-    workflow_name: 'job_scoring',
-    step_name: 'extract_keywords',
-    status: 'ERROR',
-    error_message: 'OpenAI API rate limit exceeded. Retry after 60 seconds.',
-    created_at: '2024-01-16T09:02:00Z'
-  },
-  {
-    id: 'log-9',
-    job_id: '5',
-    workflow_name: 'job_scoring',
-    step_name: 'calculate_fit_score',
-    status: 'SUCCESS',
+    id: "lg-10",
+    job_id: "3",
+    workflow_name: "JOB_SCORING",
+    step_name: "scored",
+    status: "SUCCESS",
+    input_snapshot: null,
+    output_snapshot: { score: 78, fit: "HIGH" },
     error_message: null,
-    created_at: '2024-01-13T11:06:00Z'
+    duration_ms: 1920,
+    created_at: h(2),
   },
-  {
-    id: 'log-10',
-    job_id: '7',
-    workflow_name: 'document_generation',
-    step_name: 'generate_resume',
-    status: 'ERROR',
-    error_message: 'Template rendering failed: missing required field "years_of_experience"',
-    created_at: '2024-01-15T16:15:00Z'
-  },
-  {
-    id: 'log-11',
-    job_id: '7',
-    workflow_name: 'document_generation',
-    step_name: 'generate_resume',
-    status: 'SUCCESS',
-    error_message: null,
-    created_at: '2024-01-15T16:20:00Z'
-  }
 ]
 
+// ── Ready queue (computed from jobs) ─────────────────────────────────────────
 export const mockReadyQueue: ReadyQueueItem[] = mockJobs
-  .filter(job => job.status === 'READY_TO_APPLY')
-  .map(job => ({
+  .filter((job) => job.status === "READY_TO_APPLY")
+  .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+  .map((job) => ({
     id: job.id,
     title: job.title,
     company: job.company,
-    score: job.score!,
+    source: job.source,
+    source_url: job.source_url,
+    score: job.score,
     fit: job.fit,
-    docs_generated_count: mockGeneratedDocuments.filter(doc => doc.job_id === job.id).length
+    salary_range: job.salary_range,
+    is_remote: job.is_remote,
+    status: job.status,
+    created_at: job.created_at,
+    docs_generated_count: mockGeneratedDocuments.filter(
+      (doc) => doc.job_id === job.id,
+    ).length,
   }))
 
+// ── Settings ──────────────────────────────────────────────────────────────────
 export const mockSettings: Settings = {
-  active_resume: 'base_resume_v3.pdf',
-  score_threshold: 70,
+  active_resume: "base_resume_v1",
+  score_threshold: 80,
   source_toggles: {
-    JOBOT: true,
-    ZIPRECRUITER: true,
     GREENHOUSE: true,
-    MANUAL: true
-  }
+    ZIPRECRUITER: true,
+    JOBOT: false, // disabled — no official API, fragile
+    MANUAL: true,
+  },
 }
 
-// Helper functions
+// ── Helper functions ──────────────────────────────────────────────────────────
+
 export function getJobById(id: string): Job | undefined {
-  return mockJobs.find(job => job.id === id)
+  return mockJobs.find((job) => job.id === id)
 }
 
 export function getDocumentsForJob(jobId: string): GeneratedDocument[] {
-  return mockGeneratedDocuments.filter(doc => doc.job_id === jobId)
+  return mockGeneratedDocuments.filter((doc) => doc.job_id === jobId)
 }
 
 export function getApplicationForJob(jobId: string): Application | undefined {
-  return mockApplications.find(app => app.job_id === jobId)
+  return mockApplications.find((app) => app.job_id === jobId)
 }
 
 export function getLogsForJob(jobId: string): WorkflowLog[] {
-  return mockWorkflowLogs.filter(log => log.job_id === jobId)
+  return mockWorkflowLogs.filter((log) => log.job_id === jobId)
 }
 
-export function getJobWithRelations(id: string) {
+export function getJobWithRelations(id: string): JobDetail | null {
   const job = getJobById(id)
   if (!job) return null
-  
   return {
-    ...job,
+    ...enrichJob(job),
     documents: getDocumentsForJob(id),
-    application: getApplicationForJob(id),
-    logs: getLogsForJob(id)
+    application: getApplicationForJob(id) ?? null,
+    logs: getLogsForJob(id),
   }
 }

@@ -1,34 +1,61 @@
-"use client"
-
 import Link from "next/link"
-import { mockJobs } from "@/lib/mock-data"
+import { createClient } from "@/lib/supabase/server"
+import { EmptyState } from "@/components/empty-state"
+import { ErrorState } from "@/components/error-state"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Building2, Briefcase, ExternalLink } from "lucide-react"
+import { Building2, Briefcase } from "lucide-react"
+import type { Job } from "@/lib/types"
 
-export default function CompaniesPage() {
+export default async function CompaniesPage() {
+  const supabase = await createClient()
+  
+  const { data: jobs, error } = await supabase
+    .from("jobs")
+    .select("*")
+    .order("company", { ascending: true })
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Companies</h1>
+          <p className="text-muted-foreground">
+            Overview of companies you have applied to or are tracking
+          </p>
+        </div>
+        <ErrorState 
+          title="Unable to load companies"
+          message={error.message}
+        />
+      </div>
+    )
+  }
+
+  const allJobs = (jobs || []) as Job[]
+
   // Group jobs by company
-  const companiesData = mockJobs.reduce((acc, job) => {
-    if (!acc[job.company]) {
-      acc[job.company] = {
-        name: job.company,
+  const companiesMap = allJobs.reduce((acc, job) => {
+    const company = job.company || "Unknown"
+    if (!acc[company]) {
+      acc[company] = {
+        name: company,
         jobs: [],
         totalJobs: 0,
         appliedJobs: 0,
         avgScore: 0,
       }
     }
-    acc[job.company].jobs.push(job)
-    acc[job.company].totalJobs++
+    acc[company].jobs.push(job)
+    acc[company].totalJobs++
     if (job.status === "APPLIED" || job.status === "INTERVIEW" || job.status === "OFFER") {
-      acc[job.company].appliedJobs++
+      acc[company].appliedJobs++
     }
     return acc
-  }, {} as Record<string, { name: string; jobs: typeof mockJobs; totalJobs: number; appliedJobs: number; avgScore: number }>)
+  }, {} as Record<string, { name: string; jobs: Job[]; totalJobs: number; appliedJobs: number; avgScore: number }>)
 
   // Calculate average scores
-  Object.values(companiesData).forEach(company => {
+  Object.values(companiesMap).forEach(company => {
     const scoredJobs = company.jobs.filter(j => j.score !== null)
     if (scoredJobs.length > 0) {
       company.avgScore = Math.round(
@@ -37,7 +64,7 @@ export default function CompaniesPage() {
     }
   })
 
-  const companies = Object.values(companiesData).sort((a, b) => b.totalJobs - a.totalJobs)
+  const companies = Object.values(companiesMap).sort((a, b) => b.totalJobs - a.totalJobs)
 
   return (
     <div className="space-y-6">
@@ -48,6 +75,7 @@ export default function CompaniesPage() {
         </p>
       </div>
 
+      {/* Stats */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
@@ -79,63 +107,71 @@ export default function CompaniesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(mockJobs.length / companies.length).toFixed(1)}
+              {companies.length > 0 ? (allJobs.length / companies.length).toFixed(1) : "0"}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {companies.map((company) => (
-          <Card key={company.name} className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <Building2 className="h-5 w-5 text-primary" />
+      {companies.length === 0 ? (
+        <EmptyState 
+          variant="default" 
+          title="No companies yet"
+          message="Companies will appear here once you start reviewing jobs."
+        />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {companies.map((company) => (
+            <Card key={company.name} className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                      <Building2 className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">{company.name}</CardTitle>
+                      <CardDescription>
+                        {company.totalJobs} job{company.totalJobs !== 1 ? "s" : ""}
+                      </CardDescription>
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle className="text-lg">{company.name}</CardTitle>
-                    <CardDescription>
-                      {company.totalJobs} job{company.totalJobs !== 1 ? "s" : ""}
-                    </CardDescription>
-                  </div>
-                </div>
-                {company.avgScore > 0 && (
-                  <Badge variant="outline" className="font-mono">
-                    {company.avgScore} avg
-                  </Badge>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Applications</span>
-                  <span className="font-medium">{company.appliedJobs}</span>
-                </div>
-                <div className="space-y-2">
-                  {company.jobs.slice(0, 3).map((job) => (
-                    <Link
-                      key={job.id}
-                      href={`/jobs/${job.id}`}
-                      className="flex items-center gap-2 text-sm hover:underline"
-                    >
-                      <Briefcase className="h-3 w-3 text-muted-foreground" />
-                      <span className="truncate">{job.title}</span>
-                    </Link>
-                  ))}
-                  {company.jobs.length > 3 && (
-                    <p className="text-xs text-muted-foreground">
-                      +{company.jobs.length - 3} more
-                    </p>
+                  {company.avgScore > 0 && (
+                    <Badge variant="outline" className="font-mono">
+                      {company.avgScore} avg
+                    </Badge>
                   )}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Applications</span>
+                    <span className="font-medium">{company.appliedJobs}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {company.jobs.slice(0, 3).map((job) => (
+                      <Link
+                        key={job.id}
+                        href={`/jobs/${job.id}`}
+                        className="flex items-center gap-2 text-sm hover:underline"
+                      >
+                        <Briefcase className="h-3 w-3 text-muted-foreground" />
+                        <span className="truncate">{job.title}</span>
+                      </Link>
+                    ))}
+                    {company.jobs.length > 3 && (
+                      <p className="text-xs text-muted-foreground">
+                        +{company.jobs.length - 3} more
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

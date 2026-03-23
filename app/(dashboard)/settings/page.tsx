@@ -1,31 +1,27 @@
 "use client"
 
 import { useState } from "react"
-import { mockSettings } from "@/lib/mock-data"
 import type { JobSource, Settings } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { FileText, Gauge, Radio, Save } from "lucide-react"
+import { Gauge, Radio, Save, Info } from "lucide-react"
 import { toast } from "sonner"
 
-const resumeOptions = [
-  { value: "base_resume_v1.pdf", label: "Base Resume v1" },
-  { value: "base_resume_v2.pdf", label: "Base Resume v2" },
-  { value: "base_resume_v3.pdf", label: "Base Resume v3 (Current)" },
-  { value: "technical_resume.pdf", label: "Technical Resume" },
-  { value: "management_resume.pdf", label: "Management Resume" },
-]
+// Default settings when user hasn't configured anything
+const defaultSettings: Settings = {
+  active_resume: "",
+  score_threshold: 75,
+  source_toggles: {
+    JOBOT: true,
+    ZIPRECRUITER: true,
+    GREENHOUSE: true,
+    MANUAL: true,
+  },
+}
 
 const sourceLabels: Record<JobSource, string> = {
   JOBOT: "Jobot",
@@ -35,13 +31,8 @@ const sourceLabels: Record<JobSource, string> = {
 }
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<Settings>(mockSettings)
+  const [settings, setSettings] = useState<Settings>(defaultSettings)
   const [hasChanges, setHasChanges] = useState(false)
-
-  const handleResumeChange = (value: string) => {
-    setSettings(prev => ({ ...prev, active_resume: value }))
-    setHasChanges(true)
-  }
 
   const handleThresholdChange = (value: number[]) => {
     setSettings(prev => ({ ...prev, score_threshold: value[0] }))
@@ -60,13 +51,13 @@ export default function SettingsPage() {
   }
 
   const handleSave = () => {
-    // In a real app, this would save to the database
+    // In production, this would save to Supabase
     toast.success("Settings saved successfully")
     setHasChanges(false)
   }
 
   const handleReset = () => {
-    setSettings(mockSettings)
+    setSettings(defaultSettings)
     setHasChanges(false)
     toast.info("Settings reset to defaults")
   }
@@ -77,7 +68,7 @@ export default function SettingsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
           <p className="text-muted-foreground">
-            Configure your job application engine
+            Configure your job review preferences
           </p>
         </div>
         <div className="flex gap-2">
@@ -92,46 +83,6 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid gap-6">
-        {/* Resume Selection */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <CardTitle>Active Resume</CardTitle>
-                <CardDescription>
-                  Select the base resume to use for document generation
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="resume-select">Base Resume</Label>
-                <Select
-                  value={settings.active_resume}
-                  onValueChange={handleResumeChange}
-                >
-                  <SelectTrigger id="resume-select" className="w-[300px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {resumeOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-sm text-muted-foreground">
-                  This resume will be used as the base for generating tailored resumes.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Score Threshold */}
         <Card>
           <CardHeader>
@@ -171,7 +122,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">
-                Jobs with scores above this threshold will automatically be moved to READY_TO_APPLY status.
+                Jobs with scores above this threshold will automatically be moved to Ready to Apply status.
               </p>
             </div>
           </CardContent>
@@ -219,6 +170,21 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Info Card */}
+        <Card className="border-blue-500/30 bg-blue-500/5">
+          <CardContent className="flex gap-4 pt-6">
+            <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+            <div className="space-y-2">
+              <p className="font-medium text-blue-600 dark:text-blue-400">How HireWire Works</p>
+              <p className="text-sm text-muted-foreground">
+                HireWire processes jobs submitted through the URL input or added manually. 
+                Your n8n workflow handles the AI scoring and analysis, then writes results back to Supabase.
+                Configure your workflow to respect these settings for a personalized experience.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Danger Zone */}
         <Card className="border-destructive/50">
           <CardHeader>
@@ -228,17 +194,6 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-4 rounded-lg border border-destructive/20 bg-destructive/5">
-              <div>
-                <p className="font-medium">Clear All Workflow Logs</p>
-                <p className="text-sm text-muted-foreground">
-                  Delete all workflow execution logs. This cannot be undone.
-                </p>
-              </div>
-              <Button variant="destructive" size="sm">
-                Clear Logs
-              </Button>
-            </div>
             <div className="flex items-center justify-between p-4 rounded-lg border border-destructive/20 bg-destructive/5">
               <div>
                 <p className="font-medium">Archive All Rejected Jobs</p>

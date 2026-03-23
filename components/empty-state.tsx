@@ -1,8 +1,10 @@
 import { Card, CardContent } from "@/components/ui/card"
-import { Sparkles, Inbox, FileText, Send } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Search, FileText, Send, Inbox, PlusCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 
-type EmptyStateVariant = "jobs" | "documents" | "applications" | "default"
+type EmptyStateVariant = "jobs" | "documents" | "applications" | "ready" | "default"
 
 interface EmptyStateProps {
   variant?: EmptyStateVariant
@@ -11,26 +13,33 @@ interface EmptyStateProps {
   className?: string
 }
 
-const variants: Record<EmptyStateVariant, { icon: typeof Sparkles; title: string; message: string }> = {
+const variants: Record<EmptyStateVariant, { icon: typeof Search; title: string; message: string; showActions?: boolean }> = {
   jobs: {
-    icon: Sparkles,
-    title: "No jobs yet",
-    message: "Jobs will appear here once your n8n workflow successfully scores and ingests them. Make sure your workflow is running and connected to this Supabase instance."
+    icon: Search,
+    title: "No jobs reviewed yet",
+    message: "Start by pasting a job URL on the Home page, or add a job manually to begin reviewing opportunities.",
+    showActions: true,
   },
   documents: {
     icon: FileText,
-    title: "No documents generated",
-    message: "Generated resumes, cover letters, and application answers will appear here after the AI workflow processes your jobs."
+    title: "No materials generated yet",
+    message: "Once you review a job and it scores well, HireWire will generate tailored resumes and cover letters for you.",
   },
   applications: {
     icon: Send,
-    title: "No applications submitted",
-    message: "Your submitted applications will be tracked here. Mark jobs as applied to see them in this view."
+    title: "No applications tracked yet",
+    message: "When you apply to a job, mark it as applied to track your progress here.",
+  },
+  ready: {
+    icon: Search,
+    title: "No jobs ready to apply",
+    message: "Jobs that score well and have generated materials will appear here when they're ready for you to apply.",
+    showActions: true,
   },
   default: {
     icon: Inbox,
     title: "Nothing here yet",
-    message: "Data will appear here once your backend workflows are running."
+    message: "Start reviewing jobs to see data here.",
   }
 }
 
@@ -45,23 +54,28 @@ export function EmptyState({
   
   return (
     <Card className={cn("border-dashed", className)}>
-      <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+      <CardContent className="flex flex-col items-center justify-center py-12 text-center">
         <div className="rounded-full bg-muted p-4 mb-4">
           <Icon className="h-8 w-8 text-muted-foreground" />
         </div>
         <h3 className="text-xl font-semibold mb-2">{title || config.title}</h3>
-        <p className="text-muted-foreground max-w-md mb-4">
+        <p className="text-muted-foreground max-w-sm mb-6">
           {message || config.message}
         </p>
-        {variant === "jobs" && (
-          <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-            <p>Waiting for jobs from:</p>
-            <div className="flex gap-2 justify-center">
-              <span className="px-2 py-1 bg-muted rounded text-xs font-mono">Jobot</span>
-              <span className="px-2 py-1 bg-muted rounded text-xs font-mono">ZipRecruiter</span>
-              <span className="px-2 py-1 bg-muted rounded text-xs font-mono">Greenhouse</span>
-              <span className="px-2 py-1 bg-muted rounded text-xs font-mono">Manual</span>
-            </div>
+        {config.showActions && (
+          <div className="flex gap-3">
+            <Button asChild>
+              <Link href="/#review-job">
+                <Search className="mr-2 h-4 w-4" />
+                Review a Job
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/manual-entry">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Manually
+              </Link>
+            </Button>
           </div>
         )}
       </CardContent>

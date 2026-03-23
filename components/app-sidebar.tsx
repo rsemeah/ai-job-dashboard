@@ -30,16 +30,15 @@ import {
 import { cn } from "@/lib/utils"
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Jobs", href: "/jobs", icon: Briefcase },
-  { name: "Ready Queue", href: "/ready-queue", icon: ListChecks },
-  { name: "Applications", href: "/applications", icon: Send },
-  { name: "Documents", href: "/documents", icon: FileText },
+  { name: "Home", href: "/", icon: LayoutDashboard },
+  { name: "All Jobs", href: "/jobs", icon: Briefcase },
+  { name: "Ready to Apply", href: "/ready-queue", icon: ListChecks },
+  { name: "Applied", href: "/applications", icon: Send },
+  { name: "Materials", href: "/documents", icon: FileText },
   { name: "Companies", href: "/companies", icon: Building2 },
-  { name: "Logs", href: "/logs", icon: ScrollText },
+  { name: "Activity Log", href: "/logs", icon: ScrollText },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
-  { name: "Manual Job Entry", href: "/manual-entry", icon: PlusCircle },
-  { name: "Manual Entry", href: "/manual-entry", icon: PlusCircle },
+  { name: "Add Job", href: "/manual-entry", icon: PlusCircle },
 ]
 
 const bottomNavigation = [

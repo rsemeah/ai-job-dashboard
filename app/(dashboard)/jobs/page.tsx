@@ -3,6 +3,9 @@ import { JobsTable } from "@/components/jobs-table"
 import { EmptyState } from "@/components/empty-state"
 import { ErrorState } from "@/components/error-state"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export default async function JobsPage() {
   const result = await getJobs()
 

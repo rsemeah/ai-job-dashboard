@@ -1,8 +1,8 @@
-"use client"
-
 import Link from "next/link"
-import { mockApplications, mockJobs } from "@/lib/mock-data"
+import { createClient } from "@/lib/supabase/server"
 import { StatusBadge } from "@/components/status-badge"
+import { EmptyState } from "@/components/empty-state"
+import { ErrorState } from "@/components/error-state"
 import {
   Table,
   TableBody,
@@ -13,7 +13,10 @@ import {
 } from "@/components/ui/table"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Video, Phone, Building2, MonitorSmartphone } from "lucide-react"
+import { Calendar, Send } from "lucide-react"
+
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 function formatDate(dateString: string | null) {
   if (!dateString) return "--"
@@ -24,28 +27,34 @@ function formatDate(dateString: string | null) {
   })
 }
 
-function formatDateTime(dateString: string | null) {
-  if (!dateString) return "--"
-  return new Date(dateString).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  })
-}
+export default async function ApplicationsPage() {
+  const supabase = await createClient()
+  
+  // Fetch jobs that have been applied to
+  const { data: appliedJobs, error } = await supabase
+    .from("jobs")
+    .select("*")
+    .in("status", ["APPLIED", "INTERVIEW", "OFFER", "REJECTED"])
+    .order("applied_at", { ascending: false, nullsFirst: false })
 
-const interviewTypeIcons = {
-  PHONE: Phone,
-  VIDEO: Video,
-  ONSITE: Building2,
-  TECHNICAL: MonitorSmartphone,
-}
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Applications</h1>
+          <p className="text-muted-foreground">
+            Track submitted applications and interview schedules
+          </p>
+        </div>
+        <ErrorState 
+          title="Unable to load applications"
+          message={error.message}
+        />
+      </div>
+    )
+  }
 
-export default function ApplicationsPage() {
-  const applicationsWithJobs = mockApplications.map(app => {
-    const job = mockJobs.find(j => j.id === app.job_id)
-    return { ...app, job }
-  })
+  const applications = appliedJobs || []
 
   return (
     <div className="space-y-6">
@@ -56,133 +65,139 @@ export default function ApplicationsPage() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
+      {applications.length === 0 ? (
+        <EmptyState variant="applications" />
+      ) : (
+        <>
+          {/* Stats */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Send className="h-4 w-4" />
+                  Total Applied
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{applications.length}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Interviews
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-pink-500">
+                  {applications.filter(j => j.status === "INTERVIEW").length}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Offers
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-emerald-500">
+                  {applications.filter(j => j.status === "OFFER").length}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Applications Table */}
+          <Card>
+            <CardHeader>
               <CardTitle>Submitted Applications</CardTitle>
               <CardDescription>
-                {applicationsWithJobs.length} application{applicationsWithJobs.length !== 1 ? "s" : ""} submitted
+                {applications.length} application{applications.length !== 1 ? "s" : ""} submitted
               </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Job</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Submitted</TableHead>
-                <TableHead>Interview</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {applicationsWithJobs.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                    No applications submitted yet.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                applicationsWithJobs.map((app) => {
-                  const InterviewIcon = app.interview_type 
-                    ? interviewTypeIcons[app.interview_type] 
-                    : null
-
-                  return (
-                    <TableRow key={app.id}>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Job</TableHead>
+                    <TableHead>Company</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Applied</TableHead>
+                    <TableHead>Score</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {applications.map((job) => (
+                    <TableRow key={job.id}>
                       <TableCell>
                         <Link
-                          href={`/jobs/${app.job_id}`}
+                          href={`/jobs/${job.id}`}
                           className="font-medium hover:underline"
                         >
-                          {app.job?.title || "Unknown Job"}
+                          {job.title}
                         </Link>
                       </TableCell>
-                      <TableCell>{app.job?.company || "Unknown"}</TableCell>
+                      <TableCell>{job.company}</TableCell>
                       <TableCell>
-                        {app.job && <StatusBadge status={app.job.status} />}
+                        <StatusBadge status={job.status} />
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {formatDate(app.submitted_at)}
+                        {formatDate(job.applied_at)}
                       </TableCell>
                       <TableCell>
-                        {app.interview_date ? (
-                          <div className="flex items-center gap-2">
-                            {InterviewIcon && (
-                              <InterviewIcon className="h-4 w-4 text-muted-foreground" />
-                            )}
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium">
-                                {formatDateTime(app.interview_date)}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {app.interview_type}
-                              </span>
-                            </div>
-                          </div>
+                        {job.score !== null ? (
+                          <span className="font-mono">{job.score}</span>
                         ) : (
                           <span className="text-muted-foreground">--</span>
                         )}
                       </TableCell>
                     </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
 
-      {/* Upcoming Interviews */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Upcoming Interviews
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {applicationsWithJobs
-              .filter(app => app.interview_date)
-              .sort((a, b) => new Date(a.interview_date!).getTime() - new Date(b.interview_date!).getTime())
-              .map(app => {
-                const InterviewIcon = app.interview_type 
-                  ? interviewTypeIcons[app.interview_type] 
-                  : Calendar
-
-                return (
-                  <div
-                    key={app.id}
-                    className="flex items-center justify-between p-4 rounded-lg border bg-card"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                        <InterviewIcon className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium">{app.job?.title}</p>
-                        <p className="text-sm text-muted-foreground">{app.job?.company}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium">{formatDateTime(app.interview_date)}</p>
-                      <Badge variant="outline">{app.interview_type}</Badge>
-                    </div>
-                  </div>
-                )
-              })}
-            {applicationsWithJobs.filter(app => app.interview_date).length === 0 && (
-              <p className="text-center text-muted-foreground py-4">
-                No upcoming interviews scheduled.
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+          {/* Interviews Section */}
+          {applications.filter(j => j.status === "INTERVIEW").length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Interview Stage
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {applications
+                    .filter(job => job.status === "INTERVIEW")
+                    .map(job => (
+                      <Link
+                        key={job.id}
+                        href={`/jobs/${job.id}`}
+                        className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-pink-500/10">
+                            <Calendar className="h-5 w-5 text-pink-500" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{job.title}</p>
+                            <p className="text-sm text-muted-foreground">{job.company}</p>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="bg-pink-500/10 text-pink-500 border-transparent">
+                          Interview
+                        </Badge>
+                      </Link>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
     </div>
   )
 }

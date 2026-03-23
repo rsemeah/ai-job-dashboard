@@ -8,6 +8,92 @@ export type JobsResult =
   | { success: true; data: Job[] }
   | { success: false; error: string }
 
+export type CreateJobResult = 
+  | { success: true; job: Job }
+  | { success: false; error: string }
+
+// Create a new job from a URL submission
+export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
+  try {
+    const supabase = await createClient()
+    
+    // Extract domain/company name from URL as a fallback
+    let companyGuess = "Unknown Company"
+    let titleGuess = "Job Review in Progress"
+    
+    try {
+      const parsedUrl = new URL(url)
+      const host = parsedUrl.hostname.replace("www.", "")
+      // Try to extract company from common job board patterns
+      if (host.includes("greenhouse.io")) {
+        const pathParts = parsedUrl.pathname.split("/")
+        companyGuess = pathParts[1] ? pathParts[1].replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : companyGuess
+      } else if (host.includes("lever.co")) {
+        const pathParts = parsedUrl.pathname.split("/")
+        companyGuess = pathParts[1] ? pathParts[1].replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : companyGuess
+      } else {
+        companyGuess = host.split(".")[0].replace(/\b\w/g, c => c.toUpperCase())
+      }
+    } catch {
+      // URL parsing failed, use defaults
+    }
+    
+    // Determine source from URL
+    let source = "MANUAL"
+    if (url.includes("greenhouse.io")) source = "GREENHOUSE"
+    else if (url.includes("lever.co")) source = "LEVER"
+    else if (url.includes("workday.com")) source = "WORKDAY"
+    else if (url.includes("ziprecruiter.com")) source = "ZIPRECRUITER"
+    else if (url.includes("jobot.com")) source = "JOBOT"
+    
+    // Create the job record with REVIEWING status
+    const { data, error } = await supabase
+      .from("jobs")
+      .insert({
+        title: titleGuess,
+        company: companyGuess,
+        source,
+        source_url: url,
+        raw_description: "Fetching job details...",
+        status: "NEW",
+        fit: "UNSCORED",
+        score: null,
+        is_remote: false,
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+    
+    if (error) {
+      console.error("Error creating job:", error)
+      return { success: false, error: error.message }
+    }
+    
+    // Log the activity
+    await supabase.from("workflow_logs").insert({
+      job_id: data.id,
+      workflow_name: "JOB_INTAKE",
+      step_name: "URL_SUBMITTED",
+      status: "SUCCESS",
+      input_snapshot: { url },
+      created_at: new Date().toISOString(),
+    }).catch(() => {
+      // Ignore if workflow_logs table doesn't exist
+    })
+    
+    // Revalidate all relevant paths
+    revalidatePath("/")
+    revalidatePath("/jobs")
+    revalidatePath("/ready-queue")
+    revalidatePath("/logs")
+    
+    return { success: true, job: data }
+  } catch (err) {
+    console.error("Error creating job:", err)
+    return { success: false, error: "Failed to create job record" }
+  }
+}
+
 export async function getJobs(): Promise<JobsResult> {
   try {
     const supabase = await createClient()

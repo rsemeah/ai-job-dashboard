@@ -1,9 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getJobStats, getJobs } from "@/lib/actions/jobs"
-import { TrendingUp, ThumbsUp, Send, Clock } from "lucide-react"
+import { TrendingUp, ThumbsUp, Send, Clock, ArrowRight } from "lucide-react"
 import { DashboardCharts } from "@/components/dashboard-charts"
 import { ErrorState } from "@/components/error-state"
-import { HeroSection, HowItWorks, JobUrlInput, OnboardingEmptyState } from "@/components/onboarding"
+import { HeroSection, HowItWorks, JobUrlInput, OnboardingEmptyState, WorkflowSteps } from "@/components/onboarding"
+import Link from "next/link"
+
+// Force dynamic rendering to always show fresh data
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 export default async function DashboardPage() {
   const [statsResult, jobsResult] = await Promise.all([getJobStats(), getJobs()])
@@ -38,6 +43,7 @@ export default async function DashboardPage() {
       icon: TrendingUp,
       description: "Worth pursuing",
       color: "text-emerald-500",
+      href: "/jobs?fit=HIGH",
     },
     {
       name: "Ready to Apply",
@@ -45,6 +51,7 @@ export default async function DashboardPage() {
       icon: ThumbsUp,
       description: "Materials ready",
       color: "text-blue-500",
+      href: "/ready-queue",
     },
     {
       name: "Applied",
@@ -52,6 +59,7 @@ export default async function DashboardPage() {
       icon: Send,
       description: "Awaiting response",
       color: "text-amber-500",
+      href: "/applications",
     },
     {
       name: "Interviews",
@@ -59,6 +67,7 @@ export default async function DashboardPage() {
       icon: Clock,
       description: "In progress",
       color: "text-purple-500",
+      href: "/applications?filter=interview",
     },
   ]
 
@@ -67,6 +76,7 @@ export default async function DashboardPage() {
     return (
       <div className="space-y-6">
         <HeroSection />
+        <WorkflowSteps />
         <JobUrlInput isFirstTime={true} />
         <HowItWorks />
         <OnboardingEmptyState />
@@ -85,18 +95,25 @@ export default async function DashboardPage() {
       {/* Stats Cards - show progress through the pipeline */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <Card key={stat.name}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.name}
-              </CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
-            </CardContent>
-          </Card>
+          <Link key={stat.name} href={stat.href} className="block">
+            <Card className="hover:bg-accent/50 transition-colors cursor-pointer h-full">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {stat.name}
+                </CardTitle>
+                <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-baseline gap-2">
+                  <div className="text-2xl font-bold">{stat.value}</div>
+                  {stat.value > 0 && (
+                    <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 

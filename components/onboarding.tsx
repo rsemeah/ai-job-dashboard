@@ -13,12 +13,15 @@ import {
   CheckCircle2,
   Loader2,
   PlusCircle,
-  ArrowRight
+  ArrowRight,
+  ExternalLink,
+  Briefcase,
+  ListChecks
 } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
-import { ProcessingIndicator } from "@/components/processing-indicator"
-import { GuidedHint, PulseHighlight } from "@/components/guided-hints"
+import { createJobFromUrl } from "@/lib/actions/jobs"
+import type { Job } from "@/lib/types"
 
 export function HeroSection() {
   return (
@@ -44,6 +47,35 @@ export function HeroSection() {
           </Link>
         </Button>
       </div>
+    </div>
+  )
+}
+
+export function WorkflowSteps() {
+  const steps = [
+    { label: "Add Job", icon: PlusCircle },
+    { label: "Review", icon: Search },
+    { label: "Decide", icon: ThumbsUp },
+    { label: "Prepare", icon: FileText },
+    { label: "Apply", icon: ArrowRight },
+    { label: "Track", icon: CheckCircle2 },
+  ]
+
+  return (
+    <div className="flex items-center justify-center gap-1 py-4 overflow-x-auto">
+      {steps.map((step, index) => (
+        <div key={index} className="flex items-center">
+          <div className="flex flex-col items-center gap-1 px-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
+              <step.icon className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">{step.label}</span>
+          </div>
+          {index < steps.length - 1 && (
+            <ArrowRight className="h-4 w-4 text-muted-foreground/50 flex-shrink-0" />
+          )}
+        </div>
+      ))}
     </div>
   )
 }
@@ -102,6 +134,8 @@ export function HowItWorks() {
   )
 }
 
+type ProcessingStep = "idle" | "submitting" | "fetching" | "reviewing" | "preparing" | "complete" | "error"
+
 interface JobUrlInputProps {
   onSubmitSuccess?: () => void
   isFirstTime?: boolean
@@ -109,11 +143,16 @@ interface JobUrlInputProps {
 
 export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInputProps) {
   const [url, setUrl] = useState("")
-  const [isProcessing, setIsProcessing] = useState(false)
+  const [step, setStep] = useState<ProcessingStep>("idle")
+  const [createdJob, setCreatedJob] = useState<Job | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+
+  const isProcessing = step !== "idle" && step !== "complete" && step !== "error"
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
     
     if (!url.trim()) {
       toast.error("Please enter a job URL")
@@ -128,100 +167,239 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
       return
     }
 
-    toast.success("Job submitted for review", {
-      description: "Processing will begin shortly.",
-    })
+    setStep("submitting")
+    toast.info("Starting job review...")
 
-    setIsProcessing(true)
-  }
+    // Step 1: Create the job record
+    setStep("fetching")
+    const result = await createJobFromUrl(url)
+    
+    if (!result.success) {
+      setStep("error")
+      setError(result.error)
+      toast.error("Failed to submit job", { description: result.error })
+      return
+    }
 
-  const handleProcessingComplete = () => {
-    toast.success("Review complete", {
-      description: "Your job is ready. Click to view your score.",
-      action: {
-        label: "View Job",
-        onClick: () => router.push("/jobs"),
-      },
+    setCreatedJob(result.job)
+    
+    // Step 2: Simulate AI review process (in reality, n8n would handle this)
+    setStep("reviewing")
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    
+    // Step 3: Preparing materials
+    setStep("preparing")
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    // Step 4: Complete
+    setStep("complete")
+    toast.success("Job added successfully!", {
+      description: "View it in All Jobs to track its status.",
     })
-    setIsProcessing(false)
-    setUrl("")
+    
     onSubmitSuccess?.()
-    router.push("/jobs")
   }
 
-  return (
-    <div className="space-y-4">
-      <Card id="review-job" className="relative">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Link2 className="h-5 w-5" />
-            Review a Job
-          </CardTitle>
-          <CardDescription>
-            Paste a job posting URL to analyze fit and generate application materials
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="relative">
-            <PulseHighlight show={isFirstTime && !isProcessing}>
-              <div className="flex gap-3">
-                <Input
-                  type="url"
-                  placeholder="https://boards.greenhouse.io/company/jobs/123456"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  className="flex-1"
-                  disabled={isProcessing}
-                />
-                <Button type="submit" disabled={isProcessing}>
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Processing
-                    </>
-                  ) : (
-                    <>
-                      <Search className="mr-2 h-4 w-4" />
-                      Review Job
-                    </>
-                  )}
-                </Button>
-              </div>
-            </PulseHighlight>
-            {isFirstTime && !isProcessing && (
-              <GuidedHint
-                id="first-job-hint"
-                message="Start here by pasting a job link"
-                position="bottom"
-                show={true}
-                pulse={false}
-              />
-            )}
-          </form>
-          <p className="text-xs text-muted-foreground mt-3">
-            Supports Greenhouse, Lever, Workday, and most job board URLs
-          </p>
+  const handleViewReview = () => {
+    if (createdJob) {
+      router.push(`/jobs/${createdJob.id}`)
+    } else {
+      router.push("/jobs")
+    }
+  }
+
+  const handleReset = () => {
+    setStep("idle")
+    setUrl("")
+    setCreatedJob(null)
+    setError(null)
+  }
+
+  // Success state - show after job is created
+  if (step === "complete" && createdJob) {
+    return (
+      <Card id="review-job" className="border-green-500/50 bg-green-500/5">
+        <CardContent className="py-8">
+          <div className="flex flex-col items-center text-center space-y-4">
+            <div className="rounded-full bg-green-500/20 p-4">
+              <CheckCircle2 className="h-8 w-8 text-green-500" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-semibold">Job Added Successfully</h3>
+              <p className="text-muted-foreground max-w-md">
+                Your job is now in the system. The AI will analyze it and update the score once processing is complete.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium">{createdJob.company}</span> - {createdJob.title}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3 pt-2">
+              <Button onClick={handleViewReview}>
+                <Briefcase className="mr-2 h-4 w-4" />
+                View Job
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/jobs">
+                  <ListChecks className="mr-2 h-4 w-4" />
+                  View All Jobs
+                </Link>
+              </Button>
+              <Button variant="ghost" onClick={handleReset}>
+                Add Another
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
+    )
+  }
 
-      <ProcessingIndicator 
-        isActive={isProcessing} 
-        onComplete={handleProcessingComplete}
-      />
+  // Error state
+  if (step === "error") {
+    return (
+      <Card id="review-job" className="border-destructive/50 bg-destructive/5">
+        <CardContent className="py-8">
+          <div className="flex flex-col items-center text-center space-y-4">
+            <div className="rounded-full bg-destructive/20 p-4">
+              <ExternalLink className="h-8 w-8 text-destructive" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-semibold">Failed to Add Job</h3>
+              <p className="text-muted-foreground max-w-md">
+                {error || "Something went wrong while adding this job. Please try again."}
+              </p>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button onClick={handleReset}>
+                Try Again
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/manual-entry">
+                  Add Manually
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Processing state
+  if (isProcessing) {
+    return (
+      <Card id="review-job">
+        <CardContent className="py-8">
+          <div className="flex flex-col items-center text-center space-y-6">
+            <div className="relative">
+              <div className="rounded-full bg-primary/20 p-4">
+                <Loader2 className="h-8 w-8 text-primary animate-spin" />
+              </div>
+            </div>
+            <div className="space-y-4 w-full max-w-sm">
+              <h3 className="text-lg font-semibold">Adding Job to HireWire</h3>
+              <ProcessingSteps currentStep={step} />
+              <p className="text-xs text-muted-foreground">
+                This usually takes a few seconds
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Default input state
+  return (
+    <Card id="review-job">
+      <CardHeader className="pb-4">
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Link2 className="h-5 w-5" />
+          Review a Job
+        </CardTitle>
+        <CardDescription>
+          Paste a job posting URL to analyze fit and generate application materials
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit}>
+          <div className="flex gap-3">
+            <Input
+              type="url"
+              placeholder="https://boards.greenhouse.io/company/jobs/123456"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="flex-1"
+              autoFocus={isFirstTime}
+            />
+            <Button type="submit">
+              <Search className="mr-2 h-4 w-4" />
+              Review Job
+            </Button>
+          </div>
+        </form>
+        <p className="text-xs text-muted-foreground mt-3">
+          Supports Greenhouse, Lever, Workday, and most job board URLs
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ProcessingSteps({ currentStep }: { currentStep: ProcessingStep }) {
+  const steps = [
+    { key: "fetching", label: "Fetching job details" },
+    { key: "reviewing", label: "Analyzing role fit" },
+    { key: "preparing", label: "Preparing materials" },
+  ]
+
+  const currentIndex = steps.findIndex(s => s.key === currentStep)
+
+  return (
+    <div className="space-y-2">
+      {steps.map((step, index) => {
+        const isComplete = index < currentIndex
+        const isCurrent = index === currentIndex
+        const isPending = index > currentIndex
+
+        return (
+          <div 
+            key={step.key}
+            className={`flex items-center gap-3 text-sm transition-opacity ${
+              isPending ? "opacity-40" : "opacity-100"
+            }`}
+          >
+            <div className={`flex h-6 w-6 items-center justify-center rounded-full ${
+              isComplete ? "bg-green-500 text-white" :
+              isCurrent ? "bg-primary text-primary-foreground" :
+              "bg-muted text-muted-foreground"
+            }`}>
+              {isComplete ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : isCurrent ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <span className="text-xs">{index + 1}</span>
+              )}
+            </div>
+            <span className={isCurrent ? "font-medium" : ""}>{step.label}</span>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
 export function OnboardingEmptyState() {
   return (
-    <Card className="border-dashed relative">
+    <Card className="border-dashed">
       <CardContent className="flex flex-col items-center justify-center py-12 text-center">
         <div className="rounded-full bg-muted p-4 mb-4">
-          <Search className="h-8 w-8 text-muted-foreground" />
+          <Briefcase className="h-8 w-8 text-muted-foreground" />
         </div>
-        <h3 className="text-xl font-semibold mb-2">You have not reviewed any jobs yet</h3>
+        <h3 className="text-xl font-semibold mb-2">No jobs reviewed yet</h3>
         <p className="text-muted-foreground max-w-sm mb-6">
-          Start by pasting a job URL above to begin reviewing opportunities.
+          Start by pasting a job URL above to begin your job search journey.
         </p>
         <div className="flex gap-3">
           <Button asChild>
@@ -238,14 +416,6 @@ export function OnboardingEmptyState() {
           </Button>
         </div>
       </CardContent>
-      <GuidedHint
-        id="empty-state-hint"
-        message="Your job reviews will appear here once processing is complete"
-        position="top"
-        show={true}
-        pulse={false}
-        className="!left-1/2 !-translate-x-1/2 !top-4"
-      />
     </Card>
   )
 }

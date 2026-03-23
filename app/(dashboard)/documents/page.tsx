@@ -4,6 +4,9 @@ import { ErrorState } from "@/components/error-state"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FileText } from "lucide-react"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export default async function DocumentsPage() {
   const supabase = await createClient()
   

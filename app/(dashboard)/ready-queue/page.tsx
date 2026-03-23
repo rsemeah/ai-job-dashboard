@@ -16,6 +16,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Eye, ArrowRight } from "lucide-react"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export default async function ReadyQueuePage() {
   const result = await getJobs()
 

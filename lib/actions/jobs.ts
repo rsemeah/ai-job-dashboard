@@ -15,10 +15,8 @@ export type CreateJobResult =
 // Create a new job from a URL submission
 // Uses admin client to bypass RLS since this is a server-side operation
 export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
-  console.log("[v0] createJobFromUrl called with:", url)
   try {
     const supabase = createAdminClient()
-    console.log("[v0] Admin client created")
     
     // Extract domain/company name from URL as a fallback
     let companyGuess = "Unknown Company"
@@ -50,8 +48,6 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
     else if (url.includes("jobot.com")) source = "JOBOT"
     
     // Create the job record - only use columns that exist in the schema
-    // Based on working queries: title, company, source, status, fit, score, created_at
-    console.log("[v0] Inserting job:", { title: titleGuess, company: companyGuess, source })
     const { data, error } = await supabase
       .from("jobs")
       .insert({
@@ -66,11 +62,8 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
       .single()
     
     if (error) {
-      console.error("[v0] Error creating job:", error)
       return { success: false, error: error.message }
     }
-    
-    console.log("[v0] Job created successfully:", data)
     
     // Revalidate all relevant paths
     revalidatePath("/")
@@ -107,7 +100,6 @@ export async function getJobs(): Promise<JobsResult> {
 }
 
 export async function getJobById(id: string): Promise<Job | null> {
-  console.log("[v0] getJobById called with:", id)
   const supabase = createAdminClient()
   
   const { data, error } = await supabase
@@ -117,11 +109,9 @@ export async function getJobById(id: string): Promise<Job | null> {
     .single()
   
   if (error) {
-    console.error("[v0] Error fetching job:", error)
     return null
   }
   
-  console.log("[v0] Job found:", data)
   return data
 }
 

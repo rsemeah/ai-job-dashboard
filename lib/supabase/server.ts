@@ -32,17 +32,9 @@ export async function createClient() {
 
 // Admin client that bypasses RLS - use for server-side operations
 export function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  console.log("[v0] createAdminClient - URL:", url ? "set" : "MISSING", "- Service Key:", key ? "set" : "MISSING")
-  
-  if (!url || !key) {
-    console.error("[v0] Missing required environment variables for admin client")
-  }
-  
   return createSupabaseClient(
-    url!,
-    key!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
       auth: {
         autoRefreshToken: false,

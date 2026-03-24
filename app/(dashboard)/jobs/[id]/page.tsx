@@ -13,9 +13,7 @@ interface PageProps {
 
 export default async function JobDetailPage({ params }: PageProps) {
   const { id } = await params
-  console.log("[v0] JobDetailPage loading job with id:", id)
   const job = await getJobById(id)
-  console.log("[v0] JobDetailPage got job:", job ? "found" : "not found")
 
   if (!job) {
     return (

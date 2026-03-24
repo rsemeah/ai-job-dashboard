@@ -14,7 +14,7 @@ export type JobStatus =
 
 export type JobFit = 'HIGH' | 'MEDIUM' | 'LOW' | 'UNSCORED' | string | null
 
-// Minimal Job interface - only columns that exist in user's Supabase
+// Job interface - core fields are required, workflow fields are optional
 export interface Job {
   id: string
   title: string
@@ -24,12 +24,15 @@ export interface Job {
   fit: JobFit
   score: number | null
   created_at: string
-  // These are optional - may or may not exist in schema
+  // Optional timestamp fields
+  scored_at?: string | null
+  applied_at?: string | null
+  // Optional fields - may or may not exist in schema
   raw_description?: string | null
   source_url?: string | null
   location?: string | null
   salary_range?: string | null
-  score_reasoning?: string[] | null
+  score_reasoning?: Record<string, unknown> | string[] | null
   score_strengths?: string[] | null
   score_gaps?: string[] | null
   keywords_extracted?: string[] | null

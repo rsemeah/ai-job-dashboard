@@ -183,19 +183,50 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
 
     setCreatedJob(result.job)
     
-    // Step 2: Simulate AI review process (in reality, n8n would handle this)
+    // Step 2: Full-auto AI processing
     setStep("reviewing")
-    await new Promise(resolve => setTimeout(resolve, 1500))
     
-    // Step 3: Preparing materials
-    setStep("preparing")
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    // Step 4: Complete
-    setStep("complete")
-    toast.success("Job added successfully!", {
-      description: "View it in All Jobs to track its status.",
-    })
+    try {
+      const processResponse = await fetch("/api/jobs/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: result.job.id }),
+      })
+      
+      if (processResponse.ok) {
+        const processResult = await processResponse.json()
+        
+        // Step 3: Processing complete
+        setStep("preparing")
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // Step 4: Complete with details
+        setStep("complete")
+        
+        if (processResult.score >= 60) {
+          toast.success("Job is ready to apply!", {
+            description: `Score: ${processResult.score}/100 (${processResult.fit} fit). Resume generated.`,
+          })
+        } else {
+          toast.success("Job analyzed!", {
+            description: `Score: ${processResult.score}/100. Review details to decide.`,
+          })
+        }
+      } else {
+        // Processing failed but job was created
+        setStep("complete")
+        toast.info("Job added - processing will continue in background", {
+          description: "View the job to see details.",
+        })
+      }
+    } catch (processError) {
+      // Processing failed but job was created
+      console.error("Process error:", processError)
+      setStep("complete")
+      toast.info("Job added", {
+        description: "Manual review may be needed.",
+      })
+    }
     
     onSubmitSuccess?.()
   }
@@ -348,9 +379,9 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
 
 function ProcessingSteps({ currentStep }: { currentStep: ProcessingStep }) {
   const steps = [
-    { key: "fetching", label: "Fetching job details" },
-    { key: "reviewing", label: "Analyzing role fit" },
-    { key: "preparing", label: "Preparing materials" },
+    { key: "fetching", label: "Creating job record" },
+    { key: "reviewing", label: "AI analyzing fit & generating materials" },
+    { key: "preparing", label: "Finalizing resume & cover letter" },
   ]
 
   const currentIndex = steps.findIndex(s => s.key === currentStep)

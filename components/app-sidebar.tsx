@@ -14,6 +14,7 @@ import {
   BarChart3,
   Settings,
   PlusCircle,
+  User,
 } from "lucide-react"
 import {
   Sidebar,
@@ -42,6 +43,7 @@ const navigation = [
 ]
 
 const bottomNavigation = [
+  { name: "Your Profile", href: "/profile", icon: User },
   { name: "Settings", href: "/settings", icon: Settings },
 ]
 

@@ -86,7 +86,7 @@ export function HowItWorks() {
     {
       icon: Link2,
       title: "Paste a job URL",
-      description: "Drop in a link from Greenhouse, Lever, or LinkedIn",
+      description: "Drop in any public job posting link",
     },
     {
       icon: Search,
@@ -358,7 +358,7 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
           </div>
         </form>
         <p className="text-xs text-muted-foreground mt-3">
-          Supports Greenhouse, Lever, and LinkedIn job URLs
+          Paste any public job posting URL - we'll attempt to parse it automatically
         </p>
       </CardContent>
     </Card>

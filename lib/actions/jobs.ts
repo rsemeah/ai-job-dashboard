@@ -97,19 +97,20 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
       return { success: false, error: "Please provide a job URL." }
     }
 
+    let parsedUrl: URL
     try {
-      new URL(normalizedUrl)
+      parsedUrl = new URL(normalizedUrl)
     } catch {
       return { success: false, error: "Please provide a valid URL." }
     }
 
-    const sourceHint = getSourceHint(normalizedUrl)
-    if (!sourceHint) {
-      return {
-        success: false,
-        error: "Only Greenhouse, Lever, and LinkedIn URLs are supported right now.",
-      }
+    // Only validate URL uses http/https protocol
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      return { success: false, error: "URL must use http or https protocol." }
     }
+
+    // Source hint is optional - n8n will determine the best parser
+    const sourceHint = getSourceHint(normalizedUrl)
 
     const webhookUrl = process.env.N8N_JOB_INTAKE_WEBHOOK_URL
     if (!webhookUrl) {

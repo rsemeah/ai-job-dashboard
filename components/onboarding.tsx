@@ -134,7 +134,7 @@ export function HowItWorks() {
   )
 }
 
-type ProcessingStep = "idle" | "submitting" | "fetching" | "reviewing" | "preparing" | "complete" | "error"
+type ProcessingStep = "idle" | "submitting" | "complete" | "error"
 
 interface JobUrlInputProps {
   onSubmitSuccess?: () => void
@@ -146,9 +146,12 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
   const [step, setStep] = useState<ProcessingStep>("idle")
   const [createdJob, setCreatedJob] = useState<Job | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isDuplicate, setIsDuplicate] = useState(false)
+  const [isPartialParse, setIsPartialParse] = useState(false)
+  const [submissionMessage, setSubmissionMessage] = useState<string | null>(null)
   const router = useRouter()
 
-  const isProcessing = step !== "idle" && step !== "complete" && step !== "error"
+  const isProcessing = step === "submitting"
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -168,12 +171,10 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
     }
 
     setStep("submitting")
-    toast.info("Starting job review...")
+    toast.info("Submitting URL to ingestion workflow...")
 
-    // Step 1: Create the job record
-    setStep("fetching")
     const result = await createJobFromUrl(url)
-    
+
     if (!result.success) {
       setStep("error")
       setError(result.error)
@@ -182,20 +183,26 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
     }
 
     setCreatedJob(result.job)
-    
-    // Step 2: Simulate AI review process (in reality, n8n would handle this)
-    setStep("reviewing")
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // Step 3: Preparing materials
-    setStep("preparing")
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    // Step 4: Complete
+    setIsDuplicate(result.duplicate)
+    setIsPartialParse(result.partialParse)
+    setSubmissionMessage(result.message || null)
     setStep("complete")
-    toast.success("Job added successfully!", {
-      description: "View it in All Jobs to track its status.",
-    })
+
+    if (result.duplicate) {
+      toast.warning("This job already exists", {
+        description: "We linked you to the existing record instead of creating a duplicate.",
+      })
+    } else {
+      toast.success("Job submitted successfully", {
+        description: "The job was sent to n8n for parsing and scoring.",
+      })
+    }
+
+    if (result.partialParse) {
+      toast.warning("Job was partially parsed", {
+        description: "Scoring and resume generation may be limited until details are completed.",
+      })
+    }
     
     onSubmitSuccess?.()
   }
@@ -213,6 +220,9 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
     setUrl("")
     setCreatedJob(null)
     setError(null)
+    setIsDuplicate(false)
+    setIsPartialParse(false)
+    setSubmissionMessage(null)
   }
 
   // Success state - show after job is created
@@ -225,10 +235,19 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
               <CheckCircle2 className="h-8 w-8 text-green-500" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-xl font-semibold">Job Added Successfully</h3>
+              <h3 className="text-xl font-semibold">Job Submitted</h3>
               <p className="text-muted-foreground max-w-md">
-                Your job is now in the system. The AI will analyze it and update the score once processing is complete.
+                The URL was sent to n8n for ingestion, parsing, deduplication, scoring, and Supabase persistence.
               </p>
+              {submissionMessage && (
+                <p className="text-xs text-muted-foreground max-w-md">{submissionMessage}</p>
+              )}
+              {isDuplicate && (
+                <p className="text-sm text-amber-600">This URL already existed, so we reused the existing job.</p>
+              )}
+              {isPartialParse && (
+                <p className="text-sm text-amber-600">Parsing was incomplete. Scoring/generation may be limited.</p>
+              )}
               <p className="text-sm text-muted-foreground">
                 <span className="font-medium">{createdJob.company}</span> - {createdJob.title}
               </p>
@@ -297,10 +316,10 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
               </div>
             </div>
             <div className="space-y-4 w-full max-w-sm">
-              <h3 className="text-lg font-semibold">Adding Job to HireWire</h3>
+              <h3 className="text-lg font-semibold">Submitting URL to n8n</h3>
               <ProcessingSteps currentStep={step} />
               <p className="text-xs text-muted-foreground">
-                This usually takes a few seconds
+                Waiting for ingestion workflow and Supabase sync
               </p>
             </div>
           </div>
@@ -339,7 +358,7 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
           </div>
         </form>
         <p className="text-xs text-muted-foreground mt-3">
-          Supports Greenhouse, Lever, Workday, and most job board URLs
+          Supports Greenhouse, Lever, and LinkedIn URLs (best effort for LinkedIn)
         </p>
       </CardContent>
     </Card>
@@ -348,9 +367,8 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
 
 function ProcessingSteps({ currentStep }: { currentStep: ProcessingStep }) {
   const steps = [
-    { key: "fetching", label: "Fetching job details" },
-    { key: "reviewing", label: "Analyzing role fit" },
-    { key: "preparing", label: "Preparing materials" },
+    { key: "submitting", label: "Submitting URL" },
+    { key: "complete", label: "Job visible in Supabase" },
   ]
 
   const currentIndex = steps.findIndex(s => s.key === currentStep)

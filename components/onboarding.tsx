@@ -35,8 +35,7 @@ export function HeroSection() {
           Job Search Engine
         </p>
         <h1 className="text-4xl md:text-5xl font-serif font-medium tracking-tight leading-[1.1]">
-          Stop applying blindly.<br />
-          <span className="text-primary">Start applying smart.</span>
+          Know before you apply.
         </h1>
         <p className="text-lg text-muted-foreground max-w-xl leading-relaxed">
           HireWire scores every job against your profile, generates tailored materials, 
@@ -190,11 +189,9 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
     }
 
     setStep("submitting")
-    toast.info("Sending to n8n workflow...")
-    console.log("[v0] Submitting job URL:", url)
+    toast.info("Processing...")
 
     const result = await createJobFromUrl(url)
-    console.log("[v0] createJobFromUrl result:", result)
 
     if (!result.success) {
       setStep("error")

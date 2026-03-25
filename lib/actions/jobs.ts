@@ -116,9 +116,6 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
     const webhookUrl = process.env.N8N_JOB_INTAKE_WEBHOOK_URL || 
       "https://redlanternstudios.app.n8n.cloud/webhook-test/job-intake"
 
-    console.log("[v0] Submitting to n8n webhook:", webhookUrl)
-    console.log("[v0] Request ID:", requestId)
-
     const webhookRes = await fetch(webhookUrl, {
       method: "POST",
       headers: {
@@ -133,8 +130,6 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
       cache: "no-store",
     })
 
-    console.log("[v0] n8n response status:", webhookRes.status)
-
     if (!webhookRes.ok) {
       return {
         success: false,
@@ -145,14 +140,11 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
     let webhookPayload: unknown = null
     try {
       webhookPayload = await webhookRes.json()
-      console.log("[v0] n8n response payload:", webhookPayload)
     } catch {
-      console.log("[v0] n8n returned non-JSON response")
       webhookPayload = null
     }
 
     const { duplicate, partialParse, jobId, message } = parseWebhookResponse(webhookPayload)
-    console.log("[v0] Parsed response - jobId:", jobId, "duplicate:", duplicate)
     const job = await findJobFromIngestion(jobId, normalizedUrl)
 
     if (!job) {

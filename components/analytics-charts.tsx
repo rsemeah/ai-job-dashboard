@@ -30,9 +30,9 @@ interface AnalyticsChartsProps {
 }
 
 export function AnalyticsCharts({ jobs }: AnalyticsChartsProps) {
-  // Status distribution
+  // Status distribution (using canonical statuses)
   const statusCounts = jobs.reduce((acc, job) => {
-    const status = job.status || "NEW"
+    const status = job.status || "submitted"
     acc[status] = (acc[status] || 0) + 1
     return acc
   }, {} as Record<string, number>)
@@ -86,16 +86,16 @@ export function AnalyticsCharts({ jobs }: AnalyticsChartsProps) {
     count: r.count,
   }))
 
-  // Conversion metrics
+  // Conversion metrics (using canonical statuses)
   const totalJobs = jobs.length
   const scoredJobs = jobs.filter(j => j.score !== null).length
   const appliedJobs = jobs.filter(j => 
-    ["APPLIED", "INTERVIEW", "OFFER"].includes(j.status || "")
+    ["applied", "interviewing", "offered"].includes(j.status || "")
   ).length
   const interviewJobs = jobs.filter(j => 
-    ["INTERVIEW", "OFFER"].includes(j.status || "")
+    ["interviewing", "offered"].includes(j.status || "")
   ).length
-  const offerJobs = jobs.filter(j => j.status === "OFFER").length
+  const offerJobs = jobs.filter(j => j.status === "offered").length
 
   const conversionData = [
     { stage: "Total", value: totalJobs },

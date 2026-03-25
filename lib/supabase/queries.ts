@@ -128,8 +128,8 @@ export async function insertManualJob(input: ManualJobInput): Promise<Job> {
       location: input.location.trim() || null,
       salary_range: input.salary_range.trim() || null,
       is_remote: input.is_remote,
-      status: "NEW",
-      fit: "UNSCORED",
+      status: "submitted",
+      fit: null,
       score: null,
       dedup_hash,
     })
@@ -202,7 +202,7 @@ export async function markJobApplied(
     { onConflict: "job_id" },
   )
   if (appErr) throw appErr
-  await updateJobStatus(jobId, "APPLIED")
+  await updateJobStatus(jobId, "applied")
 }
 
 // ── Workflow logs ─────────────────────────────────────────────────────────────
@@ -261,7 +261,7 @@ export async function countAppliedToday(): Promise<number> {
   const { count, error } = await supabase
     .from("jobs")
     .select("*", { count: "exact", head: true })
-    .eq("status", "APPLIED")
+    .eq("status", "applied")
     .gte("applied_at", startOfDay.toISOString())
   if (error) return 0
   return count ?? 0

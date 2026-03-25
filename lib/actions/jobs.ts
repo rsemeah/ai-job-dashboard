@@ -271,7 +271,7 @@ export async function getJobStats(): Promise<StatsResult> {
     const jobs = data || []
 
     const byStatus = jobs.reduce((acc, job) => {
-      const currentStatus = job.status || "NEW"
+      const currentStatus = job.status || "submitted"
       acc[currentStatus] = (acc[currentStatus] || 0) + 1
       return acc
     }, {} as Record<string, number>)

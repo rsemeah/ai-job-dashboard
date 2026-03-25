@@ -30,11 +30,11 @@ function formatDate(dateString: string | null) {
 export default async function ApplicationsPage() {
   const supabase = createAdminClient()
   
-  // Fetch jobs that have been applied to
+  // Fetch jobs that have been applied to (using canonical statuses)
   const { data: appliedJobs, error } = await supabase
     .from("jobs")
     .select("*")
-    .in("status", ["APPLIED", "INTERVIEW", "OFFER", "REJECTED"])
+    .in("status", ["applied", "interviewing", "offered", "rejected"])
     .order("created_at", { ascending: false })
 
   if (error) {
@@ -90,7 +90,7 @@ export default async function ApplicationsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-pink-500">
-                  {applications.filter(j => j.status === "INTERVIEW").length}
+                  {applications.filter(j => j.status === "interviewing").length}
                 </div>
               </CardContent>
             </Card>
@@ -102,7 +102,7 @@ export default async function ApplicationsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-emerald-500">
-                  {applications.filter(j => j.status === "OFFER").length}
+                  {applications.filter(j => j.status === "offered").length}
                 </div>
               </CardContent>
             </Card>
@@ -160,7 +160,7 @@ export default async function ApplicationsPage() {
           </Card>
 
           {/* Interviews Section */}
-          {applications.filter(j => j.status === "INTERVIEW").length > 0 && (
+          {applications.filter(j => j.status === "interviewing").length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -171,7 +171,7 @@ export default async function ApplicationsPage() {
               <CardContent>
                 <div className="space-y-4">
                   {applications
-                    .filter(job => job.status === "INTERVIEW")
+                    .filter(job => job.status === "interviewing")
                     .map(job => (
                       <Link
                         key={job.id}

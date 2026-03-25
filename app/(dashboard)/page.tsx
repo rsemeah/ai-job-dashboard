@@ -1,19 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getJobStats, getJobs } from "@/lib/actions/jobs"
-import { TrendingUp, ThumbsUp, Send, Clock, ArrowRight } from "lucide-react"
+import { TrendingUp, ThumbsUp, Send, Clock, ArrowRight, AlertTriangle } from "lucide-react"
 import { DashboardCharts } from "@/components/dashboard-charts"
 import { ErrorState } from "@/components/error-state"
 import { HeroSection, HowItWorks, JobUrlInput, OnboardingEmptyState, WorkflowSteps } from "@/components/onboarding"
 import Link from "next/link"
 
-// Force dynamic rendering to always show fresh data
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
 export default async function DashboardPage() {
   const [statsResult, jobsResult] = await Promise.all([getJobStats(), getJobs()])
 
-  // Error state
   if (!statsResult.success) {
     return (
       <div className="space-y-6">
@@ -30,11 +28,19 @@ export default async function DashboardPage() {
   const jobs = jobsResult.success ? jobsResult.data : []
   const isFirstTime = stats.total === 0
 
-  // Calculate useful stats
-  const readyToApply = stats.byStatus["READY_TO_APPLY"] || 0
-  const applied = stats.byStatus["APPLIED"] || 0
-  const interviews = stats.byStatus["INTERVIEW"] || 0
+  // Calculate stats using canonical statuses
+  const readyToApply = (stats.byStatus["ready"] || 0)
+  const applied = (stats.byStatus["applied"] || 0) + (stats.byStatus["interviewing"] || 0)
+  const interviews = stats.byStatus["interviewing"] || 0
   const highFit = stats.byFit["HIGH"] || 0
+  const needsReview = (stats.byStatus["manual_review_required"] || 0) + 
+                      (stats.byStatus["parsed_partial"] || 0) +
+                      (stats.byStatus["below_threshold"] || 0)
+  const processing = (stats.byStatus["submitted"] || 0) + 
+                     (stats.byStatus["fetching"] || 0) + 
+                     (stats.byStatus["parsing"] || 0) + 
+                     (stats.byStatus["scoring"] || 0) +
+                     (stats.byStatus["generating_documents"] || 0)
 
   const statCards = [
     {
@@ -50,28 +56,27 @@ export default async function DashboardPage() {
       value: readyToApply,
       icon: ThumbsUp,
       description: "Materials ready",
-      color: "text-blue-500",
+      color: "text-green-500",
       href: "/ready-queue",
     },
     {
       name: "Applied",
       value: applied,
       icon: Send,
-      description: "Awaiting response",
-      color: "text-amber-500",
+      description: interviews > 0 ? `${interviews} interviewing` : "Awaiting response",
+      color: "text-blue-500",
       href: "/applications",
     },
     {
-      name: "Interviews",
-      value: interviews,
-      icon: Clock,
-      description: "In progress",
-      color: "text-purple-500",
-      href: "/applications?filter=interview",
+      name: "Needs Review",
+      value: needsReview,
+      icon: AlertTriangle,
+      description: processing > 0 ? `${processing} processing` : "Manual input needed",
+      color: needsReview > 0 ? "text-amber-500" : "text-muted-foreground",
+      href: "/jobs?status=manual_review_required",
     },
   ]
 
-  // Empty state - first time user
   if (isFirstTime) {
     return (
       <div className="space-y-6">
@@ -86,13 +91,10 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Hero with actions */}
       <HeroSection />
-      
-      {/* Quick job URL input */}
       <JobUrlInput isFirstTime={false} />
 
-      {/* Stats Cards - show progress through the pipeline */}
+      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
           <Link key={stat.name} href={stat.href} className="block">
@@ -117,10 +119,8 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      {/* How it works - collapsed for returning users */}
       {stats.total < 5 && <HowItWorks />}
 
-      {/* Charts */}
       <DashboardCharts stats={stats} jobs={jobs} />
     </div>
   )

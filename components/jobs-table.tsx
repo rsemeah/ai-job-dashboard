@@ -25,17 +25,27 @@ import { Input } from "@/components/ui/input"
 import { X, Search } from "lucide-react"
 
 const ALL_STATUSES: JobStatus[] = [
-  "NEW",
-  "SCORED",
-  "READY_TO_APPLY",
-  "APPLIED",
-  "REJECTED",
-  "INTERVIEW",
-  "OFFER",
-  "ARCHIVED",
+  "submitted",
+  "fetching",
+  "parsing",
+  "parsed",
+  "parsed_partial",
+  "scoring",
+  "scored",
+  "below_threshold",
+  "generating_documents",
+  "manual_review_required",
+  "ready",
+  "applied",
+  "interviewing",
+  "offered",
+  "rejected",
+  "declined",
+  "archived",
+  "error",
 ]
 
-const ALL_FITS: JobFit[] = ["HIGH", "MEDIUM", "LOW", "UNSCORED"]
+const ALL_FITS: (JobFit | "Unscored")[] = ["HIGH", "MEDIUM", "LOW", null] as const
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString("en-US", {

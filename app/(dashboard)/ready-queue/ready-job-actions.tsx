@@ -74,7 +74,7 @@ export function ReadyJobActions({ job }: ReadyJobActionsProps) {
 
   const handleMarkApplied = () => {
     startTransition(async () => {
-      const result = await updateJobStatus(job.id, "APPLIED")
+      const result = await updateJobStatus(job.id, "applied")
       if (result.success) {
         toast.success("Marked as applied!")
         router.refresh()
@@ -86,7 +86,7 @@ export function ReadyJobActions({ job }: ReadyJobActionsProps) {
 
   const handleArchive = () => {
     startTransition(async () => {
-      const result = await updateJobStatus(job.id, "ARCHIVED")
+      const result = await updateJobStatus(job.id, "archived")
       if (result.success) {
         toast.success("Job archived")
         router.refresh()

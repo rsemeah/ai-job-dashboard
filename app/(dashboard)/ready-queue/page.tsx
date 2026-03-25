@@ -40,12 +40,13 @@ export default async function ReadyQueuePage() {
     )
   }
 
-  // Filter for jobs that are READY_TO_APPLY and have materials
+  // Filter for jobs that are ready to apply (using canonical statuses)
   const readyJobs = result.data.filter(job => 
-    (job.status === "READY_TO_APPLY" || 
+    (job.status === "ready" || 
+     job.status === "manual_review_required" ||
      (job.fit === "HIGH" && job.score !== null && job.score >= 60)) &&
-    job.status !== "APPLIED" &&
-    job.status !== "ARCHIVED"
+    job.status !== "applied" &&
+    job.status !== "archived"
   ).sort((a, b) => (b.score || 0) - (a.score || 0))
 
   // Jobs with complete materials

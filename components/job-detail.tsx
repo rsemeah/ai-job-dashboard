@@ -39,11 +39,17 @@ import { toast } from "sonner"
 
 // Canonical statuses from n8n model
 const ALL_STATUSES: JobStatus[] = [
-  "pending",
+  "submitted",
+  "fetching",
   "parsing",
   "parsed",
+  "parsed_partial",
+  "duplicate",
   "scoring",
   "scored",
+  "below_threshold",
+  "generating_documents",
+  "manual_review_required",
   "ready",
   "applied",
   "interviewing",
@@ -54,14 +60,20 @@ const ALL_STATUSES: JobStatus[] = [
   "error",
 ]
 
-// Workflow steps for progress indicator
+// Workflow stages for progress indicator (groups related statuses)
 const WORKFLOW_DISPLAY = [
-  { status: "pending", label: "Submitted" },
-  { status: "parsed", label: "Parsed" },
-  { status: "scored", label: "Scored" },
-  { status: "ready", label: "Ready" },
-  { status: "applied", label: "Applied" },
+  { statuses: ["submitted", "fetching", "parsing"], label: "Submitted" },
+  { statuses: ["parsed", "parsed_partial"], label: "Parsed" },
+  { statuses: ["scoring", "scored", "below_threshold"], label: "Scored" },
+  { statuses: ["generating_documents", "ready", "manual_review_required"], label: "Ready" },
+  { statuses: ["applied", "interviewing", "offered"], label: "Applied" },
 ]
+
+// Helper to find which stage a status belongs to
+function getStageIndex(status: JobStatus): number {
+  const idx = WORKFLOW_DISPLAY.findIndex(stage => stage.statuses.includes(status))
+  return idx >= 0 ? idx : 0
+}
 
 interface JobDetailProps {
   job: Job
@@ -77,8 +89,11 @@ export function JobDetail({ job }: JobDetailProps) {
   const hasCoverLetter = !!job.generated_cover_letter
   const hasScore = job.score !== null
   const isReadyToApply = status === "ready" || (hasResume && hasCoverLetter && hasScore)
-  const isProcessing = status === "parsing" || status === "scoring"
+  const isProcessing = ["submitted", "fetching", "parsing", "scoring", "generating_documents"].includes(status)
   const hasError = status === "error"
+  const needsReview = status === "manual_review_required" || status === "parsed_partial"
+  const isBelowThreshold = status === "below_threshold"
+  const isDuplicate = status === "duplicate"
 
   const handleStatusChange = (newStatus: JobStatus) => {
     setStatus(newStatus)
@@ -128,9 +143,8 @@ export function JobDetail({ job }: JobDetailProps) {
     toast.success(`${label} copied to clipboard!`)
   }
 
-  // Get current step index for progress
-  const currentStepIndex = WORKFLOW_DISPLAY.findIndex(s => s.status === status)
-  const progressIndex = currentStepIndex >= 0 ? currentStepIndex : 0
+  // Get current step index for progress using the helper
+  const progressIndex = getStageIndex(status)
 
   return (
     <div className="space-y-6">
@@ -152,7 +166,7 @@ export function JobDetail({ job }: JobDetailProps) {
               const isPast = index <= progressIndex
 
               return (
-                <div key={step.status} className="flex items-center flex-1">
+                <div key={step.label} className="flex items-center flex-1">
                   <div className="flex flex-col items-center flex-1">
                     <div
                       className={`flex h-8 w-8 items-center justify-center rounded-full border-2 ${
@@ -194,14 +208,16 @@ export function JobDetail({ job }: JobDetailProps) {
       </Card>
 
       {/* Error Banner */}
-      {hasError && job.error_message && (
+      {hasError && (
         <Card className="border-destructive/50 bg-destructive/5">
           <CardContent className="py-4">
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
               <div>
                 <h4 className="font-medium text-destructive">Processing Error</h4>
-                <p className="text-sm text-muted-foreground mt-1">{job.error_message}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {job.error_message || "An error occurred during processing."}
+                </p>
                 {job.error_step && (
                   <p className="text-xs text-muted-foreground mt-1">Failed at: {job.error_step}</p>
                 )}
@@ -211,8 +227,72 @@ export function JobDetail({ job }: JobDetailProps) {
         </Card>
       )}
 
+      {/* Duplicate Banner */}
+      {isDuplicate && (
+        <Card className="border-gray-500/50 bg-gray-500/5">
+          <CardContent className="py-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-gray-500 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-gray-600">Duplicate Job</h4>
+                <p className="text-sm text-muted-foreground mt-1">
+                  This job appears to be a duplicate of an existing entry.
+                </p>
+                {job.duplicate_of_job_id && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    See original: {job.duplicate_of_job_id}
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Manual Review Required Banner */}
+      {needsReview && (
+        <Card className="border-amber-500/50 bg-amber-500/5">
+          <CardContent className="py-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-amber-600">Manual Review Required</h4>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {status === "parsed_partial" 
+                    ? "Some job details could not be extracted automatically."
+                    : "This job requires manual review before proceeding."}
+                </p>
+                {job.parse_missing_fields && job.parse_missing_fields.length > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Missing: {job.parse_missing_fields.join(", ")}
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Below Threshold Banner */}
+      {isBelowThreshold && (
+        <Card className="border-orange-500/50 bg-orange-500/5">
+          <CardContent className="py-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-orange-600">Below Apply Threshold</h4>
+                <p className="text-sm text-muted-foreground mt-1">
+                  This job scored below your configured apply threshold. 
+                  Review the scoring details to decide if you want to apply anyway.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Ready to Apply Banner */}
-      {isReadyToApply && status !== "applied" && (
+      {isReadyToApply && status !== "applied" && !needsReview && !isBelowThreshold && (
         <Card className="border-green-500/50 bg-green-500/5">
           <CardContent className="py-4">
             <div className="flex items-center justify-between">

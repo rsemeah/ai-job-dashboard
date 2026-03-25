@@ -48,7 +48,7 @@ export default async function CompaniesPage() {
     }
     acc[company].jobs.push(job)
     acc[company].totalJobs++
-    if (job.status === "APPLIED" || job.status === "INTERVIEW" || job.status === "OFFER") {
+    if (job.status === "applied" || job.status === "interviewing" || job.status === "offered") {
       acc[company].appliedJobs++
     }
     return acc

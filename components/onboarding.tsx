@@ -190,9 +190,11 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
     }
 
     setStep("submitting")
-    toast.info("Processing job...")
+    toast.info("Sending to n8n workflow...")
+    console.log("[v0] Submitting job URL:", url)
 
     const result = await createJobFromUrl(url)
+    console.log("[v0] createJobFromUrl result:", result)
 
     if (!result.success) {
       setStep("error")

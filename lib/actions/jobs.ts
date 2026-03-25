@@ -109,38 +109,31 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
       return { success: false, error: "URL must use http or https protocol." }
     }
 
-    // Source hint is optional - n8n will determine the best parser
-    const sourceHint = getSourceHint(normalizedUrl)
-
-    const webhookUrl = process.env.N8N_JOB_INTAKE_WEBHOOK_URL
-    if (!webhookUrl) {
-      return {
-        success: false,
-        error: "Job intake webhook is not configured. Set N8N_JOB_INTAKE_WEBHOOK_URL.",
-      }
-    }
-
     // Generate request_id for tracing through the pipeline
     const requestId = crypto.randomUUID()
 
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    }
+    // Use environment variable or fallback to the live n8n webhook
+    const webhookUrl = process.env.N8N_JOB_INTAKE_WEBHOOK_URL || 
+      "https://redlanternstudios.app.n8n.cloud/webhook-test/job-intake"
 
-    if (process.env.N8N_JOB_INTAKE_WEBHOOK_TOKEN) {
-      headers["x-webhook-token"] = process.env.N8N_JOB_INTAKE_WEBHOOK_TOKEN
-    }
+    console.log("[v0] Submitting to n8n webhook:", webhookUrl)
+    console.log("[v0] Request ID:", requestId)
 
     const webhookRes = await fetch(webhookUrl, {
       method: "POST",
-      headers,
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
-        url: normalizedUrl,
-        source_hint: sourceHint,
-        request_id: requestId,
+        jobUrl: normalizedUrl,
+        source: "hirewire",
+        submittedAt: new Date().toISOString(),
+        requestId: requestId,
       }),
       cache: "no-store",
     })
+
+    console.log("[v0] n8n response status:", webhookRes.status)
 
     if (!webhookRes.ok) {
       return {
@@ -152,11 +145,14 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
     let webhookPayload: unknown = null
     try {
       webhookPayload = await webhookRes.json()
+      console.log("[v0] n8n response payload:", webhookPayload)
     } catch {
+      console.log("[v0] n8n returned non-JSON response")
       webhookPayload = null
     }
 
     const { duplicate, partialParse, jobId, message } = parseWebhookResponse(webhookPayload)
+    console.log("[v0] Parsed response - jobId:", jobId, "duplicate:", duplicate)
     const job = await findJobFromIngestion(jobId, normalizedUrl)
 
     if (!job) {

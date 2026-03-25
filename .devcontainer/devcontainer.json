@@ -1,9 +1,9 @@
 {
   "name": "HireWire Dev",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
-      "version": "20"
+      "version": "22"
     }
   },
   "customizations": {
@@ -11,7 +11,8 @@
       "settings": {
         "typescript.tsdk": "node_modules/typescript/lib",
         "editor.formatOnSave": true,
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.tabSize": 2
       },
       "extensions": [
         "dbaeumer.vscode-eslint",
@@ -21,7 +22,7 @@
       ]
     }
   },
-  "postCreateCommand": "npm install",
+  "postCreateCommand": "pnpm install",
   "forwardPorts": [3000],
   "portsAttributes": {
     "3000": {
@@ -31,5 +32,16 @@
   },
   "remoteEnv": {
     "NODE_ENV": "development"
+  },
+  "secrets": {
+    "NEXT_PUBLIC_SUPABASE_URL": {
+      "description": "Supabase project URL (from Supabase dashboard)"
+    },
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": {
+      "description": "Supabase anonymous/public key"
+    },
+    "SUPABASE_SERVICE_ROLE_KEY": {
+      "description": "Supabase service role key (keep secret)"
+    }
   }
 }

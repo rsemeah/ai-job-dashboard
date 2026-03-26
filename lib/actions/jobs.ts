@@ -113,8 +113,9 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
     const requestId = crypto.randomUUID()
 
     // Use environment variable or fallback to the live n8n webhook
+    // Note: Production webhooks use /webhook/ not /webhook-test/
     const webhookUrl = process.env.N8N_JOB_INTAKE_WEBHOOK_URL || 
-      "https://redlanternstudios.app.n8n.cloud/webhook-test/job-intake"
+      "https://redlanternstudios.app.n8n.cloud/webhook/job-intake"
 
     const webhookRes = await fetch(webhookUrl, {
       method: "POST",

@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
-// Validate environment variables
+// Validate and retrieve Supabase environment variables
 function getSupabaseConfig() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -56,9 +56,9 @@ export async function createClient() {
 
 // Admin client that bypasses RLS - use for server-side operations
 export function createAdminClient() {
-  const { supabaseUrl, supabaseServiceRoleKey } = getSupabaseConfig()
+  const config = getSupabaseConfig()
 
-  if (!supabaseServiceRoleKey) {
+  if (!config.supabaseServiceRoleKey) {
     throw new Error(
       'Missing SUPABASE_SERVICE_ROLE_KEY environment variable. ' +
       'Please add Supabase integration via the Settings menu.'
@@ -66,8 +66,8 @@ export function createAdminClient() {
   }
 
   return createSupabaseClient(
-    supabaseUrl,
-    supabaseServiceRoleKey,
+    config.supabaseUrl,
+    config.supabaseServiceRoleKey,
     {
       auth: {
         autoRefreshToken: false,

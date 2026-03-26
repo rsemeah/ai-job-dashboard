@@ -124,17 +124,32 @@ export async function POST(request: NextRequest) {
     // Check for existing job with this URL
     const { data: existingJob } = await supabase
       .from("jobs")
-      .select("id, title, company, status")
+      .select("*")
       .eq("source_url", job_url)
       .maybeSingle()
 
     if (existingJob) {
+      // Return full analysis data for duplicates so UI can render properly
       return NextResponse.json({
         success: true,
         job_id: existingJob.id,
         duplicate: true,
         message: `This job is already in your pipeline: ${existingJob.title} at ${existingJob.company}`,
         job: existingJob,
+        analysis: {
+          title: existingJob.title || "Unknown Title",
+          company: existingJob.company || "Unknown Company",
+          location: existingJob.location,
+          employment_type: existingJob.employment_type,
+          salary_text: existingJob.salary_range,
+          responsibilities: existingJob.responsibilities || [],
+          qualifications_required: existingJob.qualifications_required || [],
+          qualifications_preferred: existingJob.qualifications_preferred || [],
+          keywords: existingJob.ats_keywords || existingJob.keywords_extracted || [],
+          ats_phrases: [],
+          tech_stack: [],
+          seniority_level: "Unknown",
+        },
       })
     }
 

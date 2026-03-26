@@ -322,6 +322,27 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
   if (step === "complete" && result) {
     const { job, analysis, generation, duplicate } = result
 
+    // Defensive check - if analysis is missing, show basic info from job
+    if (!analysis) {
+      return (
+        <Card id="review-job" className="border-primary/20 bg-primary/[0.02]">
+          <CardContent className="py-8">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <CheckCircle2 className="h-12 w-12 text-primary" />
+              <h3 className="text-xl font-semibold">Job Added</h3>
+              <p className="text-muted-foreground">
+                {job?.title || "Job"} at {job?.company || "Company"}
+              </p>
+              <div className="flex gap-3">
+                <Button onClick={handleViewJob}>View Details</Button>
+                <Button variant="outline" onClick={handleReset}>Analyze Another</Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )
+    }
+
     return (
       <Card id="review-job" className="border-primary/20 bg-primary/[0.02]">
         <CardContent className="py-8">
@@ -333,8 +354,8 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
                   <CheckCircle2 className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold">{analysis.title}</h3>
-                  <p className="text-muted-foreground">{analysis.company}</p>
+                  <h3 className="text-xl font-semibold">{analysis.title || job?.title || "Job Title"}</h3>
+                  <p className="text-muted-foreground">{analysis.company || job?.company || "Company"}</p>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {analysis.location && (
                       <Badge variant="secondary">{analysis.location}</Badge>

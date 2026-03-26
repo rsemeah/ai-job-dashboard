@@ -48,11 +48,10 @@ const ALL_STATUSES: JobStatus[] = [
 const ALL_FITS: (JobFit | "Unscored")[] = ["HIGH", "MEDIUM", "LOW", null] as const
 
 function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
+  // Use UTC to avoid hydration mismatch between server and client timezones
+  const date = new Date(dateString)
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  return `${months[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`
 }
 
 interface JobsTableProps {

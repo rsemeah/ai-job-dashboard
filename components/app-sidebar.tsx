@@ -52,7 +52,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar className="border-r border-sidebar-border">
-      <SidebarHeader className="px-4 py-5">
+      <SidebarHeader className="px-4 py-5 bg-background">
         <Link href="/" className="flex items-center group">
           <Image
             src="/images/hirewire-logo.png"

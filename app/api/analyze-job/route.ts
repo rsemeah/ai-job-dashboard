@@ -23,7 +23,7 @@ const ROLE_FAMILIES = [
   "Other",
 ] as const
 
-// Schema for job analysis extraction
+// Schema for job analysis extraction - made flexible to handle LLM variations
 const JobAnalysisSchema = z.object({
   title: z.string().describe("Job title as stated"),
   company: z.string().describe("Company name"),
@@ -38,10 +38,10 @@ const JobAnalysisSchema = z.object({
   ats_phrases: z.array(z.string()).describe("Exact phrases to include in resume for ATS"),
   tech_stack: z.array(z.string()).describe("Technologies, tools, and frameworks mentioned"),
   
-  // New fields for TruthSerum
+  // New fields for TruthSerum - made nullable/flexible to handle edge cases
   role_family: z.enum(ROLE_FAMILIES).describe("Best matching role family for categorization"),
-  industry_guess: z.string().describe("Primary industry (AI, SaaS, FinTech, EdTech, etc.)"),
-  seniority_level: z.enum(["Entry", "Mid", "Senior", "Lead", "Principal", "Director", "VP", "C-Level"]).describe("Seniority level"),
+  industry_guess: z.string().nullable().describe("Primary industry (AI, SaaS, FinTech, EdTech, etc.) or null if unknown"),
+  seniority_level: z.string().nullable().describe("Seniority level: Entry, Mid, Senior, Lead, Principal, Director, VP, or C-Level"),
   
   // Fit signals for Ro specifically
   fit_signals: z.object({
@@ -107,6 +107,20 @@ function detectSource(url: string): string {
   if (lowercase.includes("icims.com")) return "ICIMS"
   if (lowercase.includes("smartrecruiters.com")) return "SMARTRECRUITERS"
   return "OTHER"
+}
+
+// Normalize seniority level to standard values
+function normalizeSeniority(level: string | null): string {
+  if (!level) return "Mid"
+  const lower = level.toLowerCase()
+  if (lower.includes("entry") || lower.includes("junior") || lower.includes("associate")) return "Entry"
+  if (lower.includes("senior") || lower.includes("sr.") || lower.includes("sr ")) return "Senior"
+  if (lower.includes("lead") || lower.includes("principal") || lower.includes("staff")) return "Lead"
+  if (lower.includes("director")) return "Director"
+  if (lower.includes("vp") || lower.includes("vice president")) return "VP"
+  if (lower.includes("c-level") || lower.includes("chief") || lower.includes("cto") || lower.includes("cpo")) return "C-Level"
+  if (lower.includes("mid") || lower.includes("intermediate")) return "Mid"
+  return "Mid" // Default to Mid if unclear
 }
 
 // Calculate initial fit based on fit signals
@@ -282,6 +296,9 @@ Extract the job details following the schema. Be accurate with the role_family c
 
     // Calculate initial fit
     const fitResult = calculateInitialFit(analysis.fit_signals)
+    
+    // Normalize seniority level
+    const normalizedSeniority = normalizeSeniority(analysis.seniority_level)
 
     // Create job record with new fields
     const { data: job, error: insertError } = await supabase
@@ -302,8 +319,8 @@ Extract the job details following the schema. Be accurate with the role_family c
         keywords_extracted: analysis.keywords,
         // New TruthSerum fields
         role_family: analysis.role_family,
-        industry_guess: analysis.industry_guess,
-        seniority_level: analysis.seniority_level,
+        industry_guess: analysis.industry_guess || "Unknown",
+        seniority_level: normalizedSeniority,
         // Initial scoring
         fit: fitResult.fit,
         score: fitResult.score,
@@ -358,9 +375,9 @@ Extract the job details following the schema. Be accurate with the role_family c
         keywords: analysis.keywords,
         ats_phrases: analysis.ats_phrases,
         tech_stack: analysis.tech_stack,
-        seniority_level: analysis.seniority_level,
+        seniority_level: normalizedSeniority,
         role_family: analysis.role_family,
-        industry_guess: analysis.industry_guess,
+        industry_guess: analysis.industry_guess || "Unknown",
         fit_signals: analysis.fit_signals,
       },
       initial_fit: fitResult,

@@ -117,6 +117,9 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
     const webhookUrl = process.env.N8N_JOB_INTAKE_WEBHOOK_URL || 
       "https://redlanternstudios.app.n8n.cloud/webhook/job-intake"
 
+    console.log("[v0] Submitting to webhook:", webhookUrl)
+    console.log("[v0] Payload:", { job_url: normalizedUrl, request_id: requestId, source: getSourceHint(normalizedUrl) || "MANUAL" })
+
     const webhookRes = await fetch(webhookUrl, {
       method: "POST",
       headers: {
@@ -130,10 +133,14 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
       cache: "no-store",
     })
 
+    console.log("[v0] Webhook response status:", webhookRes.status)
+
     if (!webhookRes.ok) {
+      const errorBody = await webhookRes.text().catch(() => "unknown")
+      console.log("[v0] Webhook error body:", errorBody)
       return {
         success: false,
-        error: "We could not submit this URL to the ingestion workflow. Please try again.",
+        error: `Webhook returned ${webhookRes.status}: ${errorBody.substring(0, 100)}`,
       }
     }
 

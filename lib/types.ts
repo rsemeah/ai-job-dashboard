@@ -1,58 +1,86 @@
 /**
- * HireWire Canonical Types
+ * HireWire TruthSerum Types
+ * Evidence-based career operating system for Ro
  * 
  * Architecture:
- * - Frontend: Thin client only (URL intake, display state from Supabase)
- * - n8n: Owns all orchestration and business logic (parsing, scoring, generation)
- * - Supabase: Owns all persistent state (jobs, profiles, documents, events)
+ * - Frontend: URL intake, analysis display, document review
+ * - API Routes: Direct job analysis and document generation
+ * - Supabase: Persistent state (jobs, profiles, evidence, documents)
  */
 
 // ============================================================================
-// JOB LIFECYCLE STATES (Canonical - owned by n8n)
+// ROLE FAMILIES (for categorization and tailoring)
+// ============================================================================
+
+export const ROLE_FAMILIES = [
+  "AI Technical Product Manager",
+  "Technical Product Manager",
+  "AI Product Manager",
+  "Product Manager",
+  "Senior Product Manager",
+  "Systems Product Manager",
+  "Workflow Product Manager",
+  "Analytics Product Manager",
+  "Product Owner",
+  "Program Manager",
+  "Other",
+] as const
+
+export type RoleFamily = typeof ROLE_FAMILIES[number]
+
+// Best fit vs stretch titles
+export const BEST_FIT_TITLES = [
+  "AI Technical Product Manager",
+  "Technical Product Manager",
+  "AI Product Manager",
+  "Product Manager",
+  "Senior Product Manager",
+  "Senior Technical Product Manager",
+] as const
+
+export const STRETCH_TITLES = [
+  "Lead Product Manager",
+  "Principal Product Manager",
+  "Director of Product",
+] as const
+
+// ============================================================================
+// JOB LIFECYCLE STATES
 // ============================================================================
 
 export type JobStatus =
-  | "submitted"             // URL submitted, waiting for n8n
-  | "fetching"              // n8n fetching the job page
-  | "parsing"               // n8n extracting job details
-  | "parsed"                // Successfully parsed, ready for scoring
-  | "parsed_partial"        // Partial extraction, manual review may be needed
-  | "duplicate"             // Duplicate of existing job
-  | "scoring"               // n8n scoring against profile
-  | "scored"                // Score calculated
-  | "below_threshold"       // Score below apply threshold
-  | "generating_documents"  // n8n generating resume/cover letter
-  | "manual_review_required"// Needs human review before proceeding
-  | "ready"                 // Ready to apply (materials complete)
-  | "applied"               // Application submitted
-  | "interviewing"          // In interview process
-  | "offered"               // Received offer
-  | "rejected"              // Rejected by company
-  | "declined"              // User declined opportunity
-  | "archived"              // User archived/not interested
-  | "error"                 // Processing failed
+  | "NEW"                   // Just analyzed, ready for review
+  | "REVIEWING"             // User is reviewing fit
+  | "GENERATING"            // Materials being generated
+  | "SCORED"                // Scored with materials generated
+  | "READY"                 // Ready to apply (materials complete)
+  | "APPLIED"               // Application submitted
+  | "INTERVIEWING"          // In interview process
+  | "OFFERED"               // Received offer
+  | "REJECTED"              // Rejected by company
+  | "DECLINED"              // User declined opportunity
+  | "ARCHIVED"              // User archived/not interested
+  | "NEEDS_REVIEW"          // Data quality issues
+  | "ERROR"                 // Processing failed
 
-// Fit assessment from n8n scoring
 export type JobFit = "HIGH" | "MEDIUM" | "LOW" | null
 
-// Source detection - determined by n8n
 export type JobSource = 
-  | "greenhouse" 
-  | "lever" 
-  | "workday" 
-  | "linkedin" 
-  | "indeed"
-  | "ashbyhq"
-  | "icims"
-  | "smartrecruiters"
-  | "manual" 
-  | "unknown"
+  | "GREENHOUSE" 
+  | "LEVER" 
+  | "WORKDAY" 
+  | "LINKEDIN" 
+  | "INDEED"
+  | "ASHBY"
+  | "ICIMS"
+  | "SMARTRECRUITERS"
+  | "MANUAL" 
+  | "OTHER"
 
-// Parse quality indicator
-export type ParseQuality = "full" | "partial" | "failed"
+export type SeniorityLevel = "Entry" | "Mid" | "Senior" | "Lead" | "Principal" | "Director" | "VP" | "C-Level"
 
 // ============================================================================
-// JOB RECORD (from Supabase jobs table)
+// JOB RECORD
 // ============================================================================
 
 export interface Job {
@@ -67,55 +95,51 @@ export interface Job {
   // Lifecycle state
   status: JobStatus
   
-  // Scoring (populated by n8n)
+  // Scoring
   fit: JobFit
   score: number | null
   
+  // TruthSerum categorization
+  role_family: RoleFamily | null
+  industry_guess: string | null
+  seniority_level: SeniorityLevel | null
+  
   // Timestamps
   created_at: string
-  parsed_at?: string | null
+  analyzed_at?: string | null
   scored_at?: string | null
   applied_at?: string | null
   
-  // Parsed job details (from n8n)
+  // Parsed job details
   location?: string | null
   salary_range?: string | null
   employment_type?: string | null
   raw_description?: string | null
-  parsed_requirements?: string[] | null
-  parsed_responsibilities?: string[] | null
-  parsed_qualifications?: string[] | null
-  parsed_benefits?: string[] | null
-  
-  // Parse quality
-  parse_quality?: ParseQuality | null
-  parse_missing_fields?: string[] | null
-  
-  // Structured scoring breakdown (from n8n)
-  score_title_match?: number | null
-  score_seniority_match?: number | null
-  score_domain_match?: number | null
-  score_location_match?: number | null
-  score_skills_match?: number | null
-  score_compensation_match?: number | null
-  score_dealbreakers?: string[] | null
-  score_reasoning?: Record<string, unknown> | null
-  score_summary?: string | null
-  score_strengths?: string[] | null
-  score_gaps?: string[] | null
+  responsibilities?: string[] | null
+  qualifications_required?: string[] | null
+  qualifications_preferred?: string[] | null
+  ats_keywords?: string[] | null
   keywords_extracted?: string[] | null
   
-  // Generated materials (from n8n)
+  // Scoring breakdown
+  score_reasoning?: Record<string, unknown> | null
+  score_strengths?: string[] | null
+  score_gaps?: string[] | null
+  
+  // Generated materials
   generated_resume?: string | null
   generated_cover_letter?: string | null
-  generation_profile_version?: string | null
   generation_timestamp?: string | null
   
-  // Deduplication tracking
-  canonical_url?: string | null
-  ats_job_id?: string | null
-  fingerprint_hash?: string | null
-  duplicate_of_job_id?: string | null
+  // Quality tracking
+  generation_quality_score?: number | null
+  generation_quality_issues?: string[] | null
+  quality_passed?: boolean
+  
+  // Strategy notes
+  resume_strategy?: string | null
+  cover_letter_strategy?: string | null
+  evidence_map?: Record<string, unknown> | null
   
   // Error tracking
   error_message?: string | null
@@ -123,7 +147,59 @@ export interface Job {
 }
 
 // ============================================================================
-// USER PROFILE (from Supabase user_profile table)
+// EVIDENCE LIBRARY
+// ============================================================================
+
+export interface EvidenceRecord {
+  id: string
+  source_type: "work_experience" | "project" | "portfolio_entry" | "shipped_product" | "live_site" | "achievement" | "certification" | "publication" | "open_source"
+  source_title: string
+  source_url?: string | null
+  
+  // Context
+  project_name?: string | null
+  role_name?: string | null
+  company_name?: string | null
+  date_range?: string | null
+  
+  // Categorization
+  industries?: string[] | null
+  role_family_tags?: RoleFamily[] | null
+  
+  // Content
+  responsibilities?: string[] | null
+  tools_used?: string[] | null
+  systems_used?: string[] | null
+  workflows_created?: string[] | null
+  outcomes?: string[] | null
+  proof_snippet?: string | null
+  
+  // Pre-approved content for generation
+  approved_keywords?: string[] | null
+  approved_achievement_bullets?: string[] | null
+  
+  // TruthSerum fields
+  user_problem?: string | null
+  business_goal?: string | null
+  what_shipped?: string | null
+  what_visible?: string | null
+  what_not_to_overstate?: string | null
+  
+  // Quality and approval
+  confidence_level: "high" | "medium" | "low"
+  evidence_weight: "highest" | "high" | "medium" | "low"
+  is_user_approved: boolean
+  visibility_status: "active" | "hidden" | "archived"
+  
+  // Metadata
+  is_active: boolean
+  priority_rank?: number
+  created_at: string
+  updated_at: string
+}
+
+// ============================================================================
+// USER PROFILE
 // ============================================================================
 
 export interface UserProfile {
@@ -163,58 +239,38 @@ export interface ProfileEducation {
 }
 
 // ============================================================================
-// PROCESSING EVENTS (from Supabase processing_events table)
+// QUALITY CHECKS
 // ============================================================================
 
-export type ProcessingEventType =
-  | "intake_received"
-  | "fetch_started"
-  | "fetch_complete"
-  | "fetch_failed"
-  | "parse_started"
-  | "parse_complete"
-  | "parse_partial"
-  | "parse_failed"
-  | "duplicate_found"
-  | "scoring_started"
-  | "scoring_complete"
-  | "scoring_failed"
-  | "generation_started"
-  | "generation_complete"
-  | "generation_failed"
-  | "manual_review_required"
-  | "status_changed"
-  | "error"
-
-export interface ProcessingEvent {
-  id: string
-  job_id: string
-  event_type: ProcessingEventType
-  message?: string
-  metadata?: Record<string, unknown>
-  created_at: string
+export interface QualityCheck {
+  invented_claims: string[]
+  vague_bullets: string[]
+  ai_filler: string[]
+  repeated_structures: string[]
+  unsupported_claims: string[]
+  overall_passed: boolean
+  improvement_suggestions: string[]
 }
 
-// ============================================================================
-// API CONTRACTS (Frontend <-> n8n Webhook)
-// ============================================================================
-
-export interface IntakeRequest {
-  url: string
-  source_hint?: string | null
-  submitted_by_user_id?: string | null
-  request_id?: string
-}
-
-export interface IntakeResponse {
-  accepted: boolean
-  request_id?: string
-  job_id?: string | null
-  status: "processing_started" | "duplicate_found" | "invalid_url" | "error"
-  message?: string
-  duplicate?: boolean
-  partial_parse?: boolean
-}
+// Banned phrases that should never appear in generated output
+export const BANNED_PHRASES = [
+  "results driven professional",
+  "dynamic professional",
+  "seasoned leader",
+  "proven track record",
+  "team player",
+  "fast paced environment",
+  "leveraged synergies",
+  "spearheaded",
+  "responsible for various",
+  "worked on various",
+  "supported various initiatives",
+  "passionate about",
+  "excited to apply",
+  "thrilled to",
+  "I am confident",
+  "I believe I would be",
+] as const
 
 // ============================================================================
 // UI DISPLAY CONFIGURATION
@@ -227,38 +283,50 @@ export const STATUS_CONFIG: Record<JobStatus, {
   isProcessing?: boolean
   isTerminal?: boolean
 }> = {
-  submitted: { label: "Submitted", color: "yellow", description: "Sent to n8n", isProcessing: true },
-  fetching: { label: "Fetching", color: "blue", description: "Downloading job page", isProcessing: true },
-  parsing: { label: "Parsing", color: "blue", description: "Extracting details", isProcessing: true },
-  parsed: { label: "Parsed", color: "cyan", description: "Details extracted" },
-  parsed_partial: { label: "Partial", color: "amber", description: "Some details missing" },
-  duplicate: { label: "Duplicate", color: "gray", description: "Already exists", isTerminal: true },
-  scoring: { label: "Scoring", color: "purple", description: "Analyzing fit", isProcessing: true },
-  scored: { label: "Scored", color: "purple", description: "Review your fit" },
-  below_threshold: { label: "Low Score", color: "orange", description: "Below apply threshold" },
-  generating_documents: { label: "Generating", color: "indigo", description: "Creating materials", isProcessing: true },
-  manual_review_required: { label: "Review", color: "amber", description: "Needs your input" },
-  ready: { label: "Ready", color: "green", description: "Ready to apply" },
-  applied: { label: "Applied", color: "emerald", description: "Application sent" },
-  interviewing: { label: "Interview", color: "cyan", description: "In progress" },
-  offered: { label: "Offer", color: "green", description: "Congratulations!" },
-  rejected: { label: "Rejected", color: "red", description: "Not selected", isTerminal: true },
-  declined: { label: "Declined", color: "gray", description: "You passed", isTerminal: true },
-  archived: { label: "Archived", color: "gray", description: "No longer active", isTerminal: true },
-  error: { label: "Error", color: "red", description: "Processing failed" },
+  NEW: { label: "New", color: "blue", description: "Just added" },
+  REVIEWING: { label: "Reviewing", color: "yellow", description: "Under review" },
+  GENERATING: { label: "Generating", color: "purple", description: "Creating materials", isProcessing: true },
+  SCORED: { label: "Scored", color: "cyan", description: "Fit assessed" },
+  READY: { label: "Ready", color: "green", description: "Ready to apply" },
+  APPLIED: { label: "Applied", color: "emerald", description: "Application sent" },
+  INTERVIEWING: { label: "Interview", color: "cyan", description: "In progress" },
+  OFFERED: { label: "Offer", color: "green", description: "Congratulations!" },
+  REJECTED: { label: "Rejected", color: "red", description: "Not selected", isTerminal: true },
+  DECLINED: { label: "Declined", color: "gray", description: "You passed", isTerminal: true },
+  ARCHIVED: { label: "Archived", color: "gray", description: "No longer active", isTerminal: true },
+  NEEDS_REVIEW: { label: "Review", color: "amber", description: "Data needs attention" },
+  ERROR: { label: "Error", color: "red", description: "Processing failed" },
 }
 
-export const FIT_CONFIG: Record<NonNullable<JobFit>, { label: string; color: string }> = {
-  HIGH: { label: "High Fit", color: "green" },
-  MEDIUM: { label: "Medium Fit", color: "yellow" },
-  LOW: { label: "Low Fit", color: "red" },
+export const FIT_CONFIG: Record<NonNullable<JobFit>, { label: string; color: string; description: string }> = {
+  HIGH: { label: "High Fit", color: "green", description: "Strong alignment with skills and experience" },
+  MEDIUM: { label: "Medium Fit", color: "yellow", description: "Some alignment, may need emphasis on transferable skills" },
+  LOW: { label: "Low Fit", color: "red", description: "Significant gaps or misalignment" },
 }
 
-// Workflow stages for progress display
-export const WORKFLOW_STAGES = [
-  { key: "submitted", statuses: ["submitted", "fetching", "parsing"], label: "Submitted" },
-  { key: "parsed", statuses: ["parsed", "parsed_partial"], label: "Parsed" },
-  { key: "scored", statuses: ["scoring", "scored", "below_threshold"], label: "Scored" },
-  { key: "ready", statuses: ["generating_documents", "ready", "manual_review_required"], label: "Ready" },
-  { key: "applied", statuses: ["applied", "interviewing", "offered"], label: "Applied" },
+// Status groupings for views
+export const STATUS_GROUPS = {
+  active: ["NEW", "REVIEWING", "GENERATING", "SCORED", "READY"],
+  applied: ["APPLIED", "INTERVIEWING", "OFFERED"],
+  closed: ["REJECTED", "DECLINED", "ARCHIVED"],
+  attention: ["NEEDS_REVIEW", "ERROR"],
+} as const
+
+// Industry categories for filtering
+export const INDUSTRIES = [
+  "AI",
+  "SaaS",
+  "FinTech",
+  "EdTech",
+  "Developer Tools",
+  "Workflow Automation",
+  "Analytics",
+  "Platform",
+  "Decision Support",
+  "Knowledge Systems",
+  "E-commerce",
+  "Enterprise",
+  "Consumer",
+  "Healthcare",
+  "Other",
 ] as const

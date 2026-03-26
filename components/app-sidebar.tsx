@@ -60,6 +60,7 @@ export function AppSidebar() {
             width={140}
             height={50}
             className="object-contain"
+            style={{ width: 'auto', height: 'auto' }}
             priority
           />
         </Link>

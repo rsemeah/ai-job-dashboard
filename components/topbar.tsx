@@ -112,6 +112,7 @@ export function Topbar() {
           width={100}
           height={36}
           className="object-contain"
+          style={{ width: 'auto', height: 'auto' }}
         />
       </Link>
 

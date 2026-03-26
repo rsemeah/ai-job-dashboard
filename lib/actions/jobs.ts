@@ -95,7 +95,7 @@ export async function analyzeJobFromUrl(url: string): Promise<AnalyzeJobResult> 
         ? `https://${process.env.VERCEL_URL}`
         : "http://localhost:3000"
 
-    const response = await fetch(`${baseUrl}/api/analyze-job`, {
+    const response = await fetch(`${baseUrl}/api/analyze`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

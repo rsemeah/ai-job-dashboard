@@ -8,6 +8,8 @@ function getSupabaseConfig() {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
+  console.log("[v0] Supabase config check - URL exists:", !!supabaseUrl, "Anon exists:", !!supabaseAnonKey, "Service exists:", !!supabaseServiceRoleKey)
+
   if (!supabaseUrl) {
     throw new Error(
       'Missing NEXT_PUBLIC_SUPABASE_URL environment variable. ' +

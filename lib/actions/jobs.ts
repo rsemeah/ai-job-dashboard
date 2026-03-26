@@ -90,6 +90,7 @@ async function findJobFromIngestion(jobId: string | null, sourceUrl: string): Pr
 }
 
 export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
+  console.log("[v0] createJobFromUrl called with:", url)
   try {
     const normalizedUrl = url.trim()
 
@@ -116,6 +117,8 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
     const webhookUrl = process.env.N8N_JOB_INTAKE_WEBHOOK_URL || 
       "https://redlanternstudios.app.n8n.cloud/webhook-test/job-intake"
 
+    console.log("[v0] Sending to n8n webhook:", webhookUrl, "with request_id:", requestId)
+
     const webhookRes = await fetch(webhookUrl, {
       method: "POST",
       headers: {
@@ -128,7 +131,11 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
       cache: "no-store",
     })
 
+    console.log("[v0] Webhook response status:", webhookRes.status, webhookRes.statusText)
+
     if (!webhookRes.ok) {
+      const errorText = await webhookRes.text().catch(() => "Unknown error")
+      console.log("[v0] Webhook error response:", errorText)
       return {
         success: false,
         error: "We could not submit this URL to the ingestion workflow. Please try again.",
@@ -138,8 +145,10 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
     let webhookPayload: unknown = null
     try {
       webhookPayload = await webhookRes.json()
+      console.log("[v0] Webhook payload:", JSON.stringify(webhookPayload))
     } catch {
       webhookPayload = null
+      console.log("[v0] Could not parse webhook response as JSON")
     }
 
     const { duplicate, partialParse, jobId, message } = parseWebhookResponse(webhookPayload)

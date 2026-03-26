@@ -1,4 +1,5 @@
 "use client"
+// TruthSerum Job Analysis Flow - v2
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -320,7 +321,15 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
 
   // Success state with full results
   if (step === "complete" && result) {
-    const { job, analysis, generation, duplicate } = result
+    // Extract values with defensive defaults
+    const job = result.job
+    const analysis = result.analysis
+    const generation = result.generation  
+    const duplicate = result.duplicate
+
+    // Safe title and company with multiple fallbacks
+    const safeTitle = analysis?.title || job?.title || "Position"
+    const safeCompany = analysis?.company || job?.company || "Company"
 
     // Defensive check - if analysis is missing, show basic info from job
     if (!analysis) {
@@ -354,8 +363,8 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
                   <CheckCircle2 className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold">{analysis.title || job?.title || "Job Title"}</h3>
-                  <p className="text-muted-foreground">{analysis.company || job?.company || "Company"}</p>
+                  <h3 className="text-xl font-semibold">{safeTitle}</h3>
+                  <p className="text-muted-foreground">{safeCompany}</p>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {analysis.location && (
                       <Badge variant="secondary">{analysis.location}</Badge>
@@ -451,7 +460,7 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
                           variant="outline"
                           onClick={() => handleDownload(
                             generation.generated_resume,
-                            `resume-${(analysis?.company || result.job?.company || "job").toLowerCase().replace(/\s+/g, "-")}.txt`
+                            `resume-${safeCompany.toLowerCase().replace(/\s+/g, "-")}.txt`
                           )}
                         >
                           <Download className="h-4 w-4 mr-2" />
@@ -484,7 +493,7 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
                           variant="outline"
                           onClick={() => handleDownload(
                             generation.generated_cover_letter,
-                            `cover-letter-${(analysis?.company || result.job?.company || "job").toLowerCase().replace(/\s+/g, "-")}.txt`
+                            `cover-letter-${safeCompany.toLowerCase().replace(/\s+/g, "-")}.txt`
                           )}
                         >
                           <Download className="h-4 w-4 mr-2" />

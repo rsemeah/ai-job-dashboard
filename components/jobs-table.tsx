@@ -1,4 +1,5 @@
 "use client"
+// TruthSerum Jobs Table - v3 (Card Layout, No Table Components)
 
 import { useState, useMemo } from "react"
 import Link from "next/link"

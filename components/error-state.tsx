@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, RefreshCw, Database, Workflow, Settings } from "lucide-react"
+import { AlertTriangle, RefreshCw, Database, Settings, Key } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 interface ErrorStateProps {
@@ -14,7 +14,7 @@ interface ErrorStateProps {
 
 export function ErrorState({ 
   title = "Unable to load data", 
-  message = "The backend workflow or database configuration may still be in progress.",
+  message = "Check that Supabase and Groq API are properly configured.",
   onRetry,
   showRetry = true
 }: ErrorStateProps) {
@@ -46,8 +46,8 @@ export function ErrorState({
               <span>Check Supabase connection</span>
             </div>
             <div className="flex items-center gap-2">
-              <Workflow className="h-4 w-4" />
-              <span>Check n8n workflow status</span>
+              <Key className="h-4 w-4" />
+              <span>Check GROQ_API_KEY is set</span>
             </div>
           </div>
 

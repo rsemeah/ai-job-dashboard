@@ -77,8 +77,8 @@ export function DashboardCharts({ stats, jobs }: DashboardChartsProps) {
           <CardTitle className="text-lg font-medium">Job Funnel</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height={300}>
               <BarChart data={pipelineData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis type="number" className="text-xs fill-muted-foreground" />
@@ -116,9 +116,9 @@ export function DashboardCharts({ stats, jobs }: DashboardChartsProps) {
           <CardTitle className="text-lg font-medium">By Platform</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px]">
+          <div className="h-[300px] w-full">
             {sourceData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
                     data={sourceData}
@@ -165,9 +165,9 @@ export function DashboardCharts({ stats, jobs }: DashboardChartsProps) {
           <CardTitle className="text-lg font-medium">By Fit Score</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px]">
+          <div className="h-[300px] w-full">
             {fitData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={fitData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis 

@@ -182,8 +182,8 @@ export function AnalyticsCharts({ jobs }: AnalyticsChartsProps) {
             <CardDescription>Jobs through each stage</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height={300}>
                 <AreaChart data={conversionData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="stage" className="text-xs fill-muted-foreground" />
@@ -216,9 +216,9 @@ export function AnalyticsCharts({ jobs }: AnalyticsChartsProps) {
             <CardDescription>Jobs by current status</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[300px] w-full">
               {statusData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
                       data={statusData}
@@ -263,8 +263,8 @@ export function AnalyticsCharts({ jobs }: AnalyticsChartsProps) {
             <CardDescription>Jobs by score range</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[250px] w-full">
+              <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={scoreDistributionData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="name" className="text-xs fill-muted-foreground" />
@@ -290,8 +290,8 @@ export function AnalyticsCharts({ jobs }: AnalyticsChartsProps) {
             <CardDescription>Jobs by fit level</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[250px] w-full">
+              <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={fitData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis type="number" className="text-xs fill-muted-foreground" />
@@ -317,9 +317,9 @@ export function AnalyticsCharts({ jobs }: AnalyticsChartsProps) {
             <CardDescription>Where jobs came from</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[250px]">
+            <div className="h-[250px] w-full">
               {sourceData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie
                       data={sourceData}

@@ -8,88 +8,68 @@ export type JobsResult =
   | { success: true; data: Job[] }
   | { success: false; error: string }
 
-export type CreateJobResult =
+export type AnalyzeJobResult =
   | {
       success: true
       job: Job
+      analysis: {
+        title: string
+        company: string
+        location: string | null
+        employment_type: string | null
+        salary_text: string | null
+        responsibilities: string[]
+        qualifications_required: string[]
+        qualifications_preferred: string[]
+        keywords: string[]
+        ats_phrases: string[]
+        tech_stack: string[]
+        seniority_level: string
+      }
       duplicate: boolean
-      partialParse: boolean
       message?: string
     }
   | { success: false; error: string }
 
-const SOURCE_HINTS = {
-  GREENHOUSE: "GREENHOUSE",
-  LEVER: "LEVER",
-  LINKEDIN: "LINKEDIN",
-} as const
-
-function getSourceHint(url: string): (typeof SOURCE_HINTS)[keyof typeof SOURCE_HINTS] | null {
-  const lowercase = url.toLowerCase()
-  if (lowercase.includes("greenhouse.io")) return SOURCE_HINTS.GREENHOUSE
-  if (lowercase.includes("lever.co")) return SOURCE_HINTS.LEVER
-  if (lowercase.includes("linkedin.com")) return SOURCE_HINTS.LINKEDIN
-  return null
-}
-
-function parseWebhookResponse(payload: unknown): {
-  duplicate: boolean
-  partialParse: boolean
-  jobId: string | null
-  message?: string
-} {
-  if (!payload || typeof payload !== "object") {
-    return { duplicate: false, partialParse: false, jobId: null }
-  }
-
-  const parsed = payload as Record<string, unknown>
-
-  const duplicate =
-    Boolean(parsed.duplicate) ||
-    Boolean(parsed.is_duplicate) ||
-    parsed.status === "duplicate"
-
-  const partialParse =
-    Boolean(parsed.partial_parse) ||
-    Boolean(parsed.partialParse) ||
-    parsed.parse_status === "partial"
-
-  const jobId =
-    (parsed.job_id as string | undefined) ??
-    (parsed.jobId as string | undefined) ??
-    (parsed.id as string | undefined) ??
-    null
-
-  const message = typeof parsed.message === "string" ? parsed.message : undefined
-
-  return { duplicate, partialParse, jobId, message }
-}
-
-async function findJobFromIngestion(jobId: string | null, sourceUrl: string): Promise<Job | null> {
-  const supabase = createAdminClient()
-
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    if (jobId) {
-      const { data } = await supabase.from("jobs").select("*").eq("id", jobId).maybeSingle()
-      if (data) return data as Job
+export type GenerateDocumentsResult =
+  | {
+      success: true
+      job_id: string
+      evidence_map: {
+        fit_score: number
+        fit_rationale: string
+        matched_skills: string[]
+        matched_tools: string[]
+        matched_experiences: Array<{
+          experience_title: string
+          company: string
+          relevance: string
+          key_achievements: string[]
+        }>
+        gaps: string[]
+      }
+      generated_resume: string
+      generated_cover_letter: string
+      quality_check: {
+        passed: boolean
+        issues: {
+          invented_claims: string[]
+          vague_bullets: string[]
+          ai_filler: string[]
+        }
+        suggestions: string[]
+      }
     }
+  | { success: false; error: string }
 
-    const { data } = await supabase
-      .from("jobs")
-      .select("*")
-      .eq("source_url", sourceUrl)
-      .order("created_at", { ascending: false })
-      .limit(1)
+// Legacy type for backwards compatibility
+export type CreateJobResult = AnalyzeJobResult
 
-    if (data?.[0]) return data[0] as Job
-
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-  }
-
-  return null
-}
-
-export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
+/**
+ * Analyzes a job URL directly using Groq AI.
+ * No n8n dependency - all processing happens in-app.
+ */
+export async function analyzeJobFromUrl(url: string): Promise<AnalyzeJobResult> {
   try {
     const normalizedUrl = url.trim()
 
@@ -104,81 +84,167 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
       return { success: false, error: "Please provide a valid URL." }
     }
 
-    // Only validate URL uses http/https protocol
     if (!["http:", "https:"].includes(parsedUrl.protocol)) {
       return { success: false, error: "URL must use http or https protocol." }
     }
 
-    // Generate request_id for tracing through the pipeline
-    const requestId = crypto.randomUUID()
+    // Call the direct analyze-job API route
+    const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL 
+      ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+      : process.env.VERCEL_URL 
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000"
 
-    // Use environment variable or fallback to the live n8n webhook
-    // Note: Production webhooks use /webhook/ not /webhook-test/
-    const webhookUrl = process.env.N8N_JOB_INTAKE_WEBHOOK_URL || 
-      "https://redlanternstudios.app.n8n.cloud/webhook/job-intake"
-
-    console.log("[v0] Submitting to webhook:", webhookUrl)
-    console.log("[v0] Payload:", { job_url: normalizedUrl, request_id: requestId, source: getSourceHint(normalizedUrl) || "MANUAL" })
-
-    const webhookRes = await fetch(webhookUrl, {
+    const response = await fetch(`${baseUrl}/api/analyze-job`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        job_url: normalizedUrl,
-        request_id: requestId,
-        source: getSourceHint(normalizedUrl) || "MANUAL",
-      }),
-      cache: "no-store",
+      body: JSON.stringify({ job_url: normalizedUrl }),
     })
 
-    console.log("[v0] Webhook response status:", webhookRes.status)
+    const result = await response.json()
 
-    if (!webhookRes.ok) {
-      const errorBody = await webhookRes.text().catch(() => "unknown")
-      console.log("[v0] Webhook error body:", errorBody)
-      return {
-        success: false,
-        error: `Webhook returned ${webhookRes.status}: ${errorBody.substring(0, 100)}`,
-      }
-    }
-
-    let webhookPayload: unknown = null
-    try {
-      webhookPayload = await webhookRes.json()
-    } catch {
-      webhookPayload = null
-    }
-
-    const { duplicate, partialParse, jobId, message } = parseWebhookResponse(webhookPayload)
-    const job = await findJobFromIngestion(jobId, normalizedUrl)
-
-    if (!job) {
-      return {
-        success: false,
-        error:
-          "Job submission was accepted, but the job record is not available yet. Refresh Jobs in a moment.",
-      }
+    if (!result.success) {
+      return { success: false, error: result.error || "Analysis failed" }
     }
 
     revalidatePath("/")
     revalidatePath("/jobs")
-    revalidatePath(`/jobs/${job.id}`)
-    revalidatePath("/ready-queue")
-    revalidatePath("/logs")
+    if (result.job_id) {
+      revalidatePath(`/jobs/${result.job_id}`)
+    }
 
     return {
       success: true,
-      job,
-      duplicate,
-      partialParse,
-      message,
+      job: result.job,
+      analysis: result.analysis,
+      duplicate: result.duplicate || false,
+      message: result.message,
     }
   } catch (err) {
-    console.error("Error creating job from URL:", err)
-    return { success: false, error: "Failed to submit job URL" }
+    console.error("Error analyzing job from URL:", err)
+    return { success: false, error: "Failed to analyze job URL" }
   }
+}
+
+/**
+ * Generates tailored resume and cover letter for a job.
+ * Uses grounded evidence from profile and evidence library.
+ */
+export async function generateDocumentsForJob(jobId: string): Promise<GenerateDocumentsResult> {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL 
+      ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+      : process.env.VERCEL_URL 
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000"
+
+    const response = await fetch(`${baseUrl}/api/generate-documents`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ job_id: jobId }),
+    })
+
+    const result = await response.json()
+
+    if (!result.success) {
+      return { success: false, error: result.error || "Generation failed" }
+    }
+
+    revalidatePath("/")
+    revalidatePath("/jobs")
+    revalidatePath(`/jobs/${jobId}`)
+    revalidatePath("/ready-queue")
+
+    return {
+      success: true,
+      job_id: result.job_id,
+      evidence_map: result.evidence_map,
+      generated_resume: result.generated_resume,
+      generated_cover_letter: result.generated_cover_letter,
+      quality_check: result.quality_check,
+    }
+  } catch (err) {
+    console.error("Error generating documents:", err)
+    return { success: false, error: "Failed to generate documents" }
+  }
+}
+
+/**
+ * Analyzes job and immediately generates documents.
+ * Combined flow for single-click operation.
+ */
+export async function analyzeAndGenerateForJob(url: string): Promise<
+  | {
+      success: true
+      job: Job
+      analysis: AnalyzeJobResult["success"] extends true ? AnalyzeJobResult["analysis"] : never
+      generation: GenerateDocumentsResult["success"] extends true ? Omit<GenerateDocumentsResult, "success"> : null
+      duplicate: boolean
+    }
+  | { success: false; error: string }
+> {
+  // Step 1: Analyze the job
+  const analyzeResult = await analyzeJobFromUrl(url)
+  
+  if (!analyzeResult.success) {
+    return { success: false, error: analyzeResult.error }
+  }
+
+  // If duplicate, return early
+  if (analyzeResult.duplicate) {
+    return {
+      success: true,
+      job: analyzeResult.job,
+      analysis: analyzeResult.analysis,
+      generation: null,
+      duplicate: true,
+    }
+  }
+
+  // Step 2: Generate documents
+  const generateResult = await generateDocumentsForJob(analyzeResult.job.id)
+
+  if (!generateResult.success) {
+    // Still return success since job was analyzed, but note generation failed
+    return {
+      success: true,
+      job: analyzeResult.job,
+      analysis: analyzeResult.analysis,
+      generation: null,
+      duplicate: false,
+    }
+  }
+
+  // Fetch updated job with generated materials
+  const supabase = createAdminClient()
+  const { data: updatedJob } = await supabase
+    .from("jobs")
+    .select("*")
+    .eq("id", analyzeResult.job.id)
+    .single()
+
+  return {
+    success: true,
+    job: updatedJob || analyzeResult.job,
+    analysis: analyzeResult.analysis,
+    generation: {
+      job_id: generateResult.job_id,
+      evidence_map: generateResult.evidence_map,
+      generated_resume: generateResult.generated_resume,
+      generated_cover_letter: generateResult.generated_cover_letter,
+      quality_check: generateResult.quality_check,
+    },
+    duplicate: false,
+  }
+}
+
+// Legacy function - now calls the direct flow
+export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
+  return analyzeJobFromUrl(url)
 }
 
 export async function getJobs(): Promise<JobsResult> {
@@ -309,5 +375,45 @@ export async function getJobStats(): Promise<StatsResult> {
       bySource: {},
       hasWorkflowOutputs: false,
     }
+  }
+}
+
+/**
+ * Regenerate a specific section of generated content
+ */
+export async function regenerateSection(
+  jobId: string, 
+  section: "resume" | "cover_letter",
+  feedback: string
+): Promise<{ success: boolean; content?: string; error?: string }> {
+  try {
+    const supabase = createAdminClient()
+    
+    // Get current job data
+    const { data: job, error } = await supabase
+      .from("jobs")
+      .select("*")
+      .eq("id", jobId)
+      .single()
+
+    if (error || !job) {
+      return { success: false, error: "Job not found" }
+    }
+
+    // Re-generate the full documents but note the feedback
+    const result = await generateDocumentsForJob(jobId)
+    
+    if (!result.success) {
+      return { success: false, error: result.error }
+    }
+
+    const content = section === "resume" 
+      ? result.generated_resume 
+      : result.generated_cover_letter
+
+    return { success: true, content }
+  } catch (err) {
+    console.error("Error regenerating section:", err)
+    return { success: false, error: "Failed to regenerate" }
   }
 }

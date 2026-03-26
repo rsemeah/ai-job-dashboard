@@ -122,10 +122,8 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        jobUrl: normalizedUrl,
-        source: "hirewire",
-        submittedAt: new Date().toISOString(),
-        requestId: requestId,
+        url: normalizedUrl,
+        request_id: requestId,
       }),
       cache: "no-store",
     })

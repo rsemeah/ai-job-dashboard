@@ -3,56 +3,24 @@ import { createGroq } from "@ai-sdk/groq"
 import { generateObject, generateText } from "ai"
 import { z } from "zod"
 import { createAdminClient } from "@/lib/supabase/server"
+import {
+  BANNED_PHRASES,
+  detectBannedPhrases,
+  detectVaguePatterns,
+  filterEvidenceForResume,
+  filterEvidenceForCoverLetter,
+  getEvidenceUsageRule,
+  determineGenerationStrategy,
+  analyzeBulletConcreteness,
+  hasMetrics,
+  type GenerationStrategy,
+  type BulletProvenance,
+  type ParagraphProvenance,
+} from "@/lib/truthserum"
 
 const groq = createGroq({
   apiKey: process.env.GROQ_API_KEY,
 })
-
-// TruthSerum banned phrases - these should NEVER appear in generated output
-const BANNED_PHRASES = [
-  "I am excited to apply",
-  "I would be thrilled",
-  "passionate about",
-  "leverage my skills",
-  "hit the ground running",
-  "think outside the box",
-  "synergy",
-  "dynamic environment",
-  "fast-paced",
-  "self-starter",
-  "detail-oriented",
-  "team player",
-  "results-driven",
-  "proven track record",
-  "seasoned professional",
-  "spearheaded initiatives",
-  "drove results",
-  "moved the needle",
-  "at the end of the day",
-  "circle back",
-  "low-hanging fruit",
-  "core competencies",
-  "value-add",
-  "best-in-class",
-  "cutting-edge",
-  "game-changer",
-  "paradigm shift",
-  "robust",
-  "scalable solutions",
-  "stakeholder alignment",
-]
-
-// Check for banned phrases in text
-function detectBannedPhrases(text: string): string[] {
-  const found: string[] = []
-  const lowerText = text.toLowerCase()
-  for (const phrase of BANNED_PHRASES) {
-    if (lowerText.includes(phrase.toLowerCase())) {
-      found.push(phrase)
-    }
-  }
-  return found
-}
 
 // Schema for evidence mapping
 const EvidenceMapSchema = z.object({
@@ -63,14 +31,41 @@ const EvidenceMapSchema = z.object({
     company: z.string(),
     relevance: z.string().describe("How this experience relates to the job"),
     key_achievements: z.array(z.string()),
+    evidence_id: z.string().optional().describe("ID of the source evidence if available"),
   })).describe("Work experiences that are relevant to this job"),
   matched_projects: z.array(z.object({
     project_name: z.string(),
     relevance: z.string(),
+    evidence_id: z.string().optional(),
   })).describe("Projects that demonstrate relevant skills"),
   gaps: z.array(z.string()).describe("Required qualifications the candidate may not have"),
   fit_score: z.number().min(0).max(100).describe("Overall fit score 0-100"),
   fit_rationale: z.string().describe("2-3 sentence explanation of the fit score"),
+  requirement_coverage: z.number().min(0).max(100).describe("Percentage of required qualifications covered"),
+})
+
+// Schema for structured resume with provenance
+const ResumeWithProvenanceSchema = z.object({
+  summary: z.string().describe("2-3 sentence professional summary tailored to this role"),
+  experience_bullets: z.array(z.object({
+    bullet_text: z.string().describe("The achievement bullet point"),
+    source_evidence_id: z.string().describe("ID of the evidence this bullet is based on"),
+    source_role: z.string().describe("Role title from the source evidence"),
+    source_company: z.string().describe("Company from the source evidence"),
+    matched_requirement: z.string().optional().describe("Which job requirement this bullet addresses"),
+    keywords_used: z.array(z.string()).describe("Job keywords incorporated in this bullet"),
+  })).describe("Resume bullets with provenance tracking"),
+  skills_section: z.array(z.string()).describe("Relevant skills to list"),
+})
+
+// Schema for cover letter with provenance
+const CoverLetterWithProvenanceSchema = z.object({
+  paragraphs: z.array(z.object({
+    paragraph_text: z.string().describe("The paragraph content"),
+    job_theme_addressed: z.string().describe("Which aspect of the job this paragraph addresses"),
+    evidence_ids_used: z.array(z.string()).describe("IDs of evidence items referenced"),
+    claim_confidence: z.enum(["high", "medium", "low"]).describe("Confidence in claims made"),
+  })).describe("Cover letter paragraphs with provenance"),
 })
 
 // Schema for quality check
@@ -129,10 +124,46 @@ async function loadJobAnalysis(supabase: ReturnType<typeof createAdminClient>, j
   return job
 }
 
+/**
+ * Build strategy-aware generation prompt based on fit
+ */
+function buildStrategyPrompt(strategy: GenerationStrategy): string {
+  switch (strategy) {
+    case "direct_match":
+      return `
+GENERATION STRATEGY: DIRECT MATCH
+You may be assertive about qualifications since evidence strongly supports the match.
+Use confident language and highlight achievements directly relevant to the role.
+Still avoid any invention - stick to facts from evidence.`
+
+    case "adjacent_transition":
+      return `
+GENERATION STRATEGY: ADJACENT TRANSITION
+Lean on transferable skills and related experience.
+Do NOT claim direct experience you don't have.
+Frame adjacent work as relevant without pretending direct ownership.
+Be honest about the transition narrative.`
+
+    case "stretch_honest":
+      return `
+GENERATION STRATEGY: STRETCH BUT HONEST
+This is a stretch role - be careful not to overclaim.
+Emphasize learning ability and adaptability.
+Acknowledge gaps indirectly through what you bring, not what you lack.
+Do NOT exaggerate or invent qualifications.`
+
+    case "do_not_generate":
+      return `
+GENERATION BLOCKED: DO NOT GENERATE
+This role is too much of a stretch. Generating materials would require invention.
+Return an error explaining why generation was blocked.`
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { job_id } = body
+    const { job_id, selected_evidence_ids } = body
 
     if (!job_id) {
       return NextResponse.json(
@@ -151,7 +182,7 @@ export async function POST(request: NextRequest) {
     const supabase = createAdminClient()
 
     // Load all required data in parallel
-    const [profile, evidence, jobData] = await Promise.all([
+    const [profile, allEvidence, jobData] = await Promise.all([
       loadUserProfile(supabase),
       loadEvidenceLibrary(supabase),
       loadJobAnalysis(supabase, job_id),
@@ -173,7 +204,23 @@ export async function POST(request: NextRequest) {
 
     const jobAnalysis = jobData.job_analyses?.[0]
 
-    // Build the evidence context
+    // TRUTH-LOCK: Filter evidence based on usage rules
+    // If user selected specific evidence, use that; otherwise filter automatically
+    let resumeEvidence = selected_evidence_ids?.length > 0
+      ? allEvidence.filter((e: { id: string }) => selected_evidence_ids.includes(e.id))
+      : filterEvidenceForResume(allEvidence)
+    
+    let coverLetterEvidence = selected_evidence_ids?.length > 0
+      ? allEvidence.filter((e: { id: string }) => selected_evidence_ids.includes(e.id))
+      : filterEvidenceForCoverLetter(allEvidence)
+
+    // Log what evidence was filtered out and why
+    const blockedEvidence = allEvidence.filter((e: { id: string }) => {
+      const rule = getEvidenceUsageRule(e)
+      return rule === "blocked" || rule === "interview_only"
+    })
+
+    // Build the evidence context with usage rules annotated
     const profileContext = `
 CANDIDATE PROFILE:
 Name: ${profile.full_name || "Not provided"}
@@ -194,9 +241,10 @@ ${(profile.education || []).map((edu: { degree: string; school: string; year?: s
 `).join("\n")}
 `
 
-    const evidenceContext = evidence.length > 0 ? `
-VERIFIED EVIDENCE LIBRARY:
-${evidence.map((e: {
+    const evidenceContext = resumeEvidence.length > 0 ? `
+VERIFIED EVIDENCE LIBRARY (use ONLY these for resume):
+${resumeEvidence.map((e: {
+  id: string;
   source_title: string;
   source_type: string;
   company_name?: string;
@@ -206,11 +254,15 @@ ${evidence.map((e: {
   tools_used?: string[];
   outcomes?: string[];
   approved_achievement_bullets?: string[];
+  confidence_level: string;
+  what_not_to_overstate?: string;
 }) => `
-[${e.source_type}] ${e.source_title}
+[ID: ${e.id}] ${e.source_type}: ${e.source_title}
 ${e.company_name ? `Company: ${e.company_name}` : ""}
 ${e.role_name ? `Role: ${e.role_name}` : ""}
 ${e.date_range ? `Period: ${e.date_range}` : ""}
+Confidence: ${e.confidence_level.toUpperCase()}
+${e.what_not_to_overstate ? `⚠️ DO NOT OVERSTATE: ${e.what_not_to_overstate}` : ""}
 ${e.responsibilities?.length ? `Responsibilities: ${e.responsibilities.join("; ")}` : ""}
 ${e.tools_used?.length ? `Tools: ${e.tools_used.join(", ")}` : ""}
 ${e.outcomes?.length ? `Outcomes: ${e.outcomes.join("; ")}` : ""}
@@ -238,7 +290,7 @@ ${jobAnalysis?.keywords?.length ? `Important Keywords: ${jobAnalysis.keywords.jo
 ${jobAnalysis?.ats_phrases?.length ? `ATS Phrases to Include: ${jobAnalysis.ats_phrases.join(", ")}` : ""}
 `
 
-    // Step 1: Create evidence map
+    // Step 1: Create evidence map and determine strategy
     const { object: evidenceMap } = await generateObject({
       model: groq("llama-3.3-70b-versatile"),
       schema: EvidenceMapSchema,
@@ -252,17 +304,41 @@ ${jobContext}
 
 Create an evidence map that:
 1. Identifies skills and tools from the profile that match job requirements
-2. Selects the most relevant work experiences
+2. Selects the most relevant work experiences (include evidence IDs when referencing evidence items)
 3. Notes any gaps in qualifications
 4. Provides an honest fit score
+5. Calculate what percentage of REQUIRED qualifications are covered
 
 Be conservative - only include matches that are clearly supported by the evidence. Do not exaggerate or invent connections.`,
     })
 
-    // Step 2: Generate ATS-optimized resume
-    const { text: generatedResume } = await generateText({
+    // Determine generation strategy based on fit
+    const evidenceQuality = resumeEvidence.filter((e: { confidence_level: string }) => e.confidence_level === "high").length / (resumeEvidence.length || 1) * 100
+    const { strategy, reasoning: strategyReasoning } = determineGenerationStrategy(
+      jobData,
+      evidenceMap.requirement_coverage,
+      evidenceQuality
+    )
+
+    // Block generation if strategy is "do_not_generate"
+    if (strategy === "do_not_generate") {
+      return NextResponse.json({
+        success: false,
+        error: "Generation blocked: This role is too much of a stretch.",
+        strategy,
+        strategy_reasoning: strategyReasoning,
+        requirement_coverage: evidenceMap.requirement_coverage,
+        gaps: evidenceMap.gaps,
+      }, { status: 400 })
+    }
+
+    const strategyPrompt = buildStrategyPrompt(strategy)
+
+    // Step 2: Generate resume with bullet-level provenance
+    const { object: resumeWithProvenance } = await generateObject({
       model: groq("llama-3.3-70b-versatile"),
-      prompt: `Generate an ATS-optimized resume tailored for this specific job.
+      schema: ResumeWithProvenanceSchema,
+      prompt: `Generate resume content with FULL PROVENANCE TRACKING for this job application.
 
 ${profileContext}
 
@@ -275,45 +351,39 @@ MATCHED EVIDENCE:
 - Matched Tools: ${evidenceMap.matched_tools.join(", ")}
 - Key Gaps to Address: ${evidenceMap.gaps.join(", ")}
 
+${strategyPrompt}
+
 STRICT RULES:
-1. Use ONLY information from the profile and evidence library - NEVER invent facts
-2. Include relevant keywords from the job posting naturally
-3. Use plain text format - no tables, columns, icons, or graphics
+1. For EVERY bullet, you MUST specify which evidence item (by ID) it comes from
+2. Use ONLY information from the profile and evidence library - NEVER invent facts
+3. Include relevant keywords from the job posting naturally
 4. Write strong action verbs to start each bullet
 5. Include specific metrics and outcomes ONLY if they exist in the evidence
 6. Do NOT include fake percentages, numbers, or achievements
 7. Every bullet must be something the candidate could defend in an interview
-8. Avoid vague corporate filler like "drove results" or "spearheaded initiatives"
+8. BANNED PHRASES (never use these): ${BANNED_PHRASES.slice(0, 15).join(", ")}
 9. Prefer specificity over hype
-10. Keep formatting ATS-friendly: clear section headers, simple bullet points
+10. Each bullet should have at least 2 of: action verb, system/artifact, business context, measurable result
 
-Format the resume as:
-[FULL NAME]
-[Contact Info]
-
-PROFESSIONAL SUMMARY
-[2-3 sentences tailored to this role]
-
-EXPERIENCE
-[Company] | [Title] | [Dates]
-• [Achievement bullet]
-• [Achievement bullet]
-
-SKILLS
-[Comma-separated relevant skills]
-
-EDUCATION
-[Degree, School, Year]`,
+Generate 4-6 strong achievement bullets with full provenance.`,
     })
 
-    // Step 3: Generate tailored cover letter
-    const { text: generatedCoverLetter } = await generateText({
+    // Step 3: Generate cover letter with paragraph provenance
+    const { object: coverLetterWithProvenance } = await generateObject({
       model: groq("llama-3.3-70b-versatile"),
-      prompt: `Write a tailored cover letter for this specific job application.
+      schema: CoverLetterWithProvenanceSchema,
+      prompt: `Generate a tailored cover letter with PROVENANCE TRACKING for each paragraph.
 
 ${profileContext}
 
-${evidenceContext}
+EVIDENCE FOR COVER LETTER:
+${coverLetterEvidence.map((e: {
+  id: string;
+  source_title: string;
+  source_type: string;
+  company_name?: string;
+  outcomes?: string[];
+}) => `[ID: ${e.id}] ${e.source_type}: ${e.source_title} at ${e.company_name || "N/A"}`).join("\n")}
 
 ${jobContext}
 
@@ -321,28 +391,62 @@ MATCHED EVIDENCE:
 - Matched Skills: ${evidenceMap.matched_skills.join(", ")}
 - Matched Experiences: ${evidenceMap.matched_experiences.map(e => `${e.experience_title} at ${e.company}: ${e.relevance}`).join("; ")}
 
+${strategyPrompt}
+
 STRICT RULES:
-1. Sound like a confident professional, not a bot
-2. Be concise - 3-4 paragraphs maximum
-3. Reference specific aspects of the role and company
-4. Connect your actual experience to their needs
-5. NEVER include fake admiration or generic enthusiasm
+1. For EVERY paragraph, list which evidence IDs support the claims
+2. Sound like a confident professional, not a bot
+3. Be concise - 3-4 paragraphs maximum
+4. Reference specific aspects of the role and company
+5. Connect your actual experience to their needs
 6. NEVER use phrases like "I am excited to apply" or "I would be thrilled"
-7. Avoid cheesy language and corporate buzzwords
-8. Do not claim experience or skills you don't have
-9. Be direct and specific about what you bring
-10. End with a clear, confident closing
+7. Do not claim experience or skills you don't have
+8. Mark claim confidence as "low" if the paragraph stretches evidence
 
 Structure:
-Paragraph 1: Direct opening - who you are and why you're a fit
-Paragraph 2-3: Specific evidence of your relevant experience and impact
-Paragraph 4: Brief closing with next steps`,
+- Paragraph 1: Direct opening - who you are and why you're a fit
+- Paragraph 2-3: Specific evidence of your relevant experience and impact
+- Paragraph 4: Brief closing with next steps`,
     })
 
-    // Step 4: Detect banned phrases
-    const resumeBannedPhrases = detectBannedPhrases(generatedResume)
-    const coverLetterBannedPhrases = detectBannedPhrases(generatedCoverLetter)
+    // Build final formatted documents
+    const formattedResume = `${profile.full_name || "CANDIDATE NAME"}
+${profile.location || "Location"} | ${profile.email || "email@example.com"}
+
+SUMMARY
+${resumeWithProvenance.summary}
+
+EXPERIENCE
+
+${resumeWithProvenance.experience_bullets.map(b => 
+  `• ${b.bullet_text}`
+).join("\n")}
+
+SKILLS
+${resumeWithProvenance.skills_section.join(", ")}
+
+EDUCATION
+${(profile.education || []).map((edu: { degree: string; school: string; year?: string }) => 
+  `${edu.degree} | ${edu.school}${edu.year ? ` | ${edu.year}` : ""}`
+).join("\n")}`
+
+    const formattedCoverLetter = coverLetterWithProvenance.paragraphs.map(p => p.paragraph_text).join("\n\n")
+
+    // Step 4: Detect banned phrases and vague patterns
+    const resumeBannedPhrases = detectBannedPhrases(formattedResume)
+    const coverLetterBannedPhrases = detectBannedPhrases(formattedCoverLetter)
     const allBannedPhrases = [...new Set([...resumeBannedPhrases, ...coverLetterBannedPhrases])]
+    
+    const vaguePatterns = detectVaguePatterns(formattedResume)
+
+    // Analyze bullet concreteness
+    const bulletAnalysis = resumeWithProvenance.experience_bullets.map(b => ({
+      bullet: b.bullet_text,
+      ...analyzeBulletConcreteness(b.bullet_text),
+      has_metric: hasMetrics(b.bullet_text)
+    }))
+    
+    const weakBullets = bulletAnalysis.filter(b => !b.is_concrete_enough)
 
     // Step 5: AI Quality check - use smaller model to avoid rate limits
     const { object: qualityCheck } = await generateObject({
@@ -355,10 +459,10 @@ ${profileContext}
 ${evidenceContext}
 
 GENERATED RESUME:
-${generatedResume}
+${formattedResume}
 
 GENERATED COVER LETTER:
-${generatedCoverLetter}
+${formattedCoverLetter}
 
 Check for:
 1. Invented claims not supported by the evidence
@@ -370,27 +474,80 @@ Check for:
 Be strict - flag anything that seems fabricated or generic.`,
     })
 
+    // Build provenance records for storage
+    const bulletProvenance: BulletProvenance[] = resumeWithProvenance.experience_bullets.map(b => ({
+      bullet_text: b.bullet_text,
+      source_evidence_id: b.source_evidence_id,
+      source_evidence_title: resumeEvidence.find((e: { id: string; source_title: string }) => e.id === b.source_evidence_id)?.source_title || "Unknown",
+      source_role: b.source_role,
+      source_company: b.source_company,
+      matched_requirement_id: undefined,
+      matched_requirement_text: b.matched_requirement,
+      claim_confidence: "high" as const,
+      keywords_covered: b.keywords_used,
+      risk_flags: [],
+      is_metric_rich: hasMetrics(b.bullet_text),
+      concrete_signal_count: analyzeBulletConcreteness(b.bullet_text).concrete_signal_count
+    }))
+
+    const paragraphProvenance: ParagraphProvenance[] = coverLetterWithProvenance.paragraphs.map(p => ({
+      paragraph_text: p.paragraph_text,
+      evidence_used: p.evidence_ids_used,
+      matched_job_theme: p.job_theme_addressed,
+      claim_confidence: p.claim_confidence,
+      unsupported_language: detectBannedPhrases(p.paragraph_text)
+    }))
+
+    // Calculate quality score
+    const qualityPassed = qualityCheck.overall_passed && 
+      allBannedPhrases.length === 0 && 
+      weakBullets.length <= 1
+
+    const qualityScore = qualityPassed ? 100 : Math.max(0, 
+      100 - 
+      (allBannedPhrases.length * 10) - 
+      (weakBullets.length * 5) - 
+      (qualityCheck.invented_claims.length * 15) -
+      (qualityCheck.vague_bullets.length * 5)
+    )
+
     // Update the job with generated materials
     const { error: updateError } = await supabase
       .from("jobs")
       .update({
-        generated_resume: generatedResume,
-        generated_cover_letter: generatedCoverLetter,
+        generated_resume: formattedResume,
+        generated_cover_letter: formattedCoverLetter,
         fit: evidenceMap.fit_score >= 70 ? "HIGH" : evidenceMap.fit_score >= 40 ? "MEDIUM" : "LOW",
         score: evidenceMap.fit_score,
-        score_reasoning: { rationale: evidenceMap.fit_rationale, gaps: evidenceMap.gaps },
+        score_reasoning: { 
+          rationale: evidenceMap.fit_rationale, 
+          gaps: evidenceMap.gaps,
+          strategy,
+          strategy_reasoning: strategyReasoning,
+          requirement_coverage: evidenceMap.requirement_coverage
+        },
         score_strengths: evidenceMap.matched_skills,
         score_gaps: evidenceMap.gaps,
+        resume_strategy: strategy,
+        evidence_map: {
+          selected_evidence_ids: resumeEvidence.map((e: { id: string }) => e.id),
+          bullet_provenance: bulletProvenance,
+          paragraph_provenance: paragraphProvenance,
+          blocked_evidence: blockedEvidence.map((e: { id: string; source_title: string }) => ({ id: e.id, title: e.source_title, reason: getEvidenceUsageRule(e) }))
+        },
         status: "SCORED",
         scored_at: new Date().toISOString(),
         generation_timestamp: new Date().toISOString(),
-        generation_quality_score: qualityCheck.overall_passed && allBannedPhrases.length === 0 ? 100 : 50,
+        generation_quality_score: qualityScore,
         generation_quality_issues: [
           ...allBannedPhrases.map(p => `Banned phrase: "${p}"`),
+          ...vaguePatterns.map(p => `Vague pattern: "${p}"`),
+          ...weakBullets.map(b => `Weak bullet (${b.concrete_signal_count}/4 signals): "${b.bullet.substring(0, 50)}..."`),
           ...qualityCheck.invented_claims,
           ...qualityCheck.vague_bullets,
           ...qualityCheck.ai_filler,
         ],
+        quality_passed: qualityPassed,
       })
       .eq("id", job_id)
 
@@ -421,13 +578,15 @@ Be strict - flag anything that seems fabricated or generic.`,
       ai_filler_found: qualityCheck.ai_filler,
       repeated_structures_found: qualityCheck.repeated_structures,
       unsupported_claims_found: qualityCheck.unsupported_claims,
-      passed: qualityCheck.overall_passed,
-      issues_count: qualityCheck.invented_claims.length + qualityCheck.vague_bullets.length + qualityCheck.ai_filler.length,
+      passed: qualityPassed,
+      issues_count: qualityCheck.invented_claims.length + qualityCheck.vague_bullets.length + qualityCheck.ai_filler.length + allBannedPhrases.length,
     })
 
     return NextResponse.json({
       success: true,
       job_id,
+      strategy,
+      strategy_reasoning: strategyReasoning,
       evidence_map: {
         fit_score: evidenceMap.fit_score,
         fit_rationale: evidenceMap.fit_rationale,
@@ -435,12 +594,21 @@ Be strict - flag anything that seems fabricated or generic.`,
         matched_tools: evidenceMap.matched_tools,
         matched_experiences: evidenceMap.matched_experiences,
         gaps: evidenceMap.gaps,
+        requirement_coverage: evidenceMap.requirement_coverage,
       },
-      generated_resume: generatedResume,
-      generated_cover_letter: generatedCoverLetter,
+      generated_resume: formattedResume,
+      generated_cover_letter: formattedCoverLetter,
+      provenance: {
+        bullet_provenance: bulletProvenance,
+        paragraph_provenance: paragraphProvenance,
+        blocked_evidence: blockedEvidence.map((e: { id: string; source_title: string }) => ({ id: e.id, title: e.source_title, reason: getEvidenceUsageRule(e) }))
+      },
       quality_check: {
-        passed: qualityCheck.overall_passed && allBannedPhrases.length === 0,
+        passed: qualityPassed,
+        score: qualityScore,
         banned_phrases_found: allBannedPhrases,
+        vague_patterns_found: vaguePatterns,
+        weak_bullets: weakBullets.map(b => b.bullet),
         issues: {
           invented_claims: qualityCheck.invented_claims,
           vague_bullets: qualityCheck.vague_bullets,
@@ -450,27 +618,28 @@ Be strict - flag anything that seems fabricated or generic.`,
         suggestions: qualityCheck.improvement_suggestions,
       },
     })
-} catch (error) {
-  console.error("Error in generate-documents:", error)
-  
-  // Check for rate limit errors
-  const errorMessage = error instanceof Error ? error.message : "Generation failed"
-  const isRateLimit = errorMessage.includes("rate_limit") || errorMessage.includes("Rate limit")
-  
-  if (isRateLimit) {
+  } catch (error) {
+    console.error("Error in generate-documents:", error)
+    
+    // Check for rate limit errors
+    const errorMessage = error instanceof Error ? error.message : "Generation failed"
+    const isRateLimit = errorMessage.includes("rate_limit") || errorMessage.includes("Rate limit") || errorMessage.includes("429")
+    
+    if (isRateLimit) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: "AI service is temporarily busy. Please wait 30 seconds and try again.",
+          retryAfter: 30,
+          isRateLimit: true
+        },
+        { status: 429 }
+      )
+    }
+    
     return NextResponse.json(
-      { 
-        success: false, 
-        error: "AI service is temporarily busy. Please wait 30 seconds and try again.",
-        retryAfter: 30
-      },
-      { status: 429 }
+      { success: false, error: errorMessage },
+      { status: 500 }
     )
-  }
-  
-  return NextResponse.json(
-    { success: false, error: errorMessage },
-    { status: 500 }
-  )
   }
 }

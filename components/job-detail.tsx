@@ -38,6 +38,9 @@ import {
   RefreshCw,
   Save,
   Eye,
+  Lock,
+  AlertTriangle,
+  Clock,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -88,6 +91,62 @@ function StatusBadge({ status }: { status: JobStatus }) {
   )
 }
 
+// Workflow step status types
+type WorkflowStatus = "not_started" | "in_progress" | "complete" | "warning" | "blocked"
+
+// Workflow step card with status
+function WorkflowStepCard({
+  step,
+  title,
+  description,
+  status,
+  statusReason,
+  color,
+}: {
+  step: number
+  title: string
+  description: string
+  status: WorkflowStatus
+  statusReason: string
+  color: "blue" | "green" | "red"
+}) {
+  const colorClasses = {
+    blue: { bg: "bg-blue-100", text: "text-blue-600", border: "border-blue-200" },
+    green: { bg: "bg-green-100", text: "text-green-600", border: "border-green-200" },
+    red: { bg: "bg-red-100", text: "text-red-600", border: "border-red-200" },
+  }
+
+  const statusConfig = {
+    not_started: { icon: Clock, className: "text-muted-foreground", label: "Not Started" },
+    in_progress: { icon: Loader2, className: "text-blue-500 animate-spin", label: "In Progress" },
+    complete: { icon: CheckCircle2, className: "text-green-500", label: "Complete" },
+    warning: { icon: AlertTriangle, className: "text-amber-500", label: "Needs Attention" },
+    blocked: { icon: Lock, className: "text-red-500", label: "Blocked" },
+  }
+
+  const StatusIcon = statusConfig[status].icon
+
+  return (
+    <div className={`p-4 border rounded-lg hover:border-primary/50 hover:bg-muted/50 transition-colors cursor-pointer ${
+      status === "blocked" ? "opacity-60" : ""
+    }`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <div className={`h-8 w-8 rounded-full ${colorClasses[color].bg} flex items-center justify-center`}>
+            <span className={`text-sm font-bold ${colorClasses[color].text}`}>{step}</span>
+          </div>
+          <h4 className="font-medium">{title}</h4>
+        </div>
+        <StatusIcon className={`h-4 w-4 ${statusConfig[status].className}`} />
+      </div>
+      <p className="text-xs text-muted-foreground">{description}</p>
+      <p className={`text-xs mt-2 ${statusConfig[status].className}`}>
+        {statusReason}
+      </p>
+    </div>
+  )
+}
+
 export function JobDetail({ job }: JobDetailProps) {
   const router = useRouter()
   const [status, setStatus] = useState<JobStatus>(job.status)
@@ -115,22 +174,78 @@ export function JobDetail({ job }: JobDetailProps) {
     })
   }
 
+  const [retryCountdown, setRetryCountdown] = useState(0)
+  const [generationError, setGenerationError] = useState<string | null>(null)
+
   const handleGenerateMaterials = async () => {
     setIsGenerating(true)
+    setGenerationError(null)
+    
     try {
       const response = await fetch("/api/generate-documents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id: job.id }),
+        body: JSON.stringify({ 
+          job_id: job.id,
+          // Pass selected evidence if available from evidence_map
+          selected_evidence_ids: job.evidence_map && typeof job.evidence_map === 'object' && 'selected_evidence_ids' in job.evidence_map
+            ? job.evidence_map.selected_evidence_ids
+            : undefined
+        }),
       })
       const data = await response.json()
+      
       if (data.success) {
-        toast.success("Materials generated successfully")
+        // Show strategy info in success message
+        const strategyLabel = data.strategy === "direct_match" ? "Direct Match" :
+          data.strategy === "adjacent_transition" ? "Adjacent Transition" :
+          data.strategy === "stretch_honest" ? "Stretch Fit" : data.strategy
+        
+        toast.success(`Materials generated (${strategyLabel})`, {
+          description: data.quality_check?.passed 
+            ? "Quality checks passed"
+            : `${data.quality_check?.issues?.banned_phrases?.length || 0} issues to review`
+        })
         router.refresh()
       } else {
-        toast.error(data.error || "Failed to generate materials")
+        // Handle rate limit specially
+        if (data.isRateLimit || response.status === 429) {
+          const retryAfter = data.retryAfter || 30
+          setRetryCountdown(retryAfter)
+          setGenerationError("AI service is temporarily busy")
+          
+          // Start countdown
+          const interval = setInterval(() => {
+            setRetryCountdown(prev => {
+              if (prev <= 1) {
+                clearInterval(interval)
+                setGenerationError(null)
+                return 0
+              }
+              return prev - 1
+            })
+          }, 1000)
+          
+          toast.error("AI service is busy", {
+            description: `Please wait ${retryAfter} seconds before retrying`,
+            action: {
+              label: "Retry in " + retryAfter + "s",
+              onClick: () => {}
+            }
+          })
+        } else if (data.strategy === "do_not_generate") {
+          // Generation was blocked due to poor fit
+          setGenerationError(data.error)
+          toast.error("Generation blocked", {
+            description: data.strategy_reasoning || "This role is too much of a stretch"
+          })
+        } else {
+          setGenerationError(data.error)
+          toast.error(data.error || "Failed to generate materials")
+        }
       }
-    } catch {
+    } catch (err) {
+      setGenerationError("Network error - please try again")
       toast.error("Failed to generate materials")
     } finally {
       setIsGenerating(false)
@@ -363,55 +478,117 @@ export function JobDetail({ job }: JobDetailProps) {
         </Card>
       )}
 
-      {/* TruthSerum Workflow */}
+      {/* TruthSerum Workflow - Command Center */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Target className="h-5 w-5 text-primary" />
-            TruthSerum Workflow
-          </CardTitle>
-          <CardDescription>
-            Complete each step to build an evidence-backed application
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Target className="h-5 w-5 text-primary" />
+                TruthSerum Workflow
+              </CardTitle>
+              <CardDescription>
+                Complete each step to build an evidence-backed application
+              </CardDescription>
+            </div>
+            {/* Strategy Badge */}
+            {job.resume_strategy && (
+              <Badge 
+                variant="outline" 
+                className={`text-xs ${
+                  job.resume_strategy === "direct_match" ? "border-green-500 text-green-700 bg-green-50" :
+                  job.resume_strategy === "adjacent_transition" ? "border-blue-500 text-blue-700 bg-blue-50" :
+                  job.resume_strategy === "stretch_honest" ? "border-amber-500 text-amber-700 bg-amber-50" :
+                  "border-red-500 text-red-700 bg-red-50"
+                }`}
+              >
+                {job.resume_strategy === "direct_match" ? "Direct Match" :
+                 job.resume_strategy === "adjacent_transition" ? "Adjacent Transition" :
+                 job.resume_strategy === "stretch_honest" ? "Stretch Fit" :
+                 "Not Recommended"}
+              </Badge>
+            )}
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Strategy Reasoning */}
+          {job.score_reasoning && typeof job.score_reasoning === 'object' && 'strategy_reasoning' in job.score_reasoning && (
+            <div className="p-3 bg-muted/50 rounded-lg border border-dashed">
+              <p className="text-xs text-muted-foreground flex items-start gap-2">
+                <Eye className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span><strong>Strategy:</strong> {String(job.score_reasoning.strategy_reasoning)}</span>
+              </p>
+            </div>
+          )}
+
           <div className="grid gap-3 md:grid-cols-3">
+            {/* Evidence Match Step */}
             <Link href={`/jobs/${job.id}/evidence-match`}>
-              <div className="p-4 border rounded-lg hover:border-primary/50 hover:bg-muted/50 transition-colors cursor-pointer">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-                    <span className="text-sm font-bold text-blue-600">1</span>
-                  </div>
-                  <h4 className="font-medium">Evidence Match</h4>
-                </div>
-                <p className="text-xs text-muted-foreground">Map requirements to your verified evidence</p>
-              </div>
+              <WorkflowStepCard
+                step={1}
+                title="Evidence Match"
+                description="Map requirements to your verified evidence"
+                status={job.evidence_map ? "complete" : "not_started"}
+                statusReason={job.evidence_map 
+                  ? `${Object.keys(job.evidence_map).length} requirements mapped`
+                  : "No evidence mapped yet"
+                }
+                color="blue"
+              />
             </Link>
             
+            {/* Scoring Step */}
             <Link href={`/jobs/${job.id}/scoring`}>
-              <div className="p-4 border rounded-lg hover:border-primary/50 hover:bg-muted/50 transition-colors cursor-pointer">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-                    <span className="text-sm font-bold text-green-600">2</span>
-                  </div>
-                  <h4 className="font-medium">Scoring Center</h4>
-                </div>
-                <p className="text-xs text-muted-foreground">Review detailed fit breakdown and decide</p>
-              </div>
+              <WorkflowStepCard
+                step={2}
+                title="Scoring Center"
+                description="Review detailed fit breakdown and decide"
+                status={job.score !== null ? (job.score >= 60 ? "complete" : "warning") : "not_started"}
+                statusReason={job.score !== null 
+                  ? `Score: ${job.score}/100`
+                  : "Not scored yet"
+                }
+                color="green"
+              />
             </Link>
             
+            {/* Red Team Step */}
             <Link href={`/jobs/${job.id}/red-team`}>
-              <div className="p-4 border rounded-lg hover:border-primary/50 hover:bg-muted/50 transition-colors cursor-pointer">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="h-8 w-8 rounded-full bg-red-100 flex items-center justify-center">
-                    <span className="text-sm font-bold text-red-600">3</span>
-                  </div>
-                  <h4 className="font-medium">Red Team Review</h4>
-                </div>
-                <p className="text-xs text-muted-foreground">Quality check before export</p>
-              </div>
+              <WorkflowStepCard
+                step={3}
+                title="Red Team Review"
+                description="Quality check before export"
+                status={
+                  !job.generated_resume ? "not_started" :
+                  (job.generation_quality_issues?.length || 0) > 3 ? "blocked" :
+                  (job.generation_quality_issues?.length || 0) > 0 ? "warning" :
+                  "complete"
+                }
+                statusReason={
+                  !job.generated_resume ? "Generate materials first" :
+                  (job.generation_quality_issues?.length || 0) > 0 
+                    ? `${job.generation_quality_issues?.length} issues to review`
+                    : "No issues found"
+                }
+                color="red"
+              />
             </Link>
           </div>
+
+          {/* Quick Action */}
+          {!job.evidence_map && (
+            <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <AlertCircle className="h-4 w-4 text-blue-600" />
+              <span className="text-sm text-blue-800">
+                <strong>Next:</strong> Start by mapping your evidence to job requirements
+              </span>
+              <Link href={`/jobs/${job.id}/evidence-match`} className="ml-auto">
+                <Button size="sm" variant="outline" className="h-7 text-xs">
+                  Start Matching
+                </Button>
+              </Link>
+            </div>
+          )}
         </CardContent>
       </Card>
 

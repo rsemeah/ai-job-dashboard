@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,19 +26,31 @@ import {
   ThumbsUp,
   ThumbsDown,
   ArrowRight,
+  Info,
+  Eye,
+  Shield,
+  FileText,
+  BarChart3,
+  Minus,
 } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import type { Job, EvidenceRecord } from "@/lib/types"
 import { FIT_CONFIG } from "@/lib/types"
+import { 
+  calculateScoreBreakdown, 
+  determineGenerationStrategy,
+  type ScoreBreakdown as TruthSerumScoreBreakdown 
+} from "@/lib/truthserum"
 
-interface ScoreBreakdown {
+interface ScoreCategory {
   category: string
   score: number
   maxScore: number
-  strengths: string[]
-  gaps: string[]
-  weight: number
+  reasoning: string
+  icon: React.ReactNode
+  weight: string
+  color: string
 }
 
 export default function ScoringCenterPage() {
@@ -68,130 +80,104 @@ export default function ScoringCenterPage() {
     loadData()
   }, [jobId])
 
-  // Calculate detailed scoring breakdown
-  function calculateScoreBreakdown(): ScoreBreakdown[] {
-    if (!job) return []
+  // Calculate scores using grounded metrics
+  const scoreBreakdown = useMemo(() => {
+    if (!job || evidence.length === 0) return null
     
-    const breakdown: ScoreBreakdown[] = []
+    // Get selected evidence IDs from evidence_map if available
+    const selectedIds = job.evidence_map && typeof job.evidence_map === 'object' && 'selected_evidence_ids' in job.evidence_map
+      ? (job.evidence_map.selected_evidence_ids as string[])
+      : evidence.map(e => e.id)
     
-    // Skills Match (30% weight)
-    const requiredSkills = job.qualifications_required || []
-    const allTools = evidence.flatMap(e => e.tools_used || []).map(t => t.toLowerCase())
-    const allSkills = evidence.flatMap(e => e.approved_keywords || []).map(s => s.toLowerCase())
-    const combinedSkills = [...new Set([...allTools, ...allSkills])]
-    
-    const matchedSkills = requiredSkills.filter(req => 
-      combinedSkills.some(skill => req.toLowerCase().includes(skill) || skill.includes(req.toLowerCase().split(" ")[0]))
+    return calculateScoreBreakdown(
+      job,
+      evidence,
+      selectedIds,
+      job.generated_resume || undefined,
+      job.generated_cover_letter || undefined
     )
-    const skillsScore = requiredSkills.length > 0 
-      ? Math.round((matchedSkills.length / requiredSkills.length) * 100)
-      : 50
-    
-    breakdown.push({
-      category: "Skills & Tools Match",
-      score: skillsScore,
-      maxScore: 100,
-      strengths: matchedSkills.slice(0, 3),
-      gaps: requiredSkills.filter(r => !matchedSkills.includes(r)).slice(0, 3),
-      weight: 30,
-    })
-    
-    // Experience Relevance (25% weight)
-    const hasRelevantIndustry = evidence.some(e => 
-      (e.industries || []).some(ind => 
-        job.industry_guess?.toLowerCase().includes(ind.toLowerCase()) ||
-        ind.toLowerCase().includes(job.industry_guess?.toLowerCase() || "")
-      )
-    )
-    const hasRelevantRole = evidence.some(e => 
-      (e.role_family_tags || []).some(tag => 
-        tag === job.role_family
-      )
-    )
-    const experienceScore = (hasRelevantIndustry ? 50 : 20) + (hasRelevantRole ? 50 : 20)
-    
-    breakdown.push({
-      category: "Experience Relevance",
-      score: Math.min(100, experienceScore),
-      maxScore: 100,
-      strengths: [
-        hasRelevantIndustry ? `Industry experience in ${job.industry_guess}` : "",
-        hasRelevantRole ? `Role family match: ${job.role_family}` : "",
-      ].filter(Boolean),
-      gaps: [
-        !hasRelevantIndustry ? `No direct ${job.industry_guess} industry experience` : "",
-        !hasRelevantRole ? `No direct ${job.role_family} role experience` : "",
-      ].filter(Boolean),
-      weight: 25,
-    })
-    
-    // Seniority Alignment (20% weight)
-    const seniorityMap: Record<string, number> = {
-      "Entry": 1, "Mid": 2, "Senior": 3, "Lead": 4, "Principal": 5, "Director": 6, "VP": 7, "C-Level": 8
-    }
-    const targetLevel = seniorityMap[job.seniority_level || "Mid"] || 2
-    const candidateLevel = 3 // Assume Senior based on evidence
-    const levelDiff = Math.abs(targetLevel - candidateLevel)
-    const seniorityScore = levelDiff === 0 ? 100 : levelDiff === 1 ? 80 : levelDiff === 2 ? 50 : 30
-    
-    breakdown.push({
-      category: "Seniority Alignment",
-      score: seniorityScore,
-      maxScore: 100,
-      strengths: levelDiff <= 1 ? [`Level aligned: ${job.seniority_level}`] : [],
-      gaps: levelDiff > 1 ? [`Target: ${job.seniority_level}, may be ${targetLevel > candidateLevel ? "stretch" : "underleveled"}`] : [],
-      weight: 20,
-    })
-    
-    // Keywords & ATS (15% weight)
-    const atsKeywords = job.ats_keywords || []
-    const approvedKeywords = evidence.flatMap(e => e.approved_keywords || []).map(k => k.toLowerCase())
-    const matchedKeywords = atsKeywords.filter(kw => 
-      approvedKeywords.some(ak => ak.includes(kw.toLowerCase()) || kw.toLowerCase().includes(ak))
-    )
-    const keywordsScore = atsKeywords.length > 0
-      ? Math.round((matchedKeywords.length / atsKeywords.length) * 100)
-      : 50
-    
-    breakdown.push({
-      category: "ATS Keywords",
-      score: keywordsScore,
-      maxScore: 100,
-      strengths: matchedKeywords.slice(0, 4),
-      gaps: atsKeywords.filter(k => !matchedKeywords.includes(k)).slice(0, 4),
-      weight: 15,
-    })
-    
-    // Evidence Quality (10% weight)
-    const highConfidence = evidence.filter(e => e.confidence_level === "high").length
-    const totalEvidence = evidence.length
-    const evidenceScore = totalEvidence > 0 ? Math.round((highConfidence / totalEvidence) * 100) : 0
-    
-    breakdown.push({
-      category: "Evidence Quality",
-      score: evidenceScore,
-      maxScore: 100,
-      strengths: [`${highConfidence} high-confidence evidence items`],
-      gaps: highConfidence < 5 ? ["Add more verified evidence to strengthen applications"] : [],
-      weight: 10,
-    })
-    
-    return breakdown
-  }
+  }, [job, evidence])
 
-  function calculateOverallScore(breakdown: ScoreBreakdown[]): number {
-    const weighted = breakdown.reduce((sum, b) => sum + (b.score * b.weight / 100), 0)
-    return Math.round(weighted)
-  }
+  // Determine generation strategy
+  const strategy = useMemo(() => {
+    if (!job || !scoreBreakdown) return null
+    
+    const evidenceQuality = evidence.filter(e => e.confidence_level === "high").length / (evidence.length || 1) * 100
+    const requirementCoverage = scoreBreakdown.role_alignment_score
+    
+    return determineGenerationStrategy(job, requirementCoverage, evidenceQuality)
+  }, [job, scoreBreakdown, evidence])
+
+  // Transform into display format
+  const scoreCategories: ScoreCategory[] = useMemo(() => {
+    if (!scoreBreakdown) return []
+    
+    return [
+      {
+        category: "ATS Keywords",
+        score: scoreBreakdown.ats_score,
+        maxScore: 100,
+        reasoning: scoreBreakdown.ats_reasoning,
+        icon: <Target className="h-5 w-5 text-green-500" />,
+        weight: "15%",
+        color: "green"
+      },
+      {
+        category: "Truth Score",
+        score: scoreBreakdown.truth_score,
+        maxScore: 100,
+        reasoning: scoreBreakdown.truth_reasoning,
+        icon: <Shield className="h-5 w-5 text-blue-500" />,
+        weight: "20%",
+        color: "blue"
+      },
+      {
+        category: "Role Alignment",
+        score: scoreBreakdown.role_alignment_score,
+        maxScore: 100,
+        reasoning: scoreBreakdown.role_alignment_reasoning,
+        icon: <Briefcase className="h-5 w-5 text-purple-500" />,
+        weight: "25%",
+        color: "purple"
+      },
+      {
+        category: "Recruiter Clarity",
+        score: scoreBreakdown.recruiter_clarity_score,
+        maxScore: 100,
+        reasoning: scoreBreakdown.recruiter_clarity_reasoning,
+        icon: <Eye className="h-5 w-5 text-cyan-500" />,
+        weight: "15%",
+        color: "cyan"
+      },
+      {
+        category: "Tool Match",
+        score: scoreBreakdown.tool_match_score,
+        maxScore: 100,
+        reasoning: scoreBreakdown.tool_match_reasoning,
+        icon: <Wrench className="h-5 w-5 text-orange-500" />,
+        weight: "10%",
+        color: "orange"
+      },
+      {
+        category: "Metric Density",
+        score: scoreBreakdown.metric_density_score,
+        maxScore: 100,
+        reasoning: scoreBreakdown.metric_density_reasoning,
+        icon: <BarChart3 className="h-5 w-5 text-indigo-500" />,
+        weight: "15%",
+        color: "indigo"
+      },
+    ]
+  }, [scoreBreakdown])
 
   function determineFit(score: number): "HIGH" | "MEDIUM" | "LOW" {
-    if (score >= 75) return "HIGH"
-    if (score >= 50) return "MEDIUM"
+    if (score >= 70) return "HIGH"
+    if (score >= 45) return "MEDIUM"
     return "LOW"
   }
 
   async function makeDecision(choice: "apply" | "skip") {
-    if (!job) return
+    if (!job || !scoreBreakdown) return
     
     const supabase = createClient()
     const newStatus = choice === "apply" ? "READY" : "ARCHIVED"
@@ -200,8 +186,8 @@ export default function ScoringCenterPage() {
       .from("jobs")
       .update({ 
         status: newStatus,
-        score: overallScore,
-        fit: fit,
+        score: scoreBreakdown.overall_score,
+        fit: determineFit(scoreBreakdown.overall_score),
       })
       .eq("id", jobId)
     
@@ -214,8 +200,7 @@ export default function ScoringCenterPage() {
     }
   }
 
-  const scoreBreakdown = calculateScoreBreakdown()
-  const overallScore = calculateOverallScore(scoreBreakdown)
+  const overallScore = scoreBreakdown?.overall_score || job?.score || 0
   const fit = determineFit(overallScore)
 
   if (loading) {
@@ -274,9 +259,9 @@ export default function ScoringCenterPage() {
                 <h2 className="text-2xl font-semibold">{FIT_CONFIG[fit].label}</h2>
                 <p className="text-muted-foreground">{FIT_CONFIG[fit].description}</p>
                 <div className="flex items-center gap-4 mt-2">
-                  <Badge variant="outline">{job.role_family}</Badge>
-                  <Badge variant="outline">{job.seniority_level}</Badge>
-                  <Badge variant="outline">{job.industry_guess}</Badge>
+                  {job.role_family && <Badge variant="outline">{job.role_family}</Badge>}
+                  {job.seniority_level && <Badge variant="outline">{job.seniority_level}</Badge>}
+                  {job.industry_guess && <Badge variant="outline">{job.industry_guess}</Badge>}
                 </div>
               </div>
             </div>
@@ -287,7 +272,7 @@ export default function ScoringCenterPage() {
                 size="lg" 
                 className="bg-green-600 hover:bg-green-700"
                 onClick={() => makeDecision("apply")}
-                disabled={decision !== null}
+                disabled={decision !== null || (strategy?.strategy === "do_not_generate")}
               >
                 <ThumbsUp className="h-5 w-5 mr-2" />
                 Worth Pursuing
@@ -306,69 +291,101 @@ export default function ScoringCenterPage() {
         </CardContent>
       </Card>
 
+      {/* Strategy Explanation */}
+      {strategy && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Info className="h-5 w-5 text-primary" />
+              Generation Strategy
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-start gap-4">
+              <Badge 
+                variant="outline" 
+                className={`text-sm px-3 py-1 ${
+                  strategy.strategy === "direct_match" ? "border-green-500 text-green-700 bg-green-50" :
+                  strategy.strategy === "adjacent_transition" ? "border-blue-500 text-blue-700 bg-blue-50" :
+                  strategy.strategy === "stretch_honest" ? "border-amber-500 text-amber-700 bg-amber-50" :
+                  "border-red-500 text-red-700 bg-red-50"
+                }`}
+              >
+                {strategy.strategy === "direct_match" ? "Direct Match" :
+                 strategy.strategy === "adjacent_transition" ? "Adjacent Transition" :
+                 strategy.strategy === "stretch_honest" ? "Stretch (Honest)" :
+                 "Do Not Generate"}
+              </Badge>
+              <p className="text-sm text-muted-foreground flex-1">{strategy.reasoning}</p>
+            </div>
+            
+            {strategy.strategy === "do_not_generate" && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-800 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  <strong>Not Recommended:</strong> This role has too many gaps to generate truthful materials.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Genericity Penalty Warning */}
+      {scoreBreakdown && scoreBreakdown.genericity_penalty > 0 && (
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Minus className="h-5 w-5 text-amber-600 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-amber-800">Genericity Penalty: -{scoreBreakdown.genericity_penalty} points</h4>
+                <p className="text-sm text-amber-700 mt-1">{scoreBreakdown.genericity_reasoning}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Score Breakdown */}
       <div className="grid gap-4">
         <h2 className="text-lg font-semibold">Score Breakdown</h2>
         
-        {scoreBreakdown.map((item, idx) => (
+        {scoreCategories.map((item, idx) => (
           <Card key={idx}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <CategoryIcon category={item.category} />
+                  {item.icon}
                   <div>
                     <h3 className="font-medium">{item.category}</h3>
-                    <p className="text-xs text-muted-foreground">{item.weight}% of total score</p>
+                    <p className="text-xs text-muted-foreground">{item.weight} of total score</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-bold">{item.score}</div>
+                  <div className={`text-2xl font-bold ${
+                    item.score >= 70 ? "text-green-600" :
+                    item.score >= 45 ? "text-yellow-600" :
+                    "text-red-600"
+                  }`}>{item.score}</div>
                   <div className="text-xs text-muted-foreground">/ {item.maxScore}</div>
                 </div>
               </div>
               
-              <Progress value={item.score} className="h-2 mb-4" />
+              <Progress 
+                value={item.score} 
+                className={`h-2 mb-3 ${
+                  item.score >= 70 ? "[&>div]:bg-green-500" :
+                  item.score >= 45 ? "[&>div]:bg-yellow-500" :
+                  "[&>div]:bg-red-500"
+                }`} 
+              />
               
-              <div className="grid gap-4 md:grid-cols-2">
-                {/* Strengths */}
-                <div>
-                  <h4 className="text-xs font-medium text-green-600 mb-2 flex items-center gap-1">
-                    <TrendingUp className="h-3 w-3" />
-                    Strengths
-                  </h4>
-                  {item.strengths.length > 0 ? (
-                    <ul className="space-y-1">
-                      {item.strengths.map((s, i) => (
-                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
-                          <CheckCircle2 className="h-3 w-3 text-green-500 mt-0.5 shrink-0" />
-                          {s}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-muted-foreground italic">None identified</p>
-                  )}
-                </div>
-                
-                {/* Gaps */}
-                <div>
-                  <h4 className="text-xs font-medium text-red-600 mb-2 flex items-center gap-1">
-                    <TrendingDown className="h-3 w-3" />
-                    Gaps
-                  </h4>
-                  {item.gaps.length > 0 ? (
-                    <ul className="space-y-1">
-                      {item.gaps.map((g, i) => (
-                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
-                          <XCircle className="h-3 w-3 text-red-500 mt-0.5 shrink-0" />
-                          {g}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-muted-foreground italic">None identified</p>
-                  )}
-                </div>
+              {/* Reasoning explanation */}
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <p className="text-xs text-muted-foreground flex items-start gap-2">
+                  <Eye className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <span><strong>Why:</strong> {item.reasoning}</span>
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -405,15 +422,4 @@ export default function ScoringCenterPage() {
       </Card>
     </div>
   )
-}
-
-function CategoryIcon({ category }: { category: string }) {
-  const iconMap: Record<string, React.ReactNode> = {
-    "Skills & Tools Match": <Wrench className="h-5 w-5 text-blue-500" />,
-    "Experience Relevance": <Briefcase className="h-5 w-5 text-purple-500" />,
-    "Seniority Alignment": <GraduationCap className="h-5 w-5 text-orange-500" />,
-    "ATS Keywords": <Target className="h-5 w-5 text-green-500" />,
-    "Evidence Quality": <Award className="h-5 w-5 text-yellow-500" />,
-  }
-  return iconMap[category] || <CheckCircle2 className="h-5 w-5" />
 }

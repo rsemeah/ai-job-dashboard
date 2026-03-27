@@ -256,18 +256,44 @@ ${resumeEvidence.map((e: {
   approved_achievement_bullets?: string[];
   confidence_level: string;
   what_not_to_overstate?: string;
+  team_size?: number;
+  budget_scope?: string;
+  user_impact_scale?: string;
+  industries?: string[];
+  project_name?: string;
 }) => `
-[ID: ${e.id}] ${e.source_type}: ${e.source_title}
+═══════════════════════════════════════════════════════════
+EVIDENCE [ID: ${e.id}]
+═══════════════════════════════════════════════════════════
+Type: ${e.source_type}
+Title: ${e.source_title}
+${e.project_name ? `Project: ${e.project_name}` : ""}
 ${e.company_name ? `Company: ${e.company_name}` : ""}
 ${e.role_name ? `Role: ${e.role_name}` : ""}
 ${e.date_range ? `Period: ${e.date_range}` : ""}
+${e.industries?.length ? `Industry: ${e.industries.join(", ")}` : ""}
 Confidence: ${e.confidence_level.toUpperCase()}
-${e.what_not_to_overstate ? `⚠️ DO NOT OVERSTATE: ${e.what_not_to_overstate}` : ""}
-${e.responsibilities?.length ? `Responsibilities: ${e.responsibilities.join("; ")}` : ""}
-${e.tools_used?.length ? `Tools: ${e.tools_used.join(", ")}` : ""}
-${e.outcomes?.length ? `Outcomes: ${e.outcomes.join("; ")}` : ""}
-${e.approved_achievement_bullets?.length ? `Approved bullets: ${e.approved_achievement_bullets.join("; ")}` : ""}
-`).join("\n---\n")}
+
+${e.team_size ? `SCOPE INDICATORS:
+  Team Size: ${e.team_size} people
+  ${e.budget_scope ? `Budget/Revenue Scope: ${e.budget_scope}` : ""}
+  ${e.user_impact_scale ? `User/Customer Impact: ${e.user_impact_scale}` : ""}
+` : ""}
+${e.what_not_to_overstate ? `⚠️ CONSTRAINT - DO NOT OVERSTATE: ${e.what_not_to_overstate}
+` : ""}
+${e.responsibilities?.length ? `RESPONSIBILITIES (preserve full scope when writing bullets):
+${e.responsibilities.map(r => `  • ${r}`).join("\n")}
+` : ""}
+${e.tools_used?.length ? `TOOLS & TECHNOLOGIES:
+  ${e.tools_used.join(", ")}
+` : ""}
+${e.outcomes?.length ? `OUTCOMES & ACHIEVEMENTS (use these exact metrics when available):
+${e.outcomes.map(o => `  ✓ ${o}`).join("\n")}
+` : ""}
+${e.approved_achievement_bullets?.length ? `PRE-APPROVED BULLETS (use these verbatim or adapt closely):
+${e.approved_achievement_bullets.map(b => `  ★ ${b}`).join("\n")}
+` : ""}
+`).join("\n")}
 ` : ""
 
     const jobContext = `
@@ -365,7 +391,21 @@ STRICT RULES:
 9. Prefer specificity over hype
 10. Each bullet should have at least 2 of: action verb, system/artifact, business context, measurable result
 
-Generate 4-6 strong achievement bullets with full provenance.`,
+DEPTH & SCOPE PRESERVATION:
+- If evidence shows team size, include it: "Led team of 5 engineers" not "Led engineering team"
+- If evidence shows user/customer scale, include it: "serving 50K users" not "serving users"
+- If evidence shows budget/revenue scope, include it: "$2M ARR platform" not "SaaS platform"
+- If evidence shows specific tools, name them: "Built with React, Node.js, PostgreSQL" not "Built with modern stack"
+- If evidence shows specific outcomes with numbers, use the exact numbers
+- If PRE-APPROVED BULLETS exist in evidence, use them verbatim or adapt very closely
+- Preserve industry context: "B2B fintech" not just "software company"
+
+ANTI-COMPRESSION RULE:
+Do NOT summarize or compress the candidate's scope. If evidence shows they managed a $5M budget, 
+led 12 people, shipped 8 products, and impacted 100K users - ALL of that should appear across 
+the bullets, not reduced to "managed team and budget."
+
+Generate 5-8 strong achievement bullets with full provenance. More bullets is better if the evidence supports it.`,
     })
 
     // Step 3: Generate cover letter with paragraph provenance

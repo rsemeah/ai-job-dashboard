@@ -52,17 +52,26 @@ export function AppSidebar() {
 
   return (
     <Sidebar className="border-r border-sidebar-border">
-      <SidebarHeader className="px-4 py-5">
-        <Link href="/" className="flex items-center group">
-          <Image
-            src="/images/hirewire-logo.png"
-            alt="HireWire"
-            width={140}
-            height={50}
-            className="object-contain"
-            style={{ width: 'auto', height: 'auto' }}
-            priority
-          />
+      <SidebarHeader 
+        className="px-4 py-5 relative overflow-hidden"
+        style={{
+          backgroundImage: 'url(/images/stripe-banner.png)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        <Link href="/" className="flex items-center justify-center group relative z-10">
+          <div className="bg-white/95 px-3 py-2 rounded">
+            <Image
+              src="/images/hirewire-logo.png"
+              alt="HireWire"
+              width={130}
+              height={46}
+              className="object-contain"
+              style={{ width: 'auto', height: 'auto' }}
+              priority
+            />
+          </div>
         </Link>
       </SidebarHeader>
       <SidebarContent className="px-3">

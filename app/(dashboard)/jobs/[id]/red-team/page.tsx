@@ -275,21 +275,38 @@ export default function RedTeamReviewPage() {
               <div>
                 <div className="text-2xl font-bold text-red-600">{criticalCount}</div>
                 <div className="text-xs text-muted-foreground">Critical</div>
+                <div className="text-[10px] text-red-600 mt-1">Blocks Export</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-amber-600">{warningCount}</div>
                 <div className="text-xs text-muted-foreground">Warning</div>
+                <div className="text-[10px] text-amber-600 mt-1">Review Recommended</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-blue-600">{infoCount}</div>
                 <div className="text-xs text-muted-foreground">Info</div>
+                <div className="text-[10px] text-blue-600 mt-1">Consider Improving</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-600">{resolvedIssues.size}</div>
                 <div className="text-xs text-muted-foreground">Resolved</div>
+                <div className="text-[10px] text-green-600 mt-1">Fixed</div>
               </div>
             </div>
           </div>
+          
+          {/* Export Blocking Explanation */}
+          {!canApprove && (
+            <div className="mt-4 p-3 bg-red-100 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-800 flex items-start gap-2">
+                <Lock className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  <strong>Export blocked:</strong> Critical issues include banned phrases (generic AI language) and unsupported claims (statements without evidence). 
+                  Fix all {criticalCount} critical issue(s) to enable export. Warnings do not block export but should be reviewed.
+                </span>
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -420,6 +437,48 @@ export default function RedTeamReviewPage() {
         </CardContent>
       </Card>
 
+      {/* Export Readiness Status */}
+      <Card className={`border-2 ${canApprove ? "border-green-200 bg-green-50/50" : "border-red-200 bg-red-50/50"}`}>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            {canApprove ? (
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+            ) : (
+              <Lock className="h-4 w-4 text-red-600" />
+            )}
+            Export Readiness
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span>Critical Issues</span>
+              <Badge variant={criticalCount === 0 ? "default" : "destructive"} className={criticalCount === 0 ? "bg-green-100 text-green-800" : ""}>
+                {criticalCount === 0 ? "None" : `${criticalCount} Blocking`}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span>Warnings</span>
+              <Badge variant="outline" className={warningCount === 0 ? "border-green-200 bg-green-50 text-green-700" : "border-amber-200 bg-amber-50 text-amber-700"}>
+                {warningCount} to Review
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span>Quality Passed</span>
+              <Badge variant="outline" className={canApprove ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700"}>
+                {canApprove ? "Yes" : "No - Fix Issues"}
+              </Badge>
+            </div>
+            
+            {!canApprove && (
+              <p className="text-xs text-red-600 mt-2 p-2 bg-red-100 rounded border border-red-200">
+                Export is blocked until {criticalCount} critical issue(s) are resolved. Fix banned phrases and unsupported claims before applying.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Next Steps */}
       <Card>
         <CardHeader className="pb-3">
@@ -503,12 +562,22 @@ function IssueCard({
           
           <p className="text-sm font-medium mb-1">{issue.issue_description}</p>
           
-          <p className="text-xs text-muted-foreground bg-background/50 p-2 rounded border font-mono mb-2">
-            {issue.original_text.length > 100 
-              ? issue.original_text.substring(0, 100) + "..."
-              : issue.original_text
-            }
-          </p>
+          <div className="text-xs bg-background/50 p-2 rounded border font-mono mb-2">
+            <div className="flex items-center gap-2 mb-1 text-muted-foreground">
+              <Badge variant="outline" className="text-[10px] px-1 py-0">
+                {issue.location === "resume" ? "Resume" : "Cover Letter"}
+              </Badge>
+              <span className="text-[10px] opacity-70">
+                Location: {issue.location === "resume" ? "Bullet point" : "Paragraph"}
+              </span>
+            </div>
+            <p className="text-muted-foreground">
+              {issue.original_text.length > 150 
+                ? issue.original_text.substring(0, 150) + "..."
+                : issue.original_text
+              }
+            </p>
+          </div>
           
           {/* Fix Actions */}
           <div className="flex flex-wrap gap-1">

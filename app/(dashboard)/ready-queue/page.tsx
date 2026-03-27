@@ -43,13 +43,14 @@ export default async function ReadyQueuePage() {
     )
   }
 
-  // Filter for jobs that are ready to apply (using canonical statuses)
+  // Filter for jobs that are ready to apply (using UPPERCASE statuses to match DB)
   const readyJobs = result.data.filter(job => 
-    (job.status === "ready" || 
-     job.status === "manual_review_required" ||
+    (job.status === "READY" || 
+     job.status === "MANUAL_REVIEW_REQUIRED" ||
+     job.status === "SCORED" ||
      (job.fit === "HIGH" && job.score !== null && job.score >= 60)) &&
-    job.status !== "applied" &&
-    job.status !== "archived"
+    job.status !== "APPLIED" &&
+    job.status !== "ARCHIVED"
   ).sort((a, b) => (b.score || 0) - (a.score || 0))
 
   // Jobs with complete materials

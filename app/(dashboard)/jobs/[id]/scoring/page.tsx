@@ -380,12 +380,24 @@ export default function ScoringCenterPage() {
                 }`} 
               />
               
-              {/* Reasoning explanation */}
-              <div className="p-3 bg-muted/50 rounded-lg">
+              {/* Reasoning explanation with reason codes */}
+              <div className="p-3 bg-muted/50 rounded-lg space-y-2">
                 <p className="text-xs text-muted-foreground flex items-start gap-2">
                   <Eye className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                   <span><strong>Why:</strong> {item.reasoning}</span>
                 </p>
+                {item.score < 70 && (
+                  <div className="flex items-center gap-2 pt-1 border-t border-dashed">
+                    <Badge variant="outline" className="text-[10px] px-1 py-0 bg-amber-50 border-amber-200 text-amber-700">
+                      REASON CODE
+                    </Badge>
+                    <span className="text-[10px] text-muted-foreground">
+                      {item.score < 40 ? "TRUE_GAP: Missing evidence" :
+                       item.score < 60 ? "EVIDENCE_GAP: Have experience but missing proof" :
+                       "TERMINOLOGY_GAP: Experience doesn't use same keywords"}
+                    </span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

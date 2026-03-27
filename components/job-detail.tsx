@@ -160,6 +160,12 @@ export function JobDetail({ job }: JobDetailProps) {
   const isReadyToApply = status === "READY" || (hasResume && hasCoverLetter && hasScore)
   const hasError = status === "ERROR"
   const needsReview = status === "NEEDS_REVIEW"
+  
+  // Export readiness - block if critical quality issues exist
+  const criticalIssueCount = (job.generation_quality_issues || []).filter(
+    (issue: string) => issue.toLowerCase().includes("banned_phrase") || issue.toLowerCase().includes("critical")
+  ).length
+  const hasBlockingIssues = criticalIssueCount > 0 || !job.quality_passed
 
   const handleStatusChange = (newStatus: JobStatus) => {
     setStatus(newStatus)
@@ -358,6 +364,40 @@ export function JobDetail({ job }: JobDetailProps) {
             </div>
           </div>
 
+          {/* Source & Parse Confidence Row */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            <Badge variant="outline" className="text-xs">
+              Source: {job.source || "UNKNOWN"}
+            </Badge>
+            {job.source_url && (
+              <Badge variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-700">
+                URL Analyzed
+              </Badge>
+            )}
+            {job.raw_description && (
+              <Badge variant="outline" className={`text-xs ${
+                job.responsibilities?.length && job.qualifications_required?.length
+                  ? "bg-green-50 border-green-200 text-green-700"
+                  : job.responsibilities?.length || job.qualifications_required?.length
+                  ? "bg-amber-50 border-amber-200 text-amber-700"
+                  : "bg-red-50 border-red-200 text-red-700"
+              }`}>
+                Parse: {
+                  job.responsibilities?.length && job.qualifications_required?.length
+                    ? "High"
+                    : job.responsibilities?.length || job.qualifications_required?.length
+                    ? "Medium"
+                    : "Low"
+                }
+              </Badge>
+            )}
+            {!job.raw_description && !job.source_url && (
+              <Badge variant="outline" className="text-xs bg-red-50 border-red-200 text-red-700">
+                Manual Entry
+              </Badge>
+            )}
+          </div>
+
           <Separator className="my-4" />
 
           {/* Decision blocks */}
@@ -425,6 +465,13 @@ export function JobDetail({ job }: JobDetailProps) {
                   </>
                 )}
               </Button>
+            ) : hasBlockingIssues && hasResume ? (
+              <Link href={`/jobs/${job.id}/red-team`}>
+                <Button variant="destructive" className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Fix {criticalIssueCount || "Quality"} Issues First
+                </Button>
+              </Link>
             ) : (
               <Button onClick={handleApplyNow} className="bg-primary hover:bg-primary/90">
                 <Send className="mr-2 h-4 w-4" />
@@ -528,10 +575,16 @@ export function JobDetail({ job }: JobDetailProps) {
                 step={1}
                 title="Evidence Match"
                 description="Map requirements to your verified evidence"
-                status={job.evidence_map ? "complete" : "not_started"}
-                statusReason={job.evidence_map 
-                  ? `${Object.keys(job.evidence_map).length} requirements mapped`
-                  : "No evidence mapped yet"
+                status={
+                  !job.evidence_map ? "not_started" :
+                  (job.score_gaps?.length || 0) > (job.qualifications_required?.length || 1) * 0.3 ? "warning" :
+                  "complete"
+                }
+                statusReason={
+                  !job.evidence_map ? "No evidence mapped yet" :
+                  (job.score_gaps?.length || 0) > 0 
+                    ? `${Object.keys(job.evidence_map).length} mapped, ${job.score_gaps?.length || 0} gaps`
+                    : `${Object.keys(job.evidence_map).length} requirements matched`
                 }
                 color="blue"
               />
@@ -543,10 +596,17 @@ export function JobDetail({ job }: JobDetailProps) {
                 step={2}
                 title="Scoring Center"
                 description="Review detailed fit breakdown and decide"
-                status={job.score !== null ? (job.score >= 60 ? "complete" : "warning") : "not_started"}
-                statusReason={job.score !== null 
-                  ? `Score: ${job.score}/100`
-                  : "Not scored yet"
+                status={
+                  job.score === null ? "not_started" :
+                  job.score < 40 ? "blocked" :
+                  job.score < 60 ? "warning" :
+                  "complete"
+                }
+                statusReason={
+                  job.score === null ? "Not scored yet" :
+                  job.score < 40 ? `Score: ${job.score}/100 - Poor fit` :
+                  job.score < 60 ? `Score: ${job.score}/100 - Stretch fit` :
+                  `Score: ${job.score}/100 - Good fit`
                 }
                 color="green"
               />
@@ -560,15 +620,19 @@ export function JobDetail({ job }: JobDetailProps) {
                 description="Quality check before export"
                 status={
                   !job.generated_resume ? "not_started" :
-                  (job.generation_quality_issues?.length || 0) > 3 ? "blocked" :
+                  !job.quality_passed && (job.generation_quality_issues?.length || 0) > 0 ? "blocked" :
                   (job.generation_quality_issues?.length || 0) > 0 ? "warning" :
-                  "complete"
+                  job.quality_passed ? "complete" :
+                  "in_progress"
                 }
                 statusReason={
                   !job.generated_resume ? "Generate materials first" :
-                  (job.generation_quality_issues?.length || 0) > 0 
+                  !job.quality_passed && (job.generation_quality_issues?.length || 0) > 0 
+                    ? `${job.generation_quality_issues?.length} critical issues block export`
+                    : (job.generation_quality_issues?.length || 0) > 0 
                     ? `${job.generation_quality_issues?.length} issues to review`
-                    : "No issues found"
+                    : job.quality_passed ? "Approved for export"
+                    : "Run quality review"
                 }
                 color="red"
               />
@@ -624,7 +688,16 @@ export function JobDetail({ job }: JobDetailProps) {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No responsibilities extracted</p>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">No responsibilities extracted</p>
+                    <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded border border-dashed">
+                      <strong>Why:</strong> {
+                        !job.raw_description ? "No job description available. Try re-analyzing the URL or adding manually." :
+                        job.source === "LINKEDIN" ? "LinkedIn blocks detailed parsing. Responsibilities may be in the raw description." :
+                        "The job posting format may not have clear responsibility sections."
+                      }
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -648,7 +721,16 @@ export function JobDetail({ job }: JobDetailProps) {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No requirements extracted</p>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">No requirements extracted</p>
+                    <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded border border-dashed">
+                      <strong>Why:</strong> {
+                        !job.raw_description ? "No job description available. Try re-analyzing the URL or adding manually." :
+                        job.source === "LINKEDIN" ? "LinkedIn blocks detailed parsing. Requirements may be in the raw description." :
+                        "The job posting may not have a distinct requirements section, or parsing confidence was low."
+                      }
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -674,7 +756,16 @@ export function JobDetail({ job }: JobDetailProps) {
                       </Badge>
                     ))
                   ) : (
-                    <p className="text-sm text-muted-foreground">No keywords extracted</p>
+                    <div className="space-y-2 w-full">
+                      <p className="text-sm text-muted-foreground">No keywords extracted</p>
+                      <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded border border-dashed">
+                        <strong>Why:</strong> {
+                          !job.raw_description ? "No job description available to extract keywords from." :
+                          job.source === "LINKEDIN" ? "LinkedIn parsing may limit keyword extraction. Check raw description." :
+                          "Keyword extraction requires a text-rich job description with technical terms."
+                        }
+                      </p>
+                    </div>
                   )}
                 </div>
               </CardContent>

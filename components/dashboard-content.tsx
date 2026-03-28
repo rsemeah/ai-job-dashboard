@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Target,
   Radio,
+  CheckCircle2,
 } from "lucide-react"
 
 interface DashboardContentProps {

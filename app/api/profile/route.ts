@@ -41,6 +41,7 @@ export async function POST(request: Request) {
         experience: body.experience,
         education: body.education,
         skills: body.skills,
+        avatar_url: body.avatar_url,
         updated_at: new Date().toISOString(),
       })
       .eq("id", existing.id)
@@ -65,6 +66,7 @@ export async function POST(request: Request) {
         experience: body.experience,
         education: body.education,
         skills: body.skills,
+        avatar_url: body.avatar_url,
       })
       .select()
       .single()

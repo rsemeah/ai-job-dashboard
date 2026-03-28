@@ -17,8 +17,13 @@ import {
   X, 
   Loader2,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Camera,
+  Upload
 } from "lucide-react"
+import Image from "next/image"
+import { createClient } from "@/lib/supabase/client"
+import { useUser } from "@/components/user-provider"
 import { toast } from "sonner"
 import { BackButton } from "@/components/back-button"
 
@@ -46,6 +51,7 @@ interface UserProfile {
   experience: Experience[]
   education: Education[]
   skills: string[]
+  avatar_url: string
 }
 
 const emptyProfile: UserProfile = {
@@ -57,12 +63,24 @@ const emptyProfile: UserProfile = {
   experience: [],
   education: [],
   skills: [],
+  avatar_url: "",
+}
+
+function getInitials(name: string): string {
+  if (!name) return "U"
+  const parts = name.trim().split(" ")
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  }
+  return name.substring(0, 2).toUpperCase()
 }
 
 export default function ProfilePage() {
+  const { refreshProfile } = useUser()
   const [profile, setProfile] = useState<UserProfile>(emptyProfile)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [newSkill, setNewSkill] = useState("")
   const [profileStatus, setProfileStatus] = useState<"incomplete" | "complete">("incomplete")
@@ -100,6 +118,7 @@ export default function ProfilePage() {
             experience: data.experience || [],
             education: data.education || [],
             skills: data.skills || [],
+            avatar_url: data.avatar_url || "",
           })
         }
       }
@@ -122,6 +141,7 @@ export default function ProfilePage() {
       if (res.ok) {
         toast.success("Profile saved successfully!")
         setHasChanges(false)
+        await refreshProfile() // Update the user context
       } else {
         toast.error("Failed to save profile")
       }
@@ -135,6 +155,70 @@ export default function ProfilePage() {
   const updateField = (field: keyof UserProfile, value: string) => {
     setProfile(prev => ({ ...prev, [field]: value }))
     setHasChanges(true)
+  }
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file")
+      return
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be less than 2MB")
+      return
+    }
+
+    setIsUploadingAvatar(true)
+    try {
+      const supabase = createClient()
+      
+      // Get user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error("Please log in to upload an avatar")
+        return
+      }
+
+      // Create unique filename
+      const fileExt = file.name.split(".").pop()
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`
+      const filePath = `avatars/${fileName}`
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true })
+
+      if (uploadError) {
+        // If bucket doesn't exist, provide a helpful error
+        if (uploadError.message.includes("not found")) {
+          toast.error("Avatar storage not configured. Please contact support.")
+        } else {
+          throw uploadError
+        }
+        return
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath)
+
+      // Update profile with new avatar URL
+      setProfile(prev => ({ ...prev, avatar_url: publicUrl }))
+      setHasChanges(true)
+      toast.success("Avatar uploaded! Don't forget to save your profile.")
+    } catch (error) {
+      console.error("Error uploading avatar:", error)
+      toast.error("Failed to upload avatar")
+    } finally {
+      setIsUploadingAvatar(false)
+    }
   }
 
   const addSkill = () => {
@@ -280,7 +364,52 @@ export default function ProfilePage() {
               <CardTitle>Basic Information</CardTitle>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
+            {/* Avatar Upload */}
+            <div className="flex items-center gap-6">
+              <div className="relative">
+                {profile.avatar_url ? (
+                  <Image
+                    src={profile.avatar_url}
+                    alt={profile.full_name || "Profile"}
+                    width={80}
+                    height={80}
+                    className="h-20 w-20 rounded-full object-cover border-2 border-border"
+                  />
+                ) : (
+                  <div className="h-20 w-20 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-semibold border-2 border-border">
+                    {getInitials(profile.full_name)}
+                  </div>
+                )}
+                <label
+                  htmlFor="avatar-upload"
+                  className="absolute -bottom-1 -right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors"
+                >
+                  {isUploadingAvatar ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Camera className="h-4 w-4" />
+                  )}
+                </label>
+                <input
+                  id="avatar-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarUpload}
+                  disabled={isUploadingAvatar}
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="font-medium">Profile Photo</p>
+                <p className="text-sm text-muted-foreground">
+                  Click the camera icon to upload a photo. Max 2MB.
+                </p>
+              </div>
+            </div>
+
+            <Separator />
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="full_name">Full Name *</Label>

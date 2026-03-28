@@ -105,6 +105,7 @@ export function Topbar() {
   const displayName = profile?.full_name || user?.email?.split("@")[0] || "User"
   const displayEmail = user?.email || ""
   const initials = getInitials(profile?.full_name, user?.email)
+  const avatarUrl = profile?.avatar_url
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
@@ -294,6 +295,14 @@ export function Topbar() {
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
+            ) : avatarUrl ? (
+              <Image
+                src={avatarUrl}
+                alt={displayName}
+                width={32}
+                height={32}
+                className="h-8 w-8 rounded-full object-cover"
+              />
             ) : (
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
                 {initials}

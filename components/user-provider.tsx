@@ -17,6 +17,7 @@ interface UserProfile {
   education: unknown[] | null
   certifications: string[] | null
   links: Record<string, string> | null
+  avatar_url: string | null
 }
 
 interface UserContextType {

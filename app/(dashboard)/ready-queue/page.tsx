@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Rocket, CheckCircle, FileText, Mail, ArrowRight, ExternalLink } from "lucide-react"
 import { ReadyJobActions } from "./ready-job-actions"
+import { BackButton } from "@/components/back-button"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -26,6 +27,7 @@ export default async function ReadyQueuePage() {
   if (!result.success) {
     return (
       <div className="space-y-8 max-w-6xl">
+        <BackButton fallbackHref="/" />
         <div className="space-y-2">
           <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">
             Action Required
@@ -59,6 +61,7 @@ export default async function ReadyQueuePage() {
 
   return (
     <div className="space-y-8 max-w-6xl">
+      <BackButton fallbackHref="/" />
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">

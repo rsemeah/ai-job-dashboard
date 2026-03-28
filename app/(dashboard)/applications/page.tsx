@@ -14,6 +14,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Send } from "lucide-react"
+import { BackButton } from "@/components/back-button"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -40,6 +41,7 @@ export default async function ApplicationsPage() {
   if (error) {
     return (
       <div className="space-y-8 max-w-6xl">
+        <BackButton fallbackHref="/" />
         <div className="space-y-2">
           <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">
             Tracking
@@ -61,6 +63,7 @@ export default async function ApplicationsPage() {
 
   return (
     <div className="space-y-8 max-w-6xl">
+      <BackButton fallbackHref="/" />
       <div className="space-y-2">
         <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">
           Tracking

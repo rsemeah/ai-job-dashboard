@@ -20,6 +20,7 @@ import {
   AlertCircle
 } from "lucide-react"
 import { toast } from "sonner"
+import { BackButton } from "@/components/back-button"
 
 interface Experience {
   title: string
@@ -215,6 +216,7 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-8 max-w-4xl">
+      <BackButton fallbackHref="/" />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-2">

@@ -10,6 +10,7 @@ import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { Gauge, Radio, Save, Info } from "lucide-react"
 import { toast } from "sonner"
+import { BackButton } from "@/components/back-button"
 
 // Default settings when user hasn't configured anything
 const defaultSettings: Settings = {
@@ -64,6 +65,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8 max-w-4xl">
+      <BackButton fallbackHref="/" />
       <div className="flex items-center justify-between">
         <div className="space-y-2">
           <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">

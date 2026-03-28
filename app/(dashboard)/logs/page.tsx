@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import type { ProcessingEventType, Job } from "@/lib/types"
+import { BackButton } from "@/components/back-button"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -89,6 +90,7 @@ export default async function LogsPage() {
   if (jobsError && !hasEventsTable) {
     return (
       <div className="space-y-8 max-w-6xl">
+        <BackButton fallbackHref="/" />
         <div className="space-y-2">
           <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">
             History
@@ -113,6 +115,7 @@ export default async function LogsPage() {
   if (hasEventsTable && events.length > 0) {
     return (
       <div className="space-y-8 max-w-6xl">
+        <BackButton fallbackHref="/" />
         <div className="space-y-2">
           <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">
             History
@@ -263,6 +266,7 @@ export default async function LogsPage() {
 
   return (
     <div className="space-y-8 max-w-6xl">
+      <BackButton fallbackHref="/" />
       <div className="space-y-2">
         <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">
           History

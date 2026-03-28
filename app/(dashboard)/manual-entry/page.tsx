@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { PlusCircle, Loader2, ArrowLeft, Info, Link2 } from "lucide-react"
+import { BackButton } from "@/components/back-button"
 
 interface FormData {
   title: string

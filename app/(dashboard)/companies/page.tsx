@@ -5,6 +5,7 @@ import { ErrorState } from "@/components/error-state"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Building2, Briefcase } from "lucide-react"
+import { BackButton } from "@/components/back-button"
 import type { Job } from "@/lib/types"
 
 export default async function CompaniesPage() {
@@ -18,6 +19,7 @@ export default async function CompaniesPage() {
   if (error) {
     return (
       <div className="space-y-8 max-w-6xl">
+        <BackButton fallbackHref="/" />
         <div className="space-y-2">
           <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">
             Directory
@@ -71,6 +73,7 @@ export default async function CompaniesPage() {
 
   return (
     <div className="space-y-8 max-w-6xl">
+      <BackButton fallbackHref="/" />
       <div className="space-y-2">
         <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">
           Directory

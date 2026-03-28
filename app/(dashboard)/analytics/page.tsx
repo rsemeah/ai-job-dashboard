@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/server"
 import { EmptyState } from "@/components/empty-state"
 import { ErrorState } from "@/components/error-state"
 import { AnalyticsCharts } from "@/components/analytics-charts"
+import { BackButton } from "@/components/back-button"
 
 export default async function AnalyticsPage() {
   const supabase = createAdminClient()
@@ -14,6 +15,7 @@ export default async function AnalyticsPage() {
   if (error) {
     return (
       <div className="space-y-8 max-w-6xl">
+        <BackButton fallbackHref="/" />
         <div className="space-y-2">
           <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">
             Insights
@@ -36,6 +38,7 @@ export default async function AnalyticsPage() {
   if (allJobs.length === 0) {
     return (
       <div className="space-y-8 max-w-6xl">
+        <BackButton fallbackHref="/" />
         <div className="space-y-2">
           <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">
             Insights
@@ -56,6 +59,7 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="space-y-8 max-w-6xl">
+      <BackButton fallbackHref="/" />
       <div className="space-y-2">
         <p className="text-xs font-medium tracking-[0.2em] uppercase text-muted-foreground">
           Insights

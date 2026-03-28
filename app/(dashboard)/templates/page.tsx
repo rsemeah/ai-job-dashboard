@@ -36,6 +36,7 @@ import { toast } from "sonner"
 import { BANNED_PHRASES, ResumeTemplateType } from "@/lib/types"
 import { RESUME_TEMPLATES, getSectionOrder } from "@/lib/resume-templates"
 import Link from "next/link"
+import { BackButton } from "@/components/back-button"
 
 const TEMPLATE_ICONS: Record<ResumeTemplateType, React.ReactNode> = {
   professional_cv: <GraduationCap className="h-6 w-6" />,
@@ -181,6 +182,7 @@ export default function TemplatesPage() {
 
   return (
     <div className="p-6 space-y-6">
+      <BackButton fallbackHref="/" />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

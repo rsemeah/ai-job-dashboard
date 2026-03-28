@@ -41,6 +41,7 @@ import { toast } from "sonner"
 import { formatDistanceToNow } from "date-fns"
 import { generateDocumentFilename } from "@/lib/filename-utils"
 import Link from "next/link"
+import { BackButton } from "@/components/back-button"
 
 interface JobWithMaterials {
   id: string
@@ -158,6 +159,7 @@ export default function MaterialsPage() {
 
   return (
     <div className="container py-8 space-y-8">
+      <BackButton fallbackHref="/" />
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Generated Materials</h1>

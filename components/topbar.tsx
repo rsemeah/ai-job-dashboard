@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useUser } from "@/components/user-provider"
 import {
   Search,
   Bell,
@@ -34,6 +35,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -72,10 +74,26 @@ const notifications = [
   },
 ]
 
+function getInitials(name: string | null | undefined, email: string | null | undefined): string {
+  if (name) {
+    const parts = name.trim().split(" ")
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    }
+    return name.substring(0, 2).toUpperCase()
+  }
+  if (email) {
+    return email.substring(0, 2).toUpperCase()
+  }
+  return "U"
+}
+
 export function Topbar() {
   const router = useRouter()
+  const { user, profile, isLoading, signOut } = useUser()
   const [searchQuery, setSearchQuery] = useState("")
   const [searchOpen, setSearchOpen] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
@@ -85,6 +103,15 @@ export function Topbar() {
       router.push(`/jobs?search=${encodeURIComponent(searchQuery.trim())}`)
       setSearchOpen(false)
       setSearchQuery("")
+    }
+  }
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true)
+    try {
+      await signOut()
+    } catch {
+      setIsSigningOut(false)
     }
   }
 
@@ -98,6 +125,10 @@ export function Topbar() {
         return <Briefcase className="h-4 w-4 text-blue-500" />
     }
   }
+
+  const displayName = profile?.full_name || user?.email?.split("@")[0] || "User"
+  const displayEmail = user?.email || ""
+  const initials = getInitials(profile?.full_name, user?.email)
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
@@ -264,21 +295,27 @@ export function Topbar() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="rounded-full">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
-              JD
-            </div>
+            {isLoading ? (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
+                {initials}
+              </div>
+            )}
             <span className="sr-only">Profile menu</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel>
             <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium">John Doe</p>
-              <p className="text-xs text-muted-foreground">john@example.com</p>
+              <p className="text-sm font-medium">{displayName}</p>
+              <p className="text-xs text-muted-foreground truncate">{displayEmail}</p>
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => router.push("/settings")}>
+          <DropdownMenuItem onClick={() => router.push("/profile")}>
             <User className="mr-2 h-4 w-4" />
             Profile
           </DropdownMenuItem>
@@ -287,9 +324,17 @@ export function Topbar() {
             Settings
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-destructive focus:text-destructive">
-            <LogOut className="mr-2 h-4 w-4" />
-            Log out
+          <DropdownMenuItem 
+            className="text-destructive focus:text-destructive"
+            onClick={handleSignOut}
+            disabled={isSigningOut}
+          >
+            {isSigningOut ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <LogOut className="mr-2 h-4 w-4" />
+            )}
+            {isSigningOut ? "Signing out..." : "Sign out"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

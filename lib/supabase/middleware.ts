@@ -1,13 +1,29 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Routes that don't require authentication
+const PUBLIC_ROUTES = [
+  '/login',
+  '/signup',
+  '/auth/callback',
+  '/auth/error',
+  '/landing',
+  '/terms',
+  '/privacy',
+  '/api/health',
+]
+
+// Routes that should redirect to dashboard if already authenticated
+const AUTH_ROUTES = [
+  '/login',
+  '/signup',
+]
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   })
 
-  // With Fluid compute, don't put this client in a global environment
-  // variable. Always create a new one on each request.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -31,39 +47,40 @@ export async function updateSession(request: NextRequest) {
     },
   )
 
-  // Do not run code between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
-
-  // IMPORTANT: If you remove getUser() and you use server-side rendering
-  // with the Supabase client, your users may be randomly logged out.
+  // IMPORTANT: Do not run code between createServerClient and getUser()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Currently, this app doesn't require authentication for most routes
-  // Uncomment below if you want to protect certain routes
-  // if (
-  //   request.nextUrl.pathname.startsWith('/protected') &&
-  //   !user
-  // ) {
-  //   const url = request.nextUrl.clone()
-  //   url.pathname = '/auth/login'
-  //   return NextResponse.redirect(url)
-  // }
+  const pathname = request.nextUrl.pathname
 
-  // IMPORTANT: You *must* return the supabaseResponse object as it is.
-  // If you're creating a new response object with NextResponse.next() make sure to:
-  // 1. Pass the request in it, like so:
-  //    const myNewResponse = NextResponse.next({ request })
-  // 2. Copy over the cookies, like so:
-  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-  // 3. Change the myNewResponse object to fit your needs, but avoid changing
-  //    the cookies!
-  // 4. Finally:
-  //    return myNewResponse
-  // If this is not done, you may be causing the browser and server to go out
-  // of sync and terminate the user's session prematurely!
+  // Check if current route is public
+  const isPublicRoute = PUBLIC_ROUTES.some(route => 
+    pathname === route || pathname.startsWith(route + '/')
+  )
 
+  // Check if current route is an auth route (login/signup)
+  const isAuthRoute = AUTH_ROUTES.some(route => 
+    pathname === route || pathname.startsWith(route + '/')
+  )
+
+  // If user is logged in and trying to access auth routes, redirect to dashboard
+  if (user && isAuthRoute) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/'
+    return NextResponse.redirect(url)
+  }
+
+  // If user is not logged in and trying to access protected routes
+  if (!user && !isPublicRoute) {
+    // Store the original URL to redirect back after login
+    const url = request.nextUrl.clone()
+    const redirectTo = encodeURIComponent(pathname + request.nextUrl.search)
+    url.pathname = '/login'
+    url.search = `?redirect=${redirectTo}`
+    return NextResponse.redirect(url)
+  }
+
+  // IMPORTANT: Return the supabaseResponse object as-is to maintain session cookies
   return supabaseResponse
 }

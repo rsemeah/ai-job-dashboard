@@ -257,8 +257,8 @@ export function JobDetail({ job }: JobDetailProps) {
   useEffect(() => {
     async function loadProfile() {
       try {
-        const { createBrowserClient } = await import("@/lib/supabase/client")
-        const supabase = createBrowserClient()
+        const { createClient } = await import("@/lib/supabase/client")
+        const supabase = createClient()
         const { data } = await supabase
           .from("user_profile")
           .select("full_name")

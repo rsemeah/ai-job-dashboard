@@ -14,16 +14,7 @@ import {
   FileText,
   Star,
   ChevronRight,
-  Briefcase,
-  Clock,
-  CheckCircle2,
-  Linkedin,
-  Github,
-  Upload,
-  FileUp,
-  MessageSquare,
   Target,
-  Sparkles,
   Radio,
 } from "lucide-react"
 
@@ -350,38 +341,28 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
             )}
           </div>
 
-          {/* Data Sources */}
+          {/* Quick Stats */}
           <div className="hw-card p-5 relative overflow-hidden">
             <CardWireAccent />
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-foreground">Data Sources</h2>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">13</span>
-                <span className="font-semibold text-foreground">7</span>
-              </div>
+              <h2 className="font-semibold text-foreground">Pipeline Summary</h2>
             </div>
-            <div className="flex gap-3">
-              {[
-                { icon: Linkedin, label: "LinkedIn", connected: true, color: "bg-[#0077b5]" },
-                { icon: () => <span className="text-base font-bold text-[#4285f4]">G</span>, label: "Google", connected: true },
-                { icon: () => <span className="text-base font-bold text-blue-600">in</span>, label: "Indeed", connected: true },
-                { icon: FileUp, label: "Handshake", connected: false },
-                { icon: Upload, label: "Upload", connected: false },
-              ].map((source, i) => (
-                <div
-                  key={i}
-                  className={`flex flex-col items-center gap-1.5 p-3 rounded-lg transition-all hover:scale-105 cursor-pointer ${
-                    source.connected ? "bg-accent/70" : "bg-muted/30 opacity-60"
-                  }`}
-                >
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center ${source.color || "bg-card"}`}>
-                    <source.icon className={`h-4 w-4 ${source.color ? "text-white" : ""}`} />
-                  </div>
-                  <span className="text-[10px] text-muted-foreground font-medium">{source.label}</span>
-                </div>
-              ))}
-              <div className="flex items-center justify-center px-3 text-xs text-muted-foreground">
-                +7 more
+            <div className="grid grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-foreground">{stats.total}</div>
+                <div className="text-xs text-muted-foreground">Total Jobs</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{highFitCount}</div>
+                <div className="text-xs text-muted-foreground">High Fit</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{stats.byStatus["READY"] || 0}</div>
+                <div className="text-xs text-muted-foreground">Ready</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">{stats.byStatus["APPLIED"] || 0}</div>
+                <div className="text-xs text-muted-foreground">Applied</div>
               </div>
             </div>
           </div>
@@ -389,86 +370,86 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
 
         {/* RIGHT COLUMN */}
         <div className="space-y-6">
-          {/* Role Analysis */}
+          {/* Best Match */}
           <div className="hw-card p-5 relative overflow-hidden">
             <CardWireAccent />
             <div className="flex items-center justify-between mb-2">
-              <h2 className="font-semibold text-foreground">Role Analysis</h2>
-              <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded font-medium">
-                Strong Match
-              </span>
-            </div>
-            
-            <div className="flex items-center justify-center py-4">
-              <div className="relative">
-                <svg className="w-28 h-28" viewBox="0 0 100 100">
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="42"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="6"
-                    className="text-muted/50"
-                  />
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="42"
-                    fill="none"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth="6"
-                    strokeDasharray={`${bestMatch * 2.64} 264`}
-                    strokeLinecap="round"
-                    transform="rotate(-90 50 50)"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-2xl font-bold">{bestMatch || 98}%</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5 mb-4 justify-center">
-              {["AI Strategy", "Product Leadership", "ML Systems"].map((tag) => (
-                <span key={tag} className="px-2 py-0.5 bg-accent rounded text-[10px] font-medium">
-                  {tag}
+              <h2 className="font-semibold text-foreground">Best Match</h2>
+              {bestMatch >= 80 && (
+                <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded font-medium">
+                  Strong Fit
                 </span>
-              ))}
-            </div>
-
-            <div className="space-y-3 border-t border-border/50 pt-4">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Next Steps</p>
-              <ul className="space-y-2 text-sm">
-                <li className="flex items-start gap-2">
-                  <span className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <CheckCircle2 className="h-3 w-3 text-primary" />
-                  </span>
-                  <span>Generate a tailored resume for Amazon TPM role.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Clock className="h-3 w-3 text-muted-foreground" />
-                  </span>
-                  <span className="text-muted-foreground">Update skills section with relevant keywords.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Clock className="h-3 w-3 text-muted-foreground" />
-                  </span>
-                  <span className="text-muted-foreground">Draft a personalized cover letter.</span>
-                </li>
-              </ul>
+              )}
+              {bestMatch >= 60 && bestMatch < 80 && (
+                <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded font-medium">
+                  Good Fit
+                </span>
+              )}
+              {bestMatch > 0 && bestMatch < 60 && (
+                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded font-medium">
+                  Review Needed
+                </span>
+              )}
             </div>
             
-            <div className="mt-4 pt-3 border-t border-border/50">
-              <Link 
-                href={recentJobs[0]?.id ? `/jobs/${recentJobs[0].id}` : "/jobs"}
-                className="text-sm text-primary hover:underline flex items-center gap-1 font-medium"
-              >
-                More Insights <ChevronRight className="h-3 w-3" />
-              </Link>
-            </div>
+            {recentJobs.length === 0 ? (
+              <div className="text-center py-8">
+                <Target className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+                <p className="font-semibold text-foreground">No jobs analyzed yet</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Submit a job URL to see your fit score.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-center py-4">
+                  <div className="relative">
+                    <svg className="w-28 h-28" viewBox="0 0 100 100">
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="42"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="6"
+                        className="text-muted/50"
+                      />
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="42"
+                        fill="none"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth="6"
+                        strokeDasharray={`${bestMatch * 2.64} 264`}
+                        strokeLinecap="round"
+                        transform="rotate(-90 50 50)"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-2xl font-bold">{bestMatch}%</span>
+                      <span className="text-[10px] text-muted-foreground">Fit Score</span>
+                    </div>
+                  </div>
+                </div>
+
+                {recentJobs[0] && (
+                  <div className="text-center mb-4">
+                    <p className="text-sm font-medium">{recentJobs[0].title}</p>
+                    <p className="text-xs text-muted-foreground">{recentJobs[0].company}</p>
+                  </div>
+                )}
+
+                <div className="mt-4 pt-3 border-t border-border/50">
+                  <Link 
+                    href={recentJobs[0]?.id ? `/jobs/${recentJobs[0].id}` : "/jobs"}
+                    className="text-sm text-primary hover:underline flex items-center gap-1 font-medium"
+                  >
+                    View Details <ChevronRight className="h-3 w-3" />
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Job Matches */}
@@ -493,9 +474,9 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
                   >
                     <CompanyLogo company={job.company || ""} className="w-8 h-8 text-xs" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{job.company || "Company"}</p>
+                      <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{job.title || "Position"}</p>
                       <p className="text-[10px] text-muted-foreground">
-                        {idx === 0 ? "Amazon +Tobeh 16,25%" : idx === 1 ? "Render etobA 15,59%" : "Generated  9:32,59%"}
+                        {job.company} {job.score ? `• ${job.score}% fit` : ""}
                       </p>
                     </div>
                     <div className="flex items-center gap-0.5">

@@ -162,8 +162,8 @@ function LoginForm() {
 
         {/* Email Auth */}
         <form onSubmit={authMode === "magic" ? handleMagicLink : handlePasswordLogin} suppressHydrationWarning>
-          <div className="space-y-4">
-            <div className="space-y-2">
+          <div className="space-y-4" suppressHydrationWarning>
+            <div className="space-y-2" suppressHydrationWarning>
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"

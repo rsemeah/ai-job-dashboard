@@ -17,6 +17,7 @@ import {
   Target,
   Radio,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react"
 
 interface DashboardContentProps {

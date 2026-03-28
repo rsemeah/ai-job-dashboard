@@ -4,7 +4,8 @@
 @custom-variant dark (&:is(.dark *));
 
 /* HireWire Premium Design System
-   Warm off-white canvas with deep red accents
+   Warm off-white canvas with Supreme red accents
+   Virgil Abloh / Off-White inspired industrial aesthetic
    Editorial, high-density, trust-first */
 
 :root {
@@ -21,8 +22,8 @@
   --popover: 40 12% 91%;
   --popover-foreground: 30 10% 9%;
   
-  /* PRIMARY RED - #d90009 */
-  --primary: 358 100% 43%;
+  /* PRIMARY RED - Supreme Red #BD0A0A (darker, richer) */
+  --primary: 0 90% 39%;
   --primary-foreground: 0 0% 100%;
   
   /* SECONDARY - Muted warm gray */
@@ -37,8 +38,8 @@
   --accent: 40 8% 94%;
   --accent-foreground: 30 10% 9%;
   
-  /* DESTRUCTIVE - Matches primary */
-  --destructive: 358 100% 43%;
+  /* DESTRUCTIVE - Matches primary (Supreme Red) */
+  --destructive: 0 90% 39%;
   --destructive-foreground: 0 0% 100%;
   
   /* SUCCESS */
@@ -52,10 +53,10 @@
   /* BORDER - rgba(26,23,20,0.08) */
   --border: 30 8% 88%;
   --input: 30 6% 90%;
-  --ring: 358 100% 43%;
+  --ring: 0 90% 39%;
   
-  /* Charts */
-  --chart-1: 358 100% 43%;
+  /* Charts - Supreme Red */
+  --chart-1: 0 90% 39%;
   --chart-2: 30 5% 25%;
   --chart-3: 30 4% 45%;
   --chart-4: 30 3% 60%;
@@ -66,12 +67,12 @@
   /* SIDEBAR */
   --sidebar: 40 10% 95%;
   --sidebar-foreground: 30 10% 9%;
-  --sidebar-primary: 358 100% 43%;
+  --sidebar-primary: 0 90% 39%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 40 8% 92%;
   --sidebar-accent-foreground: 30 10% 9%;
   --sidebar-border: 30 6% 88%;
-  --sidebar-ring: 358 100% 43%;
+  --sidebar-ring: 0 90% 39%;
   --sidebar-muted: 30 3% 50%;
 }
 
@@ -82,7 +83,8 @@
   --card-foreground: 30 10% 9%;
   --popover: 40 12% 91%;
   --popover-foreground: 30 10% 9%;
-  --primary: 358 100% 43%;
+  /* Supreme Red */
+  --primary: 0 90% 39%;
   --primary-foreground: 0 0% 100%;
   --secondary: 30 5% 92%;
   --secondary-foreground: 30 4% 30%;
@@ -90,24 +92,25 @@
   --muted-foreground: 30 3% 40%;
   --accent: 40 8% 94%;
   --accent-foreground: 30 10% 9%;
-  --destructive: 358 100% 43%;
+  /* Supreme Red for dark mode */
+  --destructive: 0 90% 39%;
   --destructive-foreground: 0 0% 100%;
   --border: 30 8% 88%;
   --input: 30 6% 90%;
-  --ring: 358 100% 43%;
-  --chart-1: 358 100% 43%;
+  --ring: 0 90% 39%;
+  --chart-1: 0 90% 39%;
   --chart-2: 30 5% 25%;
   --chart-3: 30 4% 45%;
   --chart-4: 30 3% 60%;
   --chart-5: 30 2% 75%;
   --sidebar: 40 10% 95%;
   --sidebar-foreground: 30 10% 9%;
-  --sidebar-primary: 358 100% 43%;
+  --sidebar-primary: 0 90% 39%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 40 8% 92%;
   --sidebar-accent-foreground: 30 10% 9%;
   --sidebar-border: 30 6% 88%;
-  --sidebar-ring: 358 100% 43%;
+  --sidebar-ring: 0 90% 39%;
 }
 
 @theme inline {

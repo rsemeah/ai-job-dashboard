@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { PlusCircle, Loader2, ArrowLeft, Info, Link2 } from "lucide-react"
 import { BackButton } from "@/components/back-button"
+import { createClient } from "@/lib/supabase/client"
 
 interface FormData {
   title: string
@@ -85,18 +86,53 @@ export default function ManualEntryPage() {
     setIsSubmitting(true)
 
     try {
-      // In production, this would INSERT into the jobs table via Supabase
-      // supabase.from('jobs').insert({ ...formData, source: 'MANUAL', status: 'NEW', fit: null })
+      const supabase = createClient()
       
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        toast.error("Please log in to add jobs")
+        setIsSubmitting(false)
+        return
+      }
+
+      // Insert job into database
+      const { data: job, error: insertError } = await supabase
+        .from("jobs")
+        .insert({
+          title: formData.title.trim(),
+          company: formData.company.trim(),
+          source_url: formData.source_url.trim() || null,
+          raw_description: formData.raw_description.trim(),
+          location: formData.location.trim() || (formData.is_remote ? "Remote" : null),
+          salary_range: formData.salary_range.trim() || null,
+          source: "MANUAL",
+          status: "NEW",
+          fit: null,
+          user_id: user.id,
+        })
+        .select()
+        .single()
+
+      if (insertError) {
+        throw insertError
+      }
 
       toast.success("Job added to your review queue", {
         description: `"${formData.title}" at ${formData.company} will be analyzed shortly.`,
       })
 
-      router.push("/jobs")
+      // Redirect to the new job or jobs list
+      if (job?.id) {
+        router.push(`/jobs/${job.id}`)
+      } else {
+        router.push("/jobs")
+      }
     } catch (error) {
-      toast.error("Failed to add job")
+      console.error("Error adding job:", error)
+      toast.error("Failed to add job", {
+        description: error instanceof Error ? error.message : "Please try again"
+      })
     } finally {
       setIsSubmitting(false)
     }

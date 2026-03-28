@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { createAdminClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
+import { createClient } from "@/lib/supabase/server"
 import { StatusBadge } from "@/components/status-badge"
 import { EmptyState } from "@/components/empty-state"
 import { ErrorState } from "@/components/error-state"
@@ -29,12 +30,19 @@ function formatDate(dateString: string | null) {
 }
 
 export default async function ApplicationsPage() {
-  const supabase = createAdminClient()
+  const supabase = await createClient()
   
-  // Fetch jobs that have been applied to (using canonical statuses)
+  // Get current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) {
+    redirect("/login")
+  }
+  
+  // Fetch jobs that have been applied to (using canonical statuses) - filtered by user
   const { data: appliedJobs, error } = await supabase
     .from("jobs")
     .select("*")
+    .eq("user_id", user.id)
     .in("status", ["applied", "interviewing", "offered", "rejected"])
     .order("created_at", { ascending: false })
 

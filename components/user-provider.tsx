@@ -86,10 +86,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           await fetchProfile(user.id)
         }
       } catch (error) {
-        // Ignore lock errors - these happen when multiple requests compete for the auth token
+        // Silently ignore lock errors - these happen when multiple requests compete for the auth token
+        // This is expected behavior and not a real error
         if (!isLockError(error)) {
           console.error("Error initializing auth:", error)
         }
+        // Lock errors are expected and can be safely ignored
       } finally {
         setIsLoading(false)
       }

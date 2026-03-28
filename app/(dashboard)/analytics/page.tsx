@@ -1,15 +1,23 @@
-import { createAdminClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
+import { createClient } from "@/lib/supabase/server"
 import { EmptyState } from "@/components/empty-state"
 import { ErrorState } from "@/components/error-state"
 import { AnalyticsCharts } from "@/components/analytics-charts"
 import { BackButton } from "@/components/back-button"
 
 export default async function AnalyticsPage() {
-  const supabase = createAdminClient()
+  const supabase = await createClient()
+  
+  // Get current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) {
+    redirect("/login")
+  }
   
   const { data: jobs, error } = await supabase
     .from("jobs")
     .select("*")
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false })
 
   if (error) {

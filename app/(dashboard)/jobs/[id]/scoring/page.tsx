@@ -67,9 +67,16 @@ export default function ScoringCenterPage() {
     async function loadData() {
       const supabase = createClient()
       
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push("/login")
+        return
+      }
+      
       const [{ data: jobData }, { data: evidenceData }] = await Promise.all([
-        supabase.from("jobs").select("*").eq("id", jobId).single(),
-        supabase.from("evidence_library").select("*").eq("is_active", true),
+        supabase.from("jobs").select("*").eq("id", jobId).eq("user_id", user.id).single(),
+        supabase.from("evidence_library").select("*").eq("is_active", true).eq("user_id", user.id),
       ])
       
       if (jobData) setJob(jobData as Job)
@@ -78,7 +85,7 @@ export default function ScoringCenterPage() {
       setLoading(false)
     }
     loadData()
-  }, [jobId])
+  }, [jobId, router])
 
   // Calculate scores using grounded metrics
   const scoreBreakdown = useMemo(() => {
@@ -180,6 +187,14 @@ export default function ScoringCenterPage() {
     if (!job || !scoreBreakdown) return
     
     const supabase = createClient()
+    
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      toast.error("Please log in to continue")
+      return
+    }
+    
     const newStatus = choice === "apply" ? "READY" : "ARCHIVED"
     
     const { error } = await supabase
@@ -190,6 +205,7 @@ export default function ScoringCenterPage() {
         fit: determineFit(scoreBreakdown.overall_score),
       })
       .eq("id", jobId)
+      .eq("user_id", user.id)
     
     if (error) {
       toast.error("Failed to update status")

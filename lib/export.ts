@@ -348,7 +348,12 @@ export async function exportResumeToDocx(resume: StructuredResume): Promise<Expo
 // DOCX EXPORT - COVER LETTER
 // ============================================================================
 
-export async function exportCoverLetterToDocx(letter: StructuredCoverLetter, senderName: string): Promise<ExportResult> {
+export async function exportCoverLetterToDocx(
+  letter: StructuredCoverLetter, 
+  senderName: string,
+  senderPhone?: string,
+  senderEmail?: string
+): Promise<ExportResult> {
   try {
     const children: Paragraph[] = []
     
@@ -448,6 +453,7 @@ export async function exportCoverLetterToDocx(letter: StructuredCoverLetter, sen
       })
     )
     
+    // Sender name
     children.push(
       new Paragraph({
         children: [
@@ -455,6 +461,28 @@ export async function exportCoverLetterToDocx(letter: StructuredCoverLetter, sen
         ],
       })
     )
+    
+    // Direct phone number (if available)
+    if (senderPhone) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `Direct: ${senderPhone}`, size: 20 }),
+          ],
+        })
+      )
+    }
+    
+    // Email (if available)
+    if (senderEmail) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: senderEmail, size: 20, color: "0000EE" }),
+          ],
+        })
+      )
+    }
     
     const doc = new Document({
       sections: [{
@@ -991,9 +1019,15 @@ function exportResumeToPremiumHtml(resume: StructuredResume): string {
 </html>`
 }
 
-export function exportCoverLetterToHtml(letter: StructuredCoverLetter, senderName: string, viewMode: ViewMode = "ats"): string {
+export function exportCoverLetterToHtml(
+  letter: StructuredCoverLetter, 
+  senderName: string, 
+  viewMode: ViewMode = "ats",
+  senderPhone?: string,
+  senderEmail?: string
+): string {
   if (viewMode === "premium") {
-    return exportCoverLetterToPremiumHtml(letter, senderName)
+    return exportCoverLetterToPremiumHtml(letter, senderName, senderPhone, senderEmail)
   }
   
   // ATS-safe version (existing code)
@@ -1049,13 +1083,20 @@ export function exportCoverLetterToHtml(letter: StructuredCoverLetter, senderNam
 
   <div class="signoff">
     <p>${letter.closing.signoff}</p>
-    <p>${senderName || letter.closing.senderName}</p>
+    <p><strong>${senderName || letter.closing.senderName}</strong></p>
+    ${senderPhone ? `<p>Direct: <a href="tel:${senderPhone.replace(/[^0-9+]/g, '')}">${senderPhone}</a></p>` : ""}
+    ${senderEmail ? `<p><a href="mailto:${senderEmail}">${senderEmail}</a></p>` : ""}
   </div>
 </body>
 </html>`
 }
 
-function exportCoverLetterToPremiumHtml(letter: StructuredCoverLetter, senderName: string): string {
+function exportCoverLetterToPremiumHtml(
+  letter: StructuredCoverLetter, 
+  senderName: string,
+  senderPhone?: string,
+  senderEmail?: string
+): string {
   const bodySectionsHtml = letter.bodySections
     .map(s => `<p>${s.paragraphText}</p>`)
     .join("")
@@ -1185,6 +1226,8 @@ function exportCoverLetterToPremiumHtml(letter: StructuredCoverLetter, senderNam
   <div class="closing">
     <p class="signoff">${letter.closing.signoff}</p>
     <p class="signature">${senderName || letter.closing.senderName}</p>
+    ${senderPhone ? `<p style="font-family: 'Inter', sans-serif; font-size: 10pt; color: var(--secondary); margin-top: 4px;">Direct: <a href="tel:${senderPhone.replace(/[^0-9+]/g, '')}" style="color: var(--accent); text-decoration: none;">${senderPhone}</a></p>` : ""}
+    ${senderEmail ? `<p style="font-family: 'Inter', sans-serif; font-size: 10pt; color: var(--secondary);"><a href="mailto:${senderEmail}" style="color: var(--accent); text-decoration: none;">${senderEmail}</a></p>` : ""}
   </div>
 </body>
 </html>`

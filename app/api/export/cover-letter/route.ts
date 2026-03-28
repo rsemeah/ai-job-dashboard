@@ -56,6 +56,8 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     const senderName = profile?.full_name || "Candidate"
+    const senderPhone = profile?.phone || undefined
+    const senderEmail = profile?.email || undefined
 
     // Build provenance from stored data or empty
     const provenance: ParagraphProvenanceEntry[] = job.cover_letter_provenance || []
@@ -71,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     // Export based on format
     if (format === "docx") {
-      const result = await exportCoverLetterToDocx(structuredCoverLetter, senderName)
+      const result = await exportCoverLetterToDocx(structuredCoverLetter, senderName, senderPhone, senderEmail)
       
       if (!result.success) {
         return NextResponse.json(
@@ -97,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (format === "html") {
-      const html = exportCoverLetterToHtml(structuredCoverLetter, senderName)
+      const html = exportCoverLetterToHtml(structuredCoverLetter, senderName, "ats", senderPhone, senderEmail)
       
       return new NextResponse(html, {
         headers: {

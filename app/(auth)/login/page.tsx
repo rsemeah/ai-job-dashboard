@@ -220,9 +220,9 @@ function LoginForm() {
         </button>
 
         <p className="text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{" "}
-          <Link href="/signup" className="font-medium text-primary hover:underline">
-            Sign up
+          New to HireWire?{" "}
+          <Link href="/signup" className="font-semibold text-primary hover:underline">
+            Create an account
           </Link>
         </p>
       </CardContent>

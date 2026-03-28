@@ -36,7 +36,7 @@ const navigation = [
   { name: "All Jobs", href: "/jobs", icon: Briefcase },
   { name: "Ready to Apply", href: "/ready-queue", icon: ListChecks },
   { name: "Applied", href: "/applications", icon: Send },
-  { name: "Materials", href: "/materials", icon: FileText },
+  { name: "Documents", href: "/documents", icon: FileText },
   { name: "Companies", href: "/companies", icon: Building2 },
   { name: "Activity Log", href: "/logs", icon: ScrollText },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
@@ -72,6 +72,7 @@ export function AppSidebar() {
               className="object-contain"
               style={{ width: 'auto', height: 'auto' }}
               priority
+              loading="eager"
             />
           </div>
         </Link>

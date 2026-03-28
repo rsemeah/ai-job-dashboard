@@ -40,6 +40,17 @@ export interface ResumeTemplateConfig {
 }
 
 // ============================================================================
+// GENERATION STATUS
+// ============================================================================
+
+export type GenerationStatus = 
+  | "pending"      // Ready to generate (has analysis, no materials)
+  | "generating"   // Currently generating (in progress)
+  | "ready"        // Materials available for download
+  | "failed"       // Error occurred during generation
+  | "needs_review" // Generated but has quality issues
+
+// ============================================================================
 // EXTENDED PROFILE FOR MULTI-TEMPLATE SUPPORT
 // ============================================================================
 
@@ -241,6 +252,12 @@ export interface Job {
   generated_resume?: string | null
   generated_cover_letter?: string | null
   generation_timestamp?: string | null
+  
+  // Generation status tracking
+  generation_status?: GenerationStatus | null
+  generation_error?: string | null
+  generation_attempts?: number | null
+  last_generation_at?: string | null
   
   // Quality tracking
   generation_quality_score?: number | null

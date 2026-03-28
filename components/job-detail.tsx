@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import type { Job, JobStatus, JobFit, RoleFamily } from "@/lib/types"
+import type { Job, JobStatus, JobFit, RoleFamily, GenerationStatus } from "@/lib/types"
 import { STATUS_CONFIG, FIT_CONFIG, ROLE_FAMILIES } from "@/lib/types"
 import { updateJobStatus } from "@/lib/actions/jobs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -146,6 +146,102 @@ function WorkflowStepCard({
       <p className={`text-xs mt-2 ${statusConfig[status].className}`}>
         {statusReason}
       </p>
+    </div>
+  )
+}
+
+// Generation status banner with retry button
+function GenerationStatusBanner({ 
+  status, 
+  error, 
+  attempts,
+  onRetry,
+  isRetrying 
+}: { 
+  status: GenerationStatus | null | undefined
+  error: string | null | undefined
+  attempts: number | null | undefined
+  onRetry: () => void
+  isRetrying: boolean
+}) {
+  if (!status) return null
+  
+  const configs: Record<GenerationStatus, {
+    icon: typeof CheckCircle2
+    className: string
+    bgClassName: string
+    label: string
+    showRetry: boolean
+  }> = {
+    pending: {
+      icon: Clock,
+      className: "text-blue-600",
+      bgClassName: "bg-blue-50 border-blue-200",
+      label: "Ready to generate materials",
+      showRetry: false,
+    },
+    generating: {
+      icon: Loader2,
+      className: "text-blue-600 animate-spin",
+      bgClassName: "bg-blue-50 border-blue-200",
+      label: "Generating resume and cover letter...",
+      showRetry: false,
+    },
+    ready: {
+      icon: CheckCircle2,
+      className: "text-green-600",
+      bgClassName: "bg-green-50 border-green-200",
+      label: "Materials ready for download",
+      showRetry: false,
+    },
+    failed: {
+      icon: XCircle,
+      className: "text-red-600",
+      bgClassName: "bg-red-50 border-red-200",
+      label: error || "Generation failed",
+      showRetry: true,
+    },
+    needs_review: {
+      icon: AlertTriangle,
+      className: "text-amber-600",
+      bgClassName: "bg-amber-50 border-amber-200",
+      label: "Materials generated but have quality issues",
+      showRetry: true,
+    },
+  }
+  
+  const config = configs[status]
+  const StatusIcon = config.icon
+  
+  return (
+    <div className={`p-4 rounded-lg border flex items-center justify-between ${config.bgClassName}`}>
+      <div className="flex items-center gap-3">
+        <StatusIcon className={`h-5 w-5 ${config.className}`} />
+        <div>
+          <p className={`font-medium ${config.className}`}>{config.label}</p>
+          {attempts && attempts > 1 && (
+            <p className="text-xs text-muted-foreground">
+              Attempted {attempts} time{attempts > 1 ? "s" : ""}
+            </p>
+          )}
+        </div>
+      </div>
+      {config.showRetry && (
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={onRetry}
+          disabled={isRetrying}
+          className="gap-2"
+        >
+          {isRetrying ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
+          {isRetrying ? "Retrying..." : "Retry Generation"}
+        </Button>
+      )}
     </div>
   )
 }
@@ -921,7 +1017,16 @@ export function JobDetail({ job }: JobDetailProps) {
 
         {/* Resume Tab */}
         <TabsContent value="resume">
-          <Card>
+          {/* Generation Status Banner */}
+          <GenerationStatusBanner
+            status={job.generation_status}
+            error={job.generation_error}
+            attempts={job.generation_attempts}
+            onRetry={handleGenerateMaterials}
+            isRetrying={isGenerating}
+          />
+          
+          <Card className="mt-4">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>

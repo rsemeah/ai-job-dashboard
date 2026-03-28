@@ -25,6 +25,11 @@ import {
   extractKnownProducts,
   buildProfileKnowledge,
 } from "@/lib/profile-knowledge-resolver"
+import {
+  suggestTemplate,
+  RESUME_TEMPLATES,
+  getTemplateGuidance,
+} from "@/lib/resume-templates"
 
 const groq = createGroq({
   apiKey: process.env.GROQ_API_KEY,
@@ -190,6 +195,17 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createAdminClient()
+
+    // Set status to 'generating' immediately
+    await supabase
+      .from("jobs")
+      .update({ 
+        generation_status: "generating",
+        generation_error: null,
+        generation_attempts: _retry_count + 1,
+        last_generation_at: new Date().toISOString()
+      })
+      .eq("id", job_id)
 
     // Load all required data in parallel
     const [profile, allEvidence, jobData] = await Promise.all([
@@ -370,6 +386,16 @@ Be conservative - only include matches that are clearly supported by the evidenc
 
     const strategyPrompt = buildStrategyPrompt(strategy)
 
+    // Auto-select optimal resume template based on job analysis
+    const selectedTemplate = suggestTemplate({
+      title: jobData.title,
+      role_family: jobData.role_family,
+      responsibilities: jobData.responsibilities,
+      qualifications_required: jobData.qualifications_required,
+    })
+    const templateConfig = RESUME_TEMPLATES[selectedTemplate]
+    const templateGuidance = getTemplateGuidance(selectedTemplate)
+
     // Step 2: Generate resume with bullet-level provenance
     const { object: resumeWithProvenance } = await generateObject({
       model: groq("llama-3.3-70b-versatile"),
@@ -386,6 +412,13 @@ MATCHED EVIDENCE:
 - Matched Skills: ${evidenceMap.matched_skills.join(", ")}
 - Matched Tools: ${evidenceMap.matched_tools.join(", ")}
 - Key Gaps to Address: ${evidenceMap.gaps.join(", ")}
+
+RESUME TEMPLATE: ${templateConfig.name}
+${templateGuidance}
+Emphasis areas: ${templateConfig.emphasisAreas.join(", ")}
+${selectedTemplate === "technical_resume" ? "TECH FOCUS: Lead with technical skills, projects, and measurable engineering impact." : ""}
+${selectedTemplate === "professional_cv" ? "CV FOCUS: Emphasize credentials, publications, and leadership scope." : ""}
+${selectedTemplate === "non_technical_resume" ? "BUSINESS FOCUS: Emphasize stakeholder impact, revenue/growth metrics, and leadership." : ""}
 
 ${strategyPrompt}
 
@@ -687,6 +720,8 @@ Be strict - flag anything that seems fabricated or generic.`,
         status: "SCORED",
         scored_at: new Date().toISOString(),
         generation_timestamp: new Date().toISOString(),
+        generation_status: qualityPassed ? "ready" : "needs_review",
+        generation_error: null,
         generation_quality_score: qualityScore,
         generation_quality_issues: [
           ...allBannedPhrases.map(p => `Banned phrase: "${p}"`),
@@ -738,6 +773,8 @@ Be strict - flag anything that seems fabricated or generic.`,
       retry_count: _retry_count,
       strategy,
       strategy_reasoning: strategyReasoning,
+      template_used: selectedTemplate,
+      template_name: templateConfig.name,
       evidence_map: {
         fit_score: evidenceMap.fit_score,
         fit_rationale: evidenceMap.fit_rationale,
@@ -797,6 +834,23 @@ Be strict - flag anything that seems fabricated or generic.`,
     // Check for rate limit errors
     const errorMessage = error instanceof Error ? error.message : "Generation failed"
     const isRateLimit = errorMessage.includes("rate_limit") || errorMessage.includes("Rate limit") || errorMessage.includes("429")
+    
+    // Try to update job status to failed (best effort, don't fail if this fails)
+    try {
+      const { job_id } = await request.clone().json()
+      if (job_id) {
+        const supabase = createAdminClient()
+        await supabase
+          .from("jobs")
+          .update({ 
+            generation_status: "failed",
+            generation_error: errorMessage
+          })
+          .eq("id", job_id)
+      }
+    } catch {
+      // Ignore errors updating status
+    }
     
     if (isRateLimit) {
       return NextResponse.json(

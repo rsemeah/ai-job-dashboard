@@ -3,7 +3,7 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import type { Job, JobStatus, JobFit, RoleFamily } from "@/lib/types"
+import type { Job, JobStatus, JobFit, RoleFamily, GenerationStatus } from "@/lib/types"
 import { STATUS_CONFIG, FIT_CONFIG, STATUS_GROUPS, ROLE_FAMILIES, INDUSTRIES } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -33,6 +33,10 @@ import {
   AlertCircle,
   LayoutGrid,
   List,
+  Loader2,
+  AlertTriangle,
+  XCircle,
+  Clock,
 } from "lucide-react"
 
 // Status groupings for the view
@@ -100,12 +104,41 @@ function StatusBadge({ status }: { status: JobStatus }) {
   )
 }
 
-// Materials ready indicator
+// Materials ready indicator with generation status
 function MaterialsIndicator({ job }: { job: Job }) {
+  const status = job.generation_status
   const hasResume = !!job.generated_resume
   const hasCoverLetter = !!job.generated_cover_letter
   
-  if (hasResume && hasCoverLetter) {
+  // Show generation status if available
+  if (status === "generating") {
+    return (
+      <span className="flex items-center gap-1 text-blue-600 text-xs">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Generating
+      </span>
+    )
+  }
+  
+  if (status === "failed") {
+    return (
+      <span className="flex items-center gap-1 text-red-600 text-xs">
+        <XCircle className="h-3 w-3" />
+        Failed
+      </span>
+    )
+  }
+  
+  if (status === "needs_review") {
+    return (
+      <span className="flex items-center gap-1 text-amber-600 text-xs">
+        <AlertTriangle className="h-3 w-3" />
+        Review
+      </span>
+    )
+  }
+  
+  if (status === "ready" || (hasResume && hasCoverLetter)) {
     return (
       <span className="flex items-center gap-1 text-green-600 text-xs">
         <CheckCircle2 className="h-3 w-3" />
@@ -119,6 +152,15 @@ function MaterialsIndicator({ job }: { job: Job }) {
       <span className="flex items-center gap-1 text-amber-600 text-xs">
         <AlertCircle className="h-3 w-3" />
         Partial
+      </span>
+    )
+  }
+  
+  if (status === "pending") {
+    return (
+      <span className="flex items-center gap-1 text-muted-foreground text-xs">
+        <Clock className="h-3 w-3" />
+        Pending
       </span>
     )
   }

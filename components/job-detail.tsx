@@ -41,6 +41,7 @@ import {
   Lock,
   AlertTriangle,
   Clock,
+  MessageSquare,
 } from "lucide-react"
 import { toast } from "sonner"
 import { ExportButtons } from "@/components/export-buttons"
@@ -109,12 +110,13 @@ function WorkflowStepCard({
   description: string
   status: WorkflowStatus
   statusReason: string
-  color: "blue" | "green" | "red"
+  color: "blue" | "green" | "red" | "purple"
 }) {
   const colorClasses = {
     blue: { bg: "bg-blue-100", text: "text-blue-600", border: "border-blue-200" },
     green: { bg: "bg-green-100", text: "text-green-600", border: "border-green-200" },
     red: { bg: "bg-red-100", text: "text-red-600", border: "border-red-200" },
+    purple: { bg: "bg-purple-100", text: "text-purple-600", border: "border-purple-200" },
   }
 
   const statusConfig = {
@@ -527,6 +529,14 @@ export function JobDetail({ job }: JobDetailProps) {
                 Regenerate
               </Button>
             )}
+            
+            {/* Interview Prep Button */}
+            <Link href={`/jobs/${job.id}/interview-prep`}>
+              <Button variant="outline">
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Interview Prep
+              </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>
@@ -607,7 +617,7 @@ export function JobDetail({ job }: JobDetailProps) {
             </div>
           )}
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-4">
             {/* Evidence Match Step */}
             <Link href={`/jobs/${job.id}/evidence-match`}>
               <WorkflowStepCard
@@ -674,6 +684,18 @@ export function JobDetail({ job }: JobDetailProps) {
                     : "Run quality review"
                 }
                 color="red"
+              />
+            </Link>
+            
+            {/* Interview Prep Step */}
+            <Link href={`/jobs/${job.id}/interview-prep`}>
+              <WorkflowStepCard
+                step={4}
+                title="Interview Prep"
+                description="Evidence-based interview coaching"
+                status={hasResume ? "not_started" : "not_started"}
+                statusReason={hasResume ? "Ready to generate prep" : "Generate materials first"}
+                color="purple"
               />
             </Link>
           </div>

@@ -92,6 +92,7 @@ export default function OnboardingPage() {
               height={53}
               className="object-contain mx-auto"
               priority
+              loading="eager"
             />
             <CardTitle className="text-3xl font-serif">Welcome to HireWire</CardTitle>
             <CardDescription className="text-base">

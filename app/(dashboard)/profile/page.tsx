@@ -91,7 +91,12 @@ export default function ProfilePage() {
         if (data) {
           setProfile({
             ...emptyProfile,
-            ...data,
+            id: data.id,
+            full_name: data.full_name || "",
+            email: data.email || "",
+            phone: data.phone || "",
+            location: data.location || "",
+            summary: data.summary || "",
             experience: data.experience || [],
             education: data.education || [],
             skills: data.skills || [],

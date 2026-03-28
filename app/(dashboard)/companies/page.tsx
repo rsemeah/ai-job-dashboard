@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { createAdminClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
+import { createClient } from "@/lib/supabase/server"
 import { EmptyState } from "@/components/empty-state"
 import { ErrorState } from "@/components/error-state"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,11 +10,18 @@ import { BackButton } from "@/components/back-button"
 import type { Job } from "@/lib/types"
 
 export default async function CompaniesPage() {
-  const supabase = createAdminClient()
+  const supabase = await createClient()
+  
+  // Get current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) {
+    redirect("/login")
+  }
   
   const { data: jobs, error } = await supabase
     .from("jobs")
     .select("*")
+    .eq("user_id", user.id)
     .order("company", { ascending: true })
 
   if (error) {

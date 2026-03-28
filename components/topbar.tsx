@@ -39,40 +39,16 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-const notifications = [
-  {
-    id: 1,
-    type: "success",
-    title: "Application Submitted",
-    description: "Stripe - Senior Engineer application was submitted",
-    time: "5 minutes ago",
-    read: false,
-  },
-  {
-    id: 2,
-    type: "info",
-    title: "New High-Fit Job",
-    description: "OpenAI - Staff ML Engineer scored 92",
-    time: "1 hour ago",
-    read: false,
-  },
-  {
-    id: 3,
-    type: "warning",
-    title: "Workflow Error",
-    description: "Scoring failed for job #1847",
-    time: "2 hours ago",
-    read: true,
-  },
-  {
-    id: 4,
-    type: "info",
-    title: "Interview Scheduled",
-    description: "Vercel - Interview on March 25th",
-    time: "3 hours ago",
-    read: true,
-  },
-]
+// Notifications will be fetched from database in future
+// For now, show empty state
+const notifications: Array<{
+  id: number
+  type: string
+  title: string
+  description: string
+  time: string
+  read: boolean
+}> = []
 
 function getInitials(name: string | null | undefined, email: string | null | undefined): string {
   if (name) {
@@ -253,38 +229,41 @@ export function Topbar() {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <div className="max-h-80 overflow-y-auto">
-            {notifications.map((notification) => (
-              <DropdownMenuItem
-                key={notification.id}
-                className={cn(
-                  "flex cursor-pointer flex-col items-start gap-1 p-3",
-                  !notification.read && "bg-muted/50"
-                )}
-              >
-                <div className="flex w-full items-start gap-2">
-                  {getNotificationIcon(notification.type)}
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {notification.title}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {notification.description}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {notification.time}
-                    </p>
-                  </div>
-                  {!notification.read && (
-                    <span className="h-2 w-2 rounded-full bg-primary" />
+            {notifications.length === 0 ? (
+              <div className="p-6 text-center">
+                <Bell className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+                <p className="text-sm text-muted-foreground">No notifications yet</p>
+              </div>
+            ) : (
+              notifications.map((notification) => (
+                <DropdownMenuItem
+                  key={notification.id}
+                  className={cn(
+                    "flex cursor-pointer flex-col items-start gap-1 p-3",
+                    !notification.read && "bg-muted/50"
                   )}
-                </div>
-              </DropdownMenuItem>
-            ))}
+                >
+                  <div className="flex w-full items-start gap-2">
+                    {getNotificationIcon(notification.type)}
+                    <div className="flex-1 space-y-1">
+                      <p className="text-sm font-medium leading-none">
+                        {notification.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {notification.description}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {notification.time}
+                      </p>
+                    </div>
+                    {!notification.read && (
+                      <span className="h-2 w-2 rounded-full bg-primary" />
+                    )}
+                  </div>
+                </DropdownMenuItem>
+              ))
+            )}
           </div>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem className="justify-center text-sm font-medium">
-            View all notifications
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 

@@ -1,6 +1,6 @@
 "use server"
 
-import { createAdminClient } from "@/lib/supabase/server"
+import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { Job, JobStatus } from "@/lib/types"
 
@@ -279,11 +279,19 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
 
 export async function getJobs(): Promise<JobsResult> {
   try {
-    const supabase = createAdminClient()
+    // Use authenticated client - RLS will filter by user_id
+    const supabase = await createClient()
+    
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return { success: false, error: "Not authenticated" }
+    }
 
     const { data, error } = await supabase
       .from("jobs")
       .select("*")
+      .eq("user_id", user.id) // Explicit filter for safety
       .order("score", { ascending: false, nullsFirst: false })
 
     if (error) {
@@ -299,9 +307,20 @@ export async function getJobs(): Promise<JobsResult> {
 }
 
 export async function getJobById(id: string): Promise<Job | null> {
-  const supabase = createAdminClient()
+  const supabase = await createClient()
+  
+  // Get current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) {
+    return null
+  }
 
-  const { data, error } = await supabase.from("jobs").select("*").eq("id", id).single()
+  const { data, error } = await supabase
+    .from("jobs")
+    .select("*")
+    .eq("id", id)
+    .eq("user_id", user.id) // Ensure user can only access their own jobs
+    .single()
 
   if (error) {
     return null
@@ -314,9 +333,19 @@ export async function updateJobStatus(
   id: string,
   status: JobStatus,
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createAdminClient()
+  const supabase = await createClient()
+  
+  // Get current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) {
+    return { success: false, error: "Not authenticated" }
+  }
 
-  const { error } = await supabase.from("jobs").update({ status }).eq("id", id)
+  const { error } = await supabase
+    .from("jobs")
+    .update({ status })
+    .eq("id", id)
+    .eq("user_id", user.id) // Ensure user can only update their own jobs
 
   if (error) {
     console.error("Error updating job status:", error)
@@ -343,11 +372,26 @@ export type StatsResult = {
 
 export async function getJobStats(): Promise<StatsResult> {
   try {
-    const supabase = createAdminClient()
+    const supabase = await createClient()
+    
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return {
+        success: false,
+        error: "Not authenticated",
+        total: 0,
+        byStatus: {},
+        byFit: {},
+        bySource: {},
+        hasWorkflowOutputs: false,
+      }
+    }
 
     const { data, error } = await supabase
       .from("jobs")
       .select("status, fit, source, score, created_at")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
 
     if (error) {
@@ -417,13 +461,20 @@ export async function regenerateSection(
   feedback: string
 ): Promise<{ success: boolean; content?: string; error?: string }> {
   try {
-    const supabase = createAdminClient()
+    const supabase = await createClient()
     
-    // Get current job data
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) {
+      return { success: false, error: "Not authenticated" }
+    }
+    
+    // Get current job data - ensure user owns the job
     const { data: job, error } = await supabase
       .from("jobs")
       .select("*")
       .eq("id", jobId)
+      .eq("user_id", user.id)
       .single()
 
     if (error || !job) {

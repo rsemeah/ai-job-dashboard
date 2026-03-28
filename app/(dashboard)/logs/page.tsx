@@ -1,4 +1,5 @@
-import { createAdminClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
+import { createClient } from "@/lib/supabase/server"
 import { EmptyState } from "@/components/empty-state"
 import { ErrorState } from "@/components/error-state"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -56,7 +57,13 @@ const eventConfig: Record<string, {
 }
 
 export default async function LogsPage() {
-  const supabase = createAdminClient()
+  const supabase = await createClient()
+  
+  // Get current user
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) {
+    redirect("/login")
+  }
 
   // Try to fetch processing_events if table exists
   let hasEventsTable = false
@@ -80,10 +87,11 @@ export default async function LogsPage() {
     events = eventsData
   }
 
-  // Always fetch recent jobs for fallback/enrichment
+  // Always fetch recent jobs for fallback/enrichment - filtered by user
   const { data: recentJobs, error: jobsError } = await supabase
     .from("jobs")
     .select("id, title, company, status, fit, score, created_at")
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(50)
 
@@ -168,7 +176,7 @@ export default async function LogsPage() {
           <CardHeader>
             <CardTitle>Processing Events</CardTitle>
             <CardDescription>
-              {events.length} event{events.length !== 1 ? "s" : ""} from n8n
+              {events.length} event{events.length !== 1 ? "s" : ""}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -286,8 +294,7 @@ export default async function LogsPage() {
                 <h4 className="font-medium text-amber-600">Limited Activity Data</h4>
                 <p className="text-sm text-muted-foreground mt-1">
                   The <code className="text-xs bg-muted px-1 py-0.5 rounded">processing_events</code> table 
-                  is not available. n8n should create this table to log detailed workflow events. 
-                  Showing activity derived from jobs.
+                  is not available. Showing activity derived from jobs.
                 </p>
               </div>
             </div>

@@ -70,6 +70,12 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const supabase = createClient()
 
+    // Helper to check if error is a lock error
+    const isLockError = (error: unknown): boolean => {
+      const msg = error instanceof Error ? error.message : String(error)
+      return msg.includes("Lock") || msg.includes("released because another request")
+    }
+
     // Get initial session
     const initializeAuth = async () => {
       try {
@@ -81,8 +87,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         // Ignore lock errors - these happen when multiple requests compete for the auth token
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        if (!errorMessage.includes("Lock") && !errorMessage.includes("released because another request")) {
+        if (!isLockError(error)) {
           console.error("Error initializing auth:", error)
         }
       } finally {
@@ -90,7 +95,25 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Global handler for unhandled promise rejections (lock errors)
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (isLockError(event.reason)) {
+        event.preventDefault() // Prevent console error
+      }
+    }
+    
+    if (typeof window !== "undefined") {
+      window.addEventListener("unhandledrejection", handleUnhandledRejection)
+    }
+
     initializeAuth()
+    
+    // Cleanup
+    const cleanupRejectionHandler = () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("unhandledrejection", handleUnhandledRejection)
+      }
+    }
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -112,6 +135,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       subscription.unsubscribe()
+      cleanupRejectionHandler()
     }
   }, [fetchProfile])
 

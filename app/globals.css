@@ -170,33 +170,54 @@
 }
 
 @layer components {
-  /* Premium card shadow system */
+  /* Premium card shadow system - deeper, more intentional */
   .hw-card {
     background: hsl(var(--card));
     border-radius: var(--radius);
+    border: 1px solid rgba(26, 23, 20, 0.06);
     box-shadow: 
-      0 1px 3px rgba(26, 23, 20, 0.08),
-      0 4px 12px rgba(26, 23, 20, 0.06);
-    transition: box-shadow 0.2s ease, transform 0.2s ease;
+      0 1px 2px rgba(26, 23, 20, 0.04),
+      0 2px 4px rgba(26, 23, 20, 0.04),
+      0 4px 8px rgba(26, 23, 20, 0.04),
+      0 8px 16px rgba(26, 23, 20, 0.04);
+    transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
   }
   
   .hw-card:hover {
+    border-color: rgba(217, 0, 9, 0.08);
     box-shadow: 
-      0 6px 18px rgba(26, 23, 20, 0.10),
-      0 2px 6px rgba(26, 23, 20, 0.06);
-    transform: translateY(-1px);
+      0 2px 4px rgba(26, 23, 20, 0.04),
+      0 4px 8px rgba(26, 23, 20, 0.06),
+      0 8px 16px rgba(26, 23, 20, 0.06),
+      0 16px 32px rgba(26, 23, 20, 0.06);
+    transform: translateY(-2px);
   }
   
-  /* Primary CTA button */
+  /* Primary CTA button - DOMINANT presence */
   .hw-btn-primary {
-    @apply bg-primary text-primary-foreground font-medium;
-    box-shadow: 0 2px 8px rgba(217, 0, 9, 0.25);
-    transition: all 0.15s ease;
+    @apply bg-primary text-primary-foreground font-semibold;
+    box-shadow: 
+      0 2px 4px rgba(217, 0, 9, 0.2),
+      0 4px 12px rgba(217, 0, 9, 0.25),
+      0 0 0 1px rgba(217, 0, 9, 0.1);
+    transition: all 0.2s ease;
   }
   
   .hw-btn-primary:hover {
-    box-shadow: 0 4px 16px rgba(217, 0, 9, 0.35);
-    filter: brightness(1.05);
+    box-shadow: 
+      0 4px 8px rgba(217, 0, 9, 0.25),
+      0 8px 24px rgba(217, 0, 9, 0.35),
+      0 0 0 1px rgba(217, 0, 9, 0.2),
+      0 0 32px rgba(217, 0, 9, 0.15);
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+  }
+  
+  .hw-btn-primary:active {
+    transform: translateY(0);
+    box-shadow: 
+      0 2px 4px rgba(217, 0, 9, 0.3),
+      0 4px 8px rgba(217, 0, 9, 0.2);
   }
   
   /* Fit score circular badge */

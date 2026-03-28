@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { CardWireAccent } from "@/components/barbed-wire"
+import { CardWireAccent, CTAWireUnderline, BarbedWireLine, EmptyStateWire, HeaderTexture } from "@/components/barbed-wire"
 import { useUser } from "@/components/user-provider"
 import type { Job } from "@/lib/types"
 import {
@@ -17,15 +17,14 @@ import {
   Briefcase,
   Clock,
   CheckCircle2,
-  TrendingUp,
   Linkedin,
   Github,
   Upload,
   FileUp,
-  BarChart3,
   MessageSquare,
   Target,
   Sparkles,
+  Radio,
 } from "lucide-react"
 
 interface DashboardContentProps {
@@ -54,6 +53,8 @@ function CompanyLogo({ company, className = "" }: { company: string; className?:
     "vercel": { bg: "bg-black", text: "text-white", icon: "V" },
     "redlantern": { bg: "bg-red-600", text: "text-white", icon: "R" },
     "datacore": { bg: "bg-indigo-600", text: "text-white", icon: "D" },
+    "sleektech": { bg: "bg-slate-800", text: "text-white", icon: "S" },
+    "hitech": { bg: "bg-emerald-600", text: "text-white", icon: "H" },
   }
   
   const key = company?.toLowerCase().replace(/\s+/g, "") || ""
@@ -74,46 +75,49 @@ function FitScoreBadge({ score }: { score: number | null | undefined }) {
   
   return (
     <div className="relative">
-      <svg className="w-9 h-9" viewBox="0 0 36 36">
+      <svg className="w-10 h-10" viewBox="0 0 40 40">
         {/* Background circle */}
         <circle
-          cx="18"
-          cy="18"
-          r="16"
+          cx="20"
+          cy="20"
+          r="17"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth="2.5"
           className="text-gray-200"
         />
         {/* Progress circle */}
         <circle
-          cx="18"
-          cy="18"
-          r="16"
+          cx="20"
+          cy="20"
+          r="17"
           fill="none"
           stroke={isHigh ? "#22c55e" : isMedium ? "#f59e0b" : "#94a3b8"}
-          strokeWidth="2"
-          strokeDasharray={`${displayScore} 100`}
+          strokeWidth="2.5"
+          strokeDasharray={`${displayScore * 1.07} 107`}
           strokeLinecap="round"
-          transform="rotate(-90 18 18)"
+          transform="rotate(-90 20 20)"
         />
       </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold">
-        {displayScore}
+      <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">
+        {displayScore}%
       </span>
     </div>
   )
 }
 
 // Quality breakdown bar
-function QualityBar({ label, value, max = 100 }: { label: string; value: number; max?: number }) {
+function QualityBar({ label, value, icon: Icon, max = 100 }: { label: string; value: number; icon?: React.ElementType; max?: number }) {
   const percentage = Math.min((value / max) * 100, 100)
   
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-medium">{value}%</span>
+        <div className="flex items-center gap-2">
+          {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
+          <span className="text-muted-foreground">{label}</span>
+        </div>
+        <span className="font-semibold">{value}%</span>
       </div>
       <div className="quality-bar">
         <div className="quality-bar-fill" style={{ width: `${percentage}%` }} />
@@ -130,7 +134,6 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
   const [activeTab, setActiveTab] = useState("jobs")
 
   const firstName = profile?.full_name?.split(" ")[0] || "there"
-  const isFirstTime = stats.total === 0
 
   // Get recent jobs (last 5)
   const recentJobs = jobs.slice(0, 5)
@@ -175,21 +178,24 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
 
   return (
     <div className="min-h-screen">
-      {/* Welcome Header */}
-      <div className="px-6 pt-6 pb-4">
-        <h1 className="text-2xl font-semibold text-foreground">
-          Welcome back, {firstName}.
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          {recentJobs.length > 0 
-            ? `${recentJobs[0]?.company || "A company"} just posted a new listing — let&apos;s break it down.`
-            : "Ready to analyze your next opportunity."
-          }
-        </p>
+      {/* Welcome Header with subtle texture */}
+      <div className="relative px-6 pt-6 pb-4">
+        <HeaderTexture />
+        <div className="relative">
+          <h1 className="text-2xl font-semibold text-foreground">
+            Welcome back, {firstName}.
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {recentJobs.length > 0 
+              ? `${recentJobs[0]?.company || "A company"} just posted a new listing — let's break it down.`
+              : "Ready to analyze your next opportunity."
+            }
+          </p>
+        </div>
       </div>
 
-      {/* Analyze CTA */}
-      <div className="px-6 pb-6">
+      {/* Analyze CTA - DOMINANT */}
+      <div className="px-6 pb-4">
         <div className="flex gap-3">
           <div className="relative flex-1 max-w-xl">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -198,18 +204,25 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
               value={jobUrl}
               onChange={(e) => setJobUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
-              className="pl-10 h-11 bg-card border-border/50 shadow-sm"
+              className="pl-10 h-12 bg-card border-border/50 shadow-sm text-sm"
             />
           </div>
           <Button 
             onClick={handleAnalyze}
             disabled={isAnalyzing || !jobUrl.trim()}
-            className="hw-btn-primary h-11 px-6 rounded-lg group relative"
+            className="hw-btn-primary h-12 px-8 rounded-lg group relative text-sm font-semibold"
           >
             <Zap className="h-4 w-4 mr-2" />
             Analyze Job Post
+            <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-0.5 transition-transform" />
+            <CTAWireUnderline />
           </Button>
         </div>
+      </div>
+
+      {/* Header Divider - Barbed Wire */}
+      <div className="px-6 pb-2">
+        <BarbedWireLine intensity="light" />
       </div>
 
       {/* Tab Row */}
@@ -240,24 +253,27 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
             <CardWireAccent />
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-foreground">Recent Activity</h2>
-              <Link href="/jobs" className="text-xs text-primary hover:underline flex items-center gap-1">
-                View all <ChevronRight className="h-3 w-3" />
+              <Link href="/jobs" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
+                View more <ChevronRight className="h-3 w-3" />
               </Link>
             </div>
             
             {recentJobs.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Briefcase className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No jobs analyzed yet</p>
-                <p className="text-xs mt-1">Paste a job URL above to get started</p>
+              <div className="text-center py-10">
+                <EmptyStateWire />
+                <Radio className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+                <p className="font-semibold text-foreground">No signals yet.</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Drop a job link above and we&apos;ll break it down instantly.
+                </p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {recentJobs.map((job) => (
                   <Link
                     key={job.id}
                     href={`/jobs/${job.id}`}
-                    className="flex items-center gap-4 p-3 rounded-lg hover:bg-accent/50 transition-colors group"
+                    className="flex items-center gap-4 p-3 rounded-lg hover:bg-accent/60 transition-all group hover:shadow-sm"
                   >
                     <CompanyLogo company={job.company || ""} />
                     <div className="flex-1 min-w-0">
@@ -267,10 +283,24 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
                       <p className="text-xs text-muted-foreground truncate">
                         {job.company || "Unknown Company"}
                       </p>
+                      <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                        {job.fit === "HIGH" ? "Strong fit for your profile" : "Analyzing fit..."}
+                      </p>
                     </div>
                     <FitScoreBadge score={job.score} />
                   </Link>
                 ))}
+              </div>
+            )}
+            
+            {recentJobs.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-border/50">
+                <Link 
+                  href="/jobs" 
+                  className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                >
+                  View more <ChevronRight className="h-3 w-3" />
+                </Link>
               </div>
             )}
           </div>
@@ -280,15 +310,19 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
             <CardWireAccent />
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-foreground">Updated Documents</h2>
-              <Link href="/documents" className="text-xs text-primary hover:underline flex items-center gap-1">
-                View all <ChevronRight className="h-3 w-3" />
+              <Link href="/documents" className="text-xs text-primary hover:underline flex items-center gap-1 font-medium">
+                Edit in DocHub <ChevronRight className="h-3 w-3" />
               </Link>
             </div>
             
             {jobsWithDocs.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
-                <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No documents generated yet</p>
+              <div className="text-center py-8">
+                <EmptyStateWire />
+                <FileText className="h-9 w-9 mx-auto mb-3 text-muted-foreground/40" />
+                <p className="font-semibold text-foreground">No documents yet.</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Analyze a job to generate tailored materials.
+                </p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -296,19 +330,20 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
                   <Link
                     key={job.id}
                     href={`/jobs/${job.id}`}
-                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/50 transition-colors"
+                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/60 transition-all group"
                   >
-                    <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
+                    <div className="w-9 h-9 rounded bg-primary/10 flex items-center justify-center">
                       <FileText className="h-4 w-4 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
+                      <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
                         {profile?.full_name?.replace(" ", "_") || "Resume"}_{job.company?.replace(/\s+/g, "_") || "Company"}.pdf
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Updated {job.generation_timestamp?.split("T")[0] || "recently"}
+                        Generated {job.generation_timestamp ? "just now" : "recently"}
                       </p>
                     </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                   </Link>
                 ))}
               </div>
@@ -318,27 +353,36 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
           {/* Data Sources */}
           <div className="hw-card p-5 relative overflow-hidden">
             <CardWireAccent />
-            <h2 className="font-semibold text-foreground mb-4">Data Sources</h2>
-            <div className="flex gap-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-foreground">Data Sources</h2>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">13</span>
+                <span className="font-semibold text-foreground">7</span>
+              </div>
+            </div>
+            <div className="flex gap-3">
               {[
-                { icon: Linkedin, label: "LinkedIn", connected: true },
-                { icon: () => <span className="text-lg font-bold">G</span>, label: "Google", connected: false },
-                { icon: Github, label: "GitHub", connected: true },
-                { icon: FileUp, label: "Manual", connected: true },
+                { icon: Linkedin, label: "LinkedIn", connected: true, color: "bg-[#0077b5]" },
+                { icon: () => <span className="text-base font-bold text-[#4285f4]">G</span>, label: "Google", connected: true },
+                { icon: () => <span className="text-base font-bold text-blue-600">in</span>, label: "Indeed", connected: true },
+                { icon: FileUp, label: "Handshake", connected: false },
                 { icon: Upload, label: "Upload", connected: false },
               ].map((source, i) => (
                 <div
                   key={i}
-                  className={`flex flex-col items-center gap-1.5 p-3 rounded-lg transition-colors ${
-                    source.connected ? "bg-accent/50" : "bg-muted/30 opacity-50"
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-lg transition-all hover:scale-105 cursor-pointer ${
+                    source.connected ? "bg-accent/70" : "bg-muted/30 opacity-60"
                   }`}
                 >
-                  <div className="w-8 h-8 rounded-full bg-card flex items-center justify-center">
-                    <source.icon className="h-4 w-4" />
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center ${source.color || "bg-card"}`}>
+                    <source.icon className={`h-4 w-4 ${source.color ? "text-white" : ""}`} />
                   </div>
-                  <span className="text-[10px] text-muted-foreground">{source.label}</span>
+                  <span className="text-[10px] text-muted-foreground font-medium">{source.label}</span>
                 </div>
               ))}
+              <div className="flex items-center justify-center px-3 text-xs text-muted-foreground">
+                +7 more
+              </div>
             </div>
           </div>
         </div>
@@ -348,63 +392,82 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
           {/* Role Analysis */}
           <div className="hw-card p-5 relative overflow-hidden">
             <CardWireAccent />
-            <h2 className="font-semibold text-foreground mb-4">Role Analysis</h2>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="font-semibold text-foreground">Role Analysis</h2>
+              <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded font-medium">
+                Strong Match
+              </span>
+            </div>
             
             <div className="flex items-center justify-center py-4">
               <div className="relative">
-                <svg className="w-32 h-32" viewBox="0 0 100 100">
+                <svg className="w-28 h-28" viewBox="0 0 100 100">
                   <circle
                     cx="50"
                     cy="50"
-                    r="45"
+                    r="42"
                     fill="none"
                     stroke="currentColor"
-                    strokeWidth="8"
-                    className="text-muted"
+                    strokeWidth="6"
+                    className="text-muted/50"
                   />
                   <circle
                     cx="50"
                     cy="50"
-                    r="45"
+                    r="42"
                     fill="none"
                     stroke="hsl(var(--primary))"
-                    strokeWidth="8"
-                    strokeDasharray={`${bestMatch * 2.83} 283`}
+                    strokeWidth="6"
+                    strokeDasharray={`${bestMatch * 2.64} 264`}
                     strokeLinecap="round"
                     transform="rotate(-90 50 50)"
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold">{bestMatch}%</span>
-                  <span className="text-xs text-muted-foreground">Strong Match</span>
+                  <span className="text-2xl font-bold">{bestMatch || 98}%</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 mb-4">
+            <div className="flex flex-wrap gap-1.5 mb-4 justify-center">
               {["AI Strategy", "Product Leadership", "ML Systems"].map((tag) => (
-                <span key={tag} className="px-2 py-1 bg-accent rounded text-xs font-medium">
+                <span key={tag} className="px-2 py-0.5 bg-accent rounded text-[10px] font-medium">
                   {tag}
                 </span>
               ))}
             </div>
 
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Next Steps</p>
-              <ul className="space-y-1.5 text-sm">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                  Generate resume
+            <div className="space-y-3 border-t border-border/50 pt-4">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Next Steps</p>
+              <ul className="space-y-2 text-sm">
+                <li className="flex items-start gap-2">
+                  <span className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <CheckCircle2 className="h-3 w-3 text-primary" />
+                  </span>
+                  <span>Generate a tailored resume for Amazon TPM role.</span>
                 </li>
-                <li className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                  Update skills
+                <li className="flex items-start gap-2">
+                  <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Clock className="h-3 w-3 text-muted-foreground" />
+                  </span>
+                  <span className="text-muted-foreground">Update skills section with relevant keywords.</span>
                 </li>
-                <li className="flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                  Draft cover letter
+                <li className="flex items-start gap-2">
+                  <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Clock className="h-3 w-3 text-muted-foreground" />
+                  </span>
+                  <span className="text-muted-foreground">Draft a personalized cover letter.</span>
                 </li>
               </ul>
+            </div>
+            
+            <div className="mt-4 pt-3 border-t border-border/50">
+              <Link 
+                href={recentJobs[0]?.id ? `/jobs/${recentJobs[0].id}` : "/jobs"}
+                className="text-sm text-primary hover:underline flex items-center gap-1 font-medium"
+              >
+                More Insights <ChevronRight className="h-3 w-3" />
+              </Link>
             </div>
           </div>
 
@@ -413,27 +476,29 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
             <CardWireAccent />
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-foreground">Job Matches</h2>
-              <span className="text-xs text-muted-foreground">{highFitCount} high fit</span>
             </div>
             
             {recentJobs.slice(0, 3).length === 0 ? (
-              <div className="text-center py-4 text-muted-foreground text-sm">
-                No matches yet
+              <div className="text-center py-6">
+                <EmptyStateWire />
+                <p className="text-sm text-muted-foreground">No matches yet</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {recentJobs.slice(0, 3).map((job) => (
+                {recentJobs.slice(0, 3).map((job, idx) => (
                   <Link
                     key={job.id}
                     href={`/jobs/${job.id}`}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors"
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/60 transition-all group"
                   >
                     <CompanyLogo company={job.company || ""} className="w-8 h-8 text-xs" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{job.company || "Company"}</p>
-                      <p className="text-xs text-muted-foreground truncate">{job.title}</p>
+                      <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">{job.company || "Company"}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {idx === 0 ? "Amazon +Tobeh 16,25%" : idx === 1 ? "Render etobA 15,59%" : "Generated  9:32,59%"}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5">
                       {[1, 2, 3, 4, 5].map((star) => (
                         <Star
                           key={star}
@@ -447,6 +512,14 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
                     </div>
                   </Link>
                 ))}
+                <div className="pt-2">
+                  <Link 
+                    href="/jobs"
+                    className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                  >
+                    View more matches <ChevronRight className="h-3 w-3" />
+                  </Link>
+                </div>
               </div>
             )}
           </div>
@@ -455,67 +528,62 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
 
       {/* Bottom Strip */}
       <div className="px-6 pb-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Updated Documents (compact) */}
+        <div className="hw-card p-5 relative overflow-hidden">
+          <CardWireAccent />
+          <div className="flex items-center gap-2 mb-4">
+            <CheckCircle2 className="h-4 w-4 text-primary" />
+            <h2 className="font-semibold text-foreground">Updated Documents</h2>
+          </div>
+          <div className="space-y-2">
+            {jobsWithDocs.slice(0, 2).map((job) => (
+              <div key={job.id} className="flex items-center gap-2 text-sm">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                <span className="truncate">{profile?.full_name?.replace(" ", "_")}_Resume.pdf</span>
+                <span className="text-xs text-muted-foreground ml-auto">Just now</span>
+              </div>
+            ))}
+            {jobsWithDocs.length === 0 && (
+              <p className="text-sm text-muted-foreground">No documents yet</p>
+            )}
+          </div>
+        </div>
+
         {/* Quality Breakdown */}
         <div className="hw-card p-5 relative overflow-hidden">
           <CardWireAccent />
           <h2 className="font-semibold text-foreground mb-4">Quality Breakdown</h2>
-          <div className="space-y-4">
-            <QualityBar label="Job Match" value={bestMatch || 85} />
-            <QualityBar label="Skills" value={78} />
-            <QualityBar label="Keywords" value={92} />
-            <QualityBar label="Experience" value={88} />
+          <div className="space-y-3">
+            <QualityBar label="Job Match" value={75} icon={Target} />
+            <QualityBar label="Skills Fit" value={85} icon={Sparkles} />
           </div>
         </div>
 
         {/* Interview Readiness */}
         <div className="hw-card p-5 relative overflow-hidden">
           <CardWireAccent />
-          <h2 className="font-semibold text-foreground mb-4">Interview Readiness</h2>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-2">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-foreground">Interview Readiness</h2>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
                 <Target className="h-5 w-5 text-green-600" />
               </div>
-              <p className="text-lg font-semibold">94%</p>
-              <p className="text-[10px] text-muted-foreground">Congruence</p>
-            </div>
-            <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-2">
-                <Sparkles className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="text-xs text-muted-foreground">Congruence Scores</p>
+                <p className="font-semibold">85%</p>
               </div>
-              <p className="text-lg font-semibold">87%</p>
-              <p className="text-[10px] text-muted-foreground">Keywords</p>
             </div>
-            <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center mx-auto mb-2">
-                <MessageSquare className="h-5 w-5 text-purple-600" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <MessageSquare className="h-5 w-5 text-amber-600" />
               </div>
-              <p className="text-lg font-semibold">91%</p>
-              <p className="text-[10px] text-muted-foreground">Story</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="hw-card p-5 relative overflow-hidden">
-          <CardWireAccent />
-          <h2 className="font-semibold text-foreground mb-4">Pipeline Stats</h2>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Total Jobs</span>
-              <span className="font-semibold">{stats.total}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">High Fit</span>
-              <span className="font-semibold text-green-600">{highFitCount}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Applied</span>
-              <span className="font-semibold">{stats.byStatus["APPLIED"] || stats.byStatus["applied"] || 0}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Interviewing</span>
-              <span className="font-semibold text-primary">{stats.byStatus["INTERVIEWING"] || stats.byStatus["interviewing"] || 0}</span>
+              <div>
+                <p className="text-xs text-muted-foreground">Story Ready</p>
+                <p className="font-semibold">83%</p>
+              </div>
             </div>
           </div>
         </div>

@@ -15,14 +15,14 @@ export default function AuthLayout({
         {/* Off-White diagonal stripes in corners */}
         <DiagonalStripes position="top-left" size="lg" variant="white" opacity={0.15} />
         <DiagonalStripes position="bottom-right" size="lg" variant="white" opacity={0.1} />
-        <div className="relative z-10 flex flex-col justify-between p-12 text-white h-full">
-          {/* Logo */}
-          <div className="flex items-center">
-            <HireWireLogo variant="light" size="xl" />
+        <div className="relative z-10 flex flex-col items-start px-12 py-16 text-white h-full">
+          {/* Large centered logo - positioned at ~40% from top */}
+          <div className="w-full flex justify-center pt-[15%] pb-16">
+            <HireWireLogo variant="light" size="xl" className="w-80 h-auto" />
           </div>
           
-          {/* Main content */}
-          <div className="space-y-6">
+          {/* Main content - flex-grow to push footer down */}
+          <div className="space-y-6 flex-1">
             <h1 className="text-4xl font-serif italic font-medium leading-tight">
               Know Before You Apply
             </h1>
@@ -44,11 +44,9 @@ export default function AuthLayout({
                 <div>Evidence-backed</div>
               </div>
             </div>
-          </div>
-          
-          {/* Footer */}
-          <div className="text-sm text-white/50">
-            Trusted by professionals who value their time.
+            <div className="text-sm text-white/50 pt-6">
+              Trusted by professionals who value their time.
+            </div>
           </div>
         </div>
       </div>

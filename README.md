@@ -29,6 +29,7 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 - [Architecture](docs/architecture.md) — system overview and layer breakdown
 - [Setup](docs/setup.md) — local development and environment setup
 - [Gap Audit Prompts](docs/gap-audit-prompts.md) — TruthSerum-style Codex/Codespaces prompts for a full product gap audit and execution plan
+- [Readiness Docs Pack](docs/readiness/README.md) — 12 living product/launch documents (brief, personas, flows, data, analytics, monetization, launch, post-launch)
 
 ## Learn More
 

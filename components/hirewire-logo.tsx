@@ -32,17 +32,25 @@ export function HireWireLogo({
   // For red/dark variants, use the red logo directly
   const isLight = variant === "light"
   
+  // Check if custom width is passed via className
+  const hasCustomSize = className?.includes("w-[") || className?.includes("h-[")
+  
   return (
-    <div className={cn(sizeClasses[size], "relative w-auto", className)}>
+    <div className={cn(
+      !hasCustomSize && sizeClasses[size], 
+      "relative", 
+      className
+    )}>
       <Image
         src="/hirewire-logo-red.png"
         alt="HireWire"
-        width={sizes[size].width}
-        height={sizes[size].height}
+        width={800}
+        height={280}
         className={cn(
-          "object-contain h-full w-auto",
+          "object-contain",
           isLight && "brightness-0 invert" // Makes red logo white for dark backgrounds
         )}
+        style={{ width: '100%', height: 'auto' }}
         priority
       />
     </div>

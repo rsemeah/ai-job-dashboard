@@ -81,18 +81,18 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar className="border-r border-sidebar-border relative overflow-hidden">
-      {/* Off-White diagonal stripes in corners */}
-      <DiagonalStripes position="top-left" size="md" variant="black" opacity={0.08} />
-      <DiagonalStripes position="top-right" size="sm" variant="black" opacity={0.05} />
-      
-      <SidebarHeader className="px-4 py-5 relative z-10">
-        <Link href="/" className="flex items-center justify-center">
+    <Sidebar className="border-r border-sidebar-border">
+      <SidebarHeader className="px-4 py-5 relative overflow-hidden">
+        {/* Off-White diagonal stripes in logo box - top-left and bottom-right */}
+        <DiagonalStripes position="top-left" size="sm" variant="black" opacity={0.08} />
+        <DiagonalStripes position="bottom-right" size="sm" variant="black" opacity={0.08} />
+        
+        <Link href="/" className="flex items-center justify-center relative z-10">
           <HireWireLogo variant="red" size="md" />
         </Link>
       </SidebarHeader>
       
-      <SidebarContent className="px-3 relative z-10">
+      <SidebarContent className="px-3">
         {/* Pipeline Section */}
         <SidebarGroup>
           <SidebarGroupLabel className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase px-3">
@@ -106,7 +106,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       
-      <SidebarFooter className="px-3 pb-4 relative z-10">
+      <SidebarFooter className="px-3 pb-4">
         {/* Bottom nav items */}
         <SidebarMenu className="border-t border-sidebar-border pt-3">
           {bottomNav.map(renderNavItem)}

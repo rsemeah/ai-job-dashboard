@@ -39,9 +39,10 @@ export function HireWireLogo({
         width={800}
         height={280}
         className={cn(
-          "object-contain w-full h-auto",
+          "object-contain",
           isLight && "brightness-0 invert" // Makes red logo white for dark backgrounds
         )}
+        style={{ width: '100%', height: 'auto' }}
         priority
       />
     </div>

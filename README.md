@@ -24,6 +24,12 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
+## Docs
+
+- [Architecture](docs/architecture.md) — system overview and layer breakdown
+- [Setup](docs/setup.md) — local development and environment setup
+- [Gap Audit Prompts](docs/gap-audit-prompts.md) — TruthSerum-style Codex/Codespaces prompts for a full product gap audit and execution plan
+
 ## Learn More
 
 To learn more, take a look at the following resources:

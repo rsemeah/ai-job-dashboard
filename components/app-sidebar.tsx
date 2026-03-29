@@ -4,18 +4,18 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import {
-  LayoutDashboard,
   Briefcase,
   FileText,
-  BookOpen,
   User,
-  Database,
   Settings,
   Grid2X2,
   CheckSquare,
   Send,
   Building2,
   SlidersHorizontal,
+  History,
+  BarChart3,
+  PlusCircle,
 } from "lucide-react"
 import {
   Sidebar,
@@ -39,13 +39,16 @@ const pipelineNav = [
   { name: "Ready to Apply", href: "/ready-queue", icon: CheckSquare },
   { name: "Applied", href: "/applications", icon: Send },
   { name: "Materials", href: "/documents", icon: FileText },
-  { name: "Companies", href: "/analytics", icon: Building2 },
+  { name: "Companies", href: "/companies", icon: Building2 },
+  { name: "Activity Log", href: "/logs", icon: History },
+  { name: "Analytics", href: "/analytics", icon: BarChart3 },
+  { name: "Add Job", href: "/jobs/new", icon: PlusCircle },
 ]
 
 // Bottom navigation - settings/profile
 const bottomNav = [
   { name: "Profile", href: "/profile", icon: User },
-  { name: "Templates", href: "/logs", icon: SlidersHorizontal },
+  { name: "Templates", href: "/templates", icon: SlidersHorizontal },
   { name: "Settings", href: "/settings", icon: Settings },
 ]
 

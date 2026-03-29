@@ -45,11 +45,19 @@ export default async function CompaniesPage() {
     )
   }
 
-  const allJobs = (jobs || []) as Job[]
+  // Filter out any invalid/placeholder jobs
+  const allJobs = ((jobs || []) as Job[]).filter(job => {
+    // Skip jobs with missing or placeholder data
+    if (!job.title || !job.company) return false
+    if (job.title.includes('PLACEHOLDER') || job.company.includes('PLACEHOLDER')) return false
+    if (job.title === 'Job Review in Progress') return false
+    if (job.title.trim() === '' || job.company.trim() === '') return false
+    return true
+  })
 
   // Group jobs by company
   const companiesMap = allJobs.reduce((acc, job) => {
-    const company = job.company || "Unknown"
+    const company = job.company!
     if (!acc[company]) {
       acc[company] = {
         name: company,
@@ -61,7 +69,8 @@ export default async function CompaniesPage() {
     }
     acc[company].jobs.push(job)
     acc[company].totalJobs++
-    if (job.status === "applied" || job.status === "interviewing" || job.status === "offered") {
+    const status = job.status?.toUpperCase()
+    if (status === "APPLIED" || status === "INTERVIEWING" || status === "OFFERED") {
       acc[company].appliedJobs++
     }
     return acc

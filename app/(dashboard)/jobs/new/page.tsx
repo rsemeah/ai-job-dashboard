@@ -1,6 +1,6 @@
 "use client"
 
-import { JobInput } from "@/components/job-input"
+import { JobUrlInput } from "@/components/job-input"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
@@ -33,7 +33,7 @@ export default function AddJobPage() {
 
       {/* Content */}
       <div className="max-w-4xl mx-auto px-6 py-8">
-        <JobInput variant="full" />
+        <JobUrlInput />
       </div>
     </div>
   )

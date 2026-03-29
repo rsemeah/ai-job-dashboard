@@ -86,7 +86,7 @@ export default function OnboardingPage() {
         <Card className="w-full max-w-lg border-0 shadow-none lg:border lg:shadow-lg">
           <CardHeader className="text-center space-y-4">
             <Image
-              src="/images/hirewire-logo.png"
+              src="/hirewire-logo.png"
               alt="HireWire"
               width={150}
               height={53}

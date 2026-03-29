@@ -89,7 +89,7 @@ export function AppSidebar() {
       <SidebarHeader className="px-4 py-5 relative z-10">
         <Link href="/" className="flex items-center justify-center">
           <Image
-            src="/images/hirewire-logo.png"
+            src="/hirewire-logo.png"
             alt="HireWire"
             width={130}
             height={46}

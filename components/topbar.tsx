@@ -115,7 +115,7 @@ export function Topbar() {
       {/* Mobile Logo - visible only when sidebar is collapsed on mobile */}
       <Link href="/" className="flex items-center gap-2 md:hidden">
         <Image
-          src="/images/hirewire-logo.png"
+          src="/hirewire-logo.png"
           alt="HireWire"
           width={100}
           height={36}

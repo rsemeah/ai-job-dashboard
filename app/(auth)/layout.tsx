@@ -18,7 +18,7 @@ export default function AuthLayout({
         <div className="relative z-10 flex flex-col justify-between p-12 text-white">
           <div>
             <Image
-              src="/images/hirewire-logo.png"
+              src="/hirewire-logo.png"
               alt="HireWire"
               width={180}
               height={64}
@@ -63,7 +63,7 @@ export default function AuthLayout({
           {/* Mobile logo */}
           <div className="lg:hidden mb-8 text-center">
             <Image
-              src="/images/hirewire-logo.png"
+              src="/hirewire-logo.png"
               alt="HireWire"
               width={150}
               height={53}

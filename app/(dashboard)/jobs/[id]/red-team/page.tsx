@@ -55,9 +55,17 @@ export default function RedTeamReviewPage() {
     async function loadData() {
       const supabase = createClient()
       
+      // Get current user for security filtering
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setLoading(false)
+        return
+      }
+      
+      // Fetch job and evidence - both filtered by user_id for security
       const [{ data: jobData }, { data: evidenceData }] = await Promise.all([
-        supabase.from("jobs").select("*").eq("id", jobId).single(),
-        supabase.from("evidence_library").select("*").eq("is_active", true),
+        supabase.from("jobs").select("*").eq("id", jobId).eq("user_id", user.id).single(),
+        supabase.from("evidence_library").select("*").eq("is_active", true).eq("user_id", user.id),
       ])
       
       if (jobData) {
@@ -131,6 +139,15 @@ export default function RedTeamReviewPage() {
     if (!job) return
     
     const supabase = createClient()
+    
+    // Get current user for security
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      toast.error("Please log in to approve")
+      return
+    }
+    
+    // Update job - filtered by user_id for security
     const { error } = await supabase
       .from("jobs")
       .update({
@@ -139,6 +156,7 @@ export default function RedTeamReviewPage() {
         generation_quality_issues: activeIssues.map(i => `${i.type}: ${i.original_text.substring(0, 50)}`),
       })
       .eq("id", jobId)
+      .eq("user_id", user.id)
     
     if (error) {
       toast.error("Failed to approve")

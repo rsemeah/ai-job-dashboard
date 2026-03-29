@@ -59,22 +59,31 @@ export default function EvidenceMatchPage() {
     async function loadData() {
       const supabase = createClient()
       
-      // Fetch job
+      // Get current user for security filtering
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setLoading(false)
+        return
+      }
+      
+      // Fetch job - filtered by user_id for security
       const { data: jobData } = await supabase
         .from("jobs")
         .select("*")
         .eq("id", jobId)
+        .eq("user_id", user.id)
         .single()
       
       if (jobData) {
         setJob(jobData as Job)
       }
       
-      // Fetch all evidence
+      // Fetch all evidence - filtered by user_id for security
       const { data: evidenceData } = await supabase
         .from("evidence_library")
         .select("*")
         .eq("is_active", true)
+        .eq("user_id", user.id)
         .order("priority_rank", { ascending: true })
       
       if (evidenceData) {
@@ -231,6 +240,14 @@ export default function EvidenceMatchPage() {
     setSaving(true)
     const supabase = createClient()
     
+    // Get current user for security
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      toast.error("Please log in to save")
+      setSaving(false)
+      return
+    }
+    
     // Build evidence map
     const evidenceMap: Record<string, string[]> = {}
     requirementMatches.forEach(match => {
@@ -239,6 +256,7 @@ export default function EvidenceMatchPage() {
         .map(e => e.id)
     })
     
+    // Update job - filtered by user_id for security
     const { error } = await supabase
       .from("jobs")
       .update({ 
@@ -246,6 +264,7 @@ export default function EvidenceMatchPage() {
         status: "REVIEWING"
       })
       .eq("id", jobId)
+      .eq("user_id", user.id)
     
     if (error) {
       toast.error("Failed to save evidence map")

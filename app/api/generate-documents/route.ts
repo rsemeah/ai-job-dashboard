@@ -573,12 +573,19 @@ ${(profile.education || []).map((edu: { degree: string; school: string; year?: s
   `${edu.degree} — ${edu.school}${edu.year ? ` (${edu.year})` : ""}`
 ).join("\n")}`
 
-    // Build premium formatted cover letter
+    // Build premium formatted cover letter with professional signature
     const today = new Date().toLocaleDateString("en-US", { 
       month: "long", 
       day: "numeric", 
       year: "numeric" 
     })
+    
+    // Build professional signature block with phone number
+    const signatureBlock = [
+      profile.full_name || "Candidate",
+      profile.phone ? `Direct: ${profile.phone}` : null,
+      profile.email || null,
+    ].filter(Boolean).join("\n")
     
     const formattedCoverLetter = `${today}
 
@@ -587,7 +594,8 @@ Dear Hiring Manager,
 ${coverLetterWithProvenance.paragraphs.map(p => p.paragraph_text).join("\n\n")}
 
 Sincerely,
-${profile.full_name || "Candidate"}`
+
+${signatureBlock}`
 
     // Step 4: Detect banned phrases and vague patterns
     const resumeBannedPhrases = detectBannedPhrases(formattedResume)

@@ -1,4 +1,5 @@
 import Image from "next/image"
+import { DiagonalStripes } from "@/components/off-white-stripes"
 
 export default function AuthLayout({
   children,
@@ -7,9 +8,13 @@ export default function AuthLayout({
 }) {
   return (
     <div className="min-h-screen flex">
-      {/* Left side - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#CC2229] relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#CC2229] to-[#991b1f]" />
+      {/* Left side - Branding with Supreme Red */}
+      <div className="hidden lg:flex lg:w-1/2 bg-[#BD0A0A] relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#BD0A0A] to-[#8a0808]" />
+        
+        {/* Off-White diagonal stripes in corners */}
+        <DiagonalStripes position="top-left" size="lg" variant="white" opacity={0.15} />
+        <DiagonalStripes position="bottom-right" size="lg" variant="white" opacity={0.1} />
         <div className="relative z-10 flex flex-col justify-between p-12 text-white">
           <div>
             <Image

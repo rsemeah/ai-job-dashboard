@@ -88,15 +88,17 @@ export default function SignUpPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground text-center">
-            Click the link in your email to verify your account and get started.
+            Click the link in your email to verify your account, then come back here to log in.
           </p>
           <Button
-            variant="outline"
-            className="w-full"
+            className="w-full h-11 font-semibold"
             onClick={() => router.push("/login")}
           >
-            Back to login
+            Go to Log in
           </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Didn&apos;t receive the email? Check your spam folder or try signing up again.
+          </p>
         </CardContent>
       </Card>
     )
@@ -193,14 +195,14 @@ export default function SignUpPage() {
               </p>
             )}
 
-            <Button type="submit" className="w-full h-11" disabled={isLoading}>
+            <Button type="submit" className="w-full h-11 font-semibold" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Creating account...
                 </>
               ) : (
-                "Create account"
+                "Sign up"
               )}
             </Button>
           </div>

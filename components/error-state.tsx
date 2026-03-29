@@ -2,23 +2,66 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { AlertTriangle, RefreshCw, Database, Settings, Key } from "lucide-react"
+import { AlertTriangle, RefreshCw, XCircle, WifiOff, Clock } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
+
+type ErrorVariant = "error" | "warning" | "timeout" | "offline"
 
 interface ErrorStateProps {
+  variant?: ErrorVariant
   title?: string
   message?: string
+  details?: string
   onRetry?: () => void
   showRetry?: boolean
+  className?: string
+}
+
+const variantConfig: Record<ErrorVariant, {
+  icon: typeof AlertTriangle
+  iconClass: string
+  bgClass: string
+  borderClass: string
+}> = {
+  error: {
+    icon: XCircle,
+    iconClass: "text-red-500",
+    bgClass: "bg-red-50",
+    borderClass: "border-red-200",
+  },
+  warning: {
+    icon: AlertTriangle,
+    iconClass: "text-amber-500",
+    bgClass: "bg-amber-50",
+    borderClass: "border-amber-200",
+  },
+  timeout: {
+    icon: Clock,
+    iconClass: "text-amber-500",
+    bgClass: "bg-amber-50",
+    borderClass: "border-amber-200",
+  },
+  offline: {
+    icon: WifiOff,
+    iconClass: "text-gray-500",
+    bgClass: "bg-gray-50",
+    borderClass: "border-gray-200",
+  },
 }
 
 export function ErrorState({ 
+  variant = "warning",
   title = "Unable to load data", 
-  message = "Check that Supabase and Groq API are properly configured.",
+  message = "Something went wrong. Please try again.",
+  details,
   onRetry,
-  showRetry = true
+  showRetry = true,
+  className,
 }: ErrorStateProps) {
   const router = useRouter()
+  const config = variantConfig[variant]
+  const Icon = config.icon
 
   const handleRetry = () => {
     if (onRetry) {
@@ -29,40 +72,48 @@ export function ErrorState({
   }
 
   return (
-    <Card className="border-dashed border-amber-500/30 bg-amber-500/5">
-      <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="rounded-full bg-amber-500/10 p-4 mb-4">
-          <AlertTriangle className="h-8 w-8 text-amber-500" />
+    <Card className={cn(
+      "border",
+      config.borderClass,
+      className
+    )}>
+      <CardContent className={cn(
+        "flex flex-col items-center justify-center py-12 text-center",
+        config.bgClass
+      )}>
+        <div className="rounded-full bg-white/50 p-4 mb-4">
+          <Icon className={cn("h-7 w-7", config.iconClass)} />
         </div>
-        <h3 className="text-xl font-semibold mb-2">{title}</h3>
-        <p className="text-muted-foreground max-w-md mb-6">
+        
+        <h3 className="text-lg font-semibold mb-2">{title}</h3>
+        
+        <p className="text-sm text-muted-foreground max-w-md mb-2">
           {message}
         </p>
         
-        <div className="flex flex-col gap-4 items-center">
-          <div className="flex flex-wrap justify-center gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Database className="h-4 w-4" />
-              <span>Check Supabase connection</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Key className="h-4 w-4" />
-              <span>Check GROQ_API_KEY is set</span>
-            </div>
-          </div>
-
-          <p className="text-xs text-muted-foreground max-w-sm">
-            Open Settings (top right) to verify Supabase is connected and environment variables are configured.
+        {details && (
+          <p className="text-xs text-muted-foreground/70 max-w-md mb-4 font-mono bg-white/50 px-3 py-2 rounded">
+            {details}
           </p>
-          
-          {showRetry && (
-            <Button variant="outline" onClick={handleRetry}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Retry Connection
-            </Button>
-          )}
-        </div>
+        )}
+        
+        {showRetry && (
+          <Button variant="outline" size="sm" onClick={handleRetry} className="mt-4">
+            <RefreshCw className="mr-2 h-3 w-3" />
+            Try Again
+          </Button>
+        )}
       </CardContent>
     </Card>
+  )
+}
+
+// Inline error for forms/inputs
+export function InlineError({ message }: { message: string }) {
+  return (
+    <div className="flex items-center gap-2 text-sm text-red-600 mt-1">
+      <XCircle className="h-3.5 w-3.5 flex-shrink-0" />
+      <span>{message}</span>
+    </div>
   )
 }

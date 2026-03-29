@@ -120,9 +120,6 @@ export function AppSidebar() {
         <SidebarMenu className="border-t border-sidebar-border pt-3">
           {bottomNav.map(renderNavItem)}
         </SidebarMenu>
-        <div className="text-[10px] text-muted-foreground text-center mt-4 px-3 py-2 bg-muted/30 rounded">
-          myhirewire.com
-        </div>
       </SidebarFooter>
     </Sidebar>
   )

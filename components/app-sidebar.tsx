@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
 import { usePathname } from "next/navigation"
+import { HireWireLogo } from "@/components/hirewire-logo"
 import {
   Briefcase,
   FileText,
@@ -88,16 +88,7 @@ export function AppSidebar() {
       
       <SidebarHeader className="px-4 py-5 relative z-10">
         <Link href="/" className="flex items-center justify-center">
-          <Image
-            src="/images/hirewire-logo.png"
-            alt="HireWire"
-            width={130}
-            height={46}
-            className="object-contain"
-            style={{ width: 'auto', height: 'auto' }}
-            priority
-            loading="eager"
-          />
+          <HireWireLogo variant="red" size="md" />
         </Link>
       </SidebarHeader>
       

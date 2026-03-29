@@ -53,8 +53,8 @@ export function DiagonalStripes({
     red: { stripe: "#BD0A0A", bg: "#ffffff" },
   }
 
-  const { width, height } = sizeMap[size]
-  const { stripe, bg } = colorMap[variant]
+  const { width, height } = sizeMap[size] ?? sizeMap.md
+  const { stripe, bg } = colorMap[variant as keyof typeof colorMap] ?? colorMap.black
   const stripeWidth = size === "sm" ? 8 : size === "md" ? 12 : 16
 
   return (
@@ -113,7 +113,8 @@ export function HazardTape({
     red: { stripe: "#BD0A0A", bg: "#ffffff" },
   }
 
-  const { stripe, bg } = colorMap[variant]
+  const colors = colorMap[variant] || colorMap.black
+  const { stripe, bg } = colors
   const stripeWidth = 10
 
   return (

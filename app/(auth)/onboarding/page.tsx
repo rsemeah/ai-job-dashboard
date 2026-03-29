@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Loader2, Briefcase, FileText, Target } from "lucide-react"
-import Image from "next/image"
+import { HireWireLogo } from "@/components/hirewire-logo"
 
 type OnboardingStep = "welcome" | "profile" | "path"
 
@@ -85,15 +85,9 @@ export default function OnboardingPage() {
       <div className="min-h-screen flex items-center justify-center p-6 bg-background">
         <Card className="w-full max-w-lg border-0 shadow-none lg:border lg:shadow-lg">
           <CardHeader className="text-center space-y-4">
-            <Image
-              src="/images/hirewire-logo.png"
-              alt="HireWire"
-              width={150}
-              height={53}
-              className="object-contain mx-auto"
-              priority
-              loading="eager"
-            />
+            <div className="flex justify-center">
+              <HireWireLogo variant="red" size="lg" />
+            </div>
             <CardTitle className="text-3xl font-serif">Welcome to HireWire</CardTitle>
             <CardDescription className="text-base">
               Stop guessing about job fit. HireWire analyzes opportunities, generates

@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import Image from "next/image"
 import Link from "next/link"
+import { HireWireLogo } from "@/components/hirewire-logo"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -114,15 +114,7 @@ export function Topbar() {
       
       {/* Mobile Logo - visible only when sidebar is collapsed on mobile */}
       <Link href="/" className="flex items-center gap-2 md:hidden">
-        <Image
-          src="/images/hirewire-logo.png"
-          alt="HireWire"
-          width={100}
-          height={36}
-          className="object-contain"
-          style={{ width: 'auto', height: 'auto' }}
-          loading="eager"
-        />
+        <HireWireLogo variant="red" size="sm" />
       </Link>
 
       {/* Global Search */}

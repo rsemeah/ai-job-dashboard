@@ -29,18 +29,10 @@ export function HireWireLogo({
   size = "md" 
 }: HireWireLogoProps) {
   // For light variant (on dark/red backgrounds), use CSS filter to invert to white
-  // For red/dark variants, use the red logo directly
   const isLight = variant === "light"
   
-  // Check if custom width is passed via className
-  const hasCustomSize = className?.includes("w-[") || className?.includes("h-[")
-  
   return (
-    <div className={cn(
-      !hasCustomSize && sizeClasses[size], 
-      "relative", 
-      className
-    )}>
+    <div className={cn("w-full", className)}>
       <Image
         src="/hirewire-logo-red.png"
         alt="HireWire"

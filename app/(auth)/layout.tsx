@@ -17,12 +17,14 @@ export default function AuthLayout({
         <DiagonalStripes position="bottom-right" size="lg" variant="white" opacity={0.1} />
         <div className="relative z-10 flex flex-col px-12 py-16 text-white h-full">
           {/* Large centered logo */}
-          <div className="w-full flex items-center justify-center flex-1">
-            <HireWireLogo variant="light" size="xl" className="w-[500px] max-w-[85%] h-auto" />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="w-[420px] max-w-[90%]">
+              <HireWireLogo variant="light" size="xl" />
+            </div>
           </div>
           
           {/* Main content at bottom */}
-          <div className="space-y-6 mt-auto">
+          <div className="space-y-6">
             <h1 className="text-4xl font-serif italic font-medium leading-tight">
               Know Before You Apply
             </h1>
@@ -58,9 +60,11 @@ export default function AuthLayout({
         <DiagonalStripes position="bottom-left" size="lg" variant="black" opacity={0.06} />
         
         <div className="w-full max-w-md relative z-10">
-          {/* Mobile logo */}
-          <div className="lg:hidden mb-8 flex justify-center">
-            <HireWireLogo variant="red" size="lg" />
+          {/* Mobile logo - positioned at top */}
+          <div className="lg:hidden mb-12 flex justify-center -mt-16">
+            <div className="w-48">
+              <HireWireLogo variant="red" size="lg" />
+            </div>
           </div>
           {children}
         </div>

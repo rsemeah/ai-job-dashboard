@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -100,6 +100,30 @@ const TEMPLATE_PREVIEWS: Record<ResumeTemplateType, string[]> = {
   ],
 }
 
+const STORAGE_KEY = "hw_template_settings"
+
+const DEFAULT_SCORING_WEIGHTS = {
+  skillsMatch: 30,
+  experienceRelevance: 25,
+  seniorityAlignment: 20,
+  atsKeywords: 15,
+  evidenceQuality: 10,
+}
+
+const DEFAULT_RESUME_RULES = {
+  maxBullets: 5,
+  requireMetrics: true,
+  requireActionVerbs: true,
+  maxPages: 2,
+}
+
+const DEFAULT_COVER_LETTER_RULES = {
+  maxParagraphs: 4,
+  requireCompanyMention: true,
+  requireRoleMention: true,
+  personalToneLevel: "professional",
+}
+
 export default function TemplatesPage() {
   // Template gallery state
   const [selectedTemplate, setSelectedTemplate] = useState<ResumeTemplateType>("technical_resume")
@@ -109,29 +133,29 @@ export default function TemplatesPage() {
   const [newPhrase, setNewPhrase] = useState("")
   
   // Scoring weights
-  const [scoringWeights, setScoringWeights] = useState({
-    skillsMatch: 30,
-    experienceRelevance: 25,
-    seniorityAlignment: 20,
-    atsKeywords: 15,
-    evidenceQuality: 10,
-  })
+  const [scoringWeights, setScoringWeights] = useState(DEFAULT_SCORING_WEIGHTS)
   
   // Resume rules
-  const [resumeRules, setResumeRules] = useState({
-    maxBullets: 5,
-    requireMetrics: true,
-    requireActionVerbs: true,
-    maxPages: 2,
-  })
+  const [resumeRules, setResumeRules] = useState(DEFAULT_RESUME_RULES)
   
   // Cover letter rules
-  const [coverLetterRules, setCoverLetterRules] = useState({
-    maxParagraphs: 4,
-    requireCompanyMention: true,
-    requireRoleMention: true,
-    personalToneLevel: "professional",
-  })
+  const [coverLetterRules, setCoverLetterRules] = useState(DEFAULT_COVER_LETTER_RULES)
+
+  // Load persisted settings from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      if (!stored) return
+      const parsed = JSON.parse(stored)
+      if (parsed.selectedTemplate) setSelectedTemplate(parsed.selectedTemplate)
+      if (parsed.customBannedPhrases) setCustomBannedPhrases(parsed.customBannedPhrases)
+      if (parsed.scoringWeights) setScoringWeights(parsed.scoringWeights)
+      if (parsed.resumeRules) setResumeRules(parsed.resumeRules)
+      if (parsed.coverLetterRules) setCoverLetterRules(parsed.coverLetterRules)
+    } catch {
+      // Ignore parse errors — defaults remain
+    }
+  }, [])
 
   function addBannedPhrase() {
     if (!newPhrase.trim()) return
@@ -149,31 +173,26 @@ export default function TemplatesPage() {
   }
 
   function saveSettings() {
-    // In a real app, this would persist to Supabase
-    toast.success("Settings saved successfully")
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        selectedTemplate,
+        customBannedPhrases,
+        scoringWeights,
+        resumeRules,
+        coverLetterRules,
+      }))
+      toast.success("Settings saved")
+    } catch {
+      toast.error("Failed to save settings")
+    }
   }
 
   function resetToDefaults() {
     setCustomBannedPhrases([])
-    setScoringWeights({
-      skillsMatch: 30,
-      experienceRelevance: 25,
-      seniorityAlignment: 20,
-      atsKeywords: 15,
-      evidenceQuality: 10,
-    })
-    setResumeRules({
-      maxBullets: 5,
-      requireMetrics: true,
-      requireActionVerbs: true,
-      maxPages: 2,
-    })
-    setCoverLetterRules({
-      maxParagraphs: 4,
-      requireCompanyMention: true,
-      requireRoleMention: true,
-      personalToneLevel: "professional",
-    })
+    setScoringWeights(DEFAULT_SCORING_WEIGHTS)
+    setResumeRules(DEFAULT_RESUME_RULES)
+    setCoverLetterRules(DEFAULT_COVER_LETTER_RULES)
+    localStorage.removeItem(STORAGE_KEY)
     toast.info("Settings reset to defaults")
   }
 

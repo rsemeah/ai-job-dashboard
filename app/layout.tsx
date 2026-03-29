@@ -24,7 +24,6 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'HireWire - Know Before You Apply',
   description: 'A premium job application engine that scores opportunities, generates tailored materials, and tracks your pipeline.',
-  generator: 'v0.app',
   icons: {
     icon: '/hirewire-icon.png',
     apple: '/hirewire-icon.png',

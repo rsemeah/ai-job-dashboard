@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Send } from "lucide-react"
 import { BackButton } from "@/components/back-button"
+import { normalizeJobStatus } from "@/lib/job-lifecycle"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -107,7 +108,7 @@ export default async function ApplicationsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-pink-500">
-                  {applications.filter(j => j.status === "interviewing").length}
+                  {applications.filter(j => normalizeJobStatus(j.status) === "interviewing").length}
                 </div>
               </CardContent>
             </Card>
@@ -119,7 +120,7 @@ export default async function ApplicationsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-emerald-500">
-                  {applications.filter(j => j.status === "offered").length}
+                  {applications.filter(j => normalizeJobStatus(j.status) === "offered").length}
                 </div>
               </CardContent>
             </Card>
@@ -177,7 +178,7 @@ export default async function ApplicationsPage() {
           </Card>
 
           {/* Interviews Section */}
-          {applications.filter(j => j.status === "interviewing").length > 0 && (
+          {applications.filter(j => normalizeJobStatus(j.status) === "interviewing").length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -188,7 +189,7 @@ export default async function ApplicationsPage() {
               <CardContent>
                 <div className="space-y-4">
                   {applications
-                    .filter(job => job.status === "interviewing")
+                    .filter(job => normalizeJobStatus(job.status) === "interviewing")
                     .map(job => (
                       <Link
                         key={job.id}

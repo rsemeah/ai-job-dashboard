@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import type { Job, JobStatus, JobFit, RoleFamily, GenerationStatus } from "@/lib/types"
 import { STATUS_CONFIG, FIT_CONFIG, ROLE_FAMILIES } from "@/lib/types"
+import { normalizeJobStatus } from "@/lib/job-lifecycle"
 import { updateJobStatus } from "@/lib/actions/jobs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -48,17 +49,19 @@ import { ExportButtons } from "@/components/export-buttons"
 
 // Available status transitions
 const STATUS_OPTIONS: JobStatus[] = [
-  "NEW",
-  "REVIEWING",
-  "SCORED",
-  "READY",
-  "APPLIED",
-  "INTERVIEWING",
-  "OFFERED",
-  "REJECTED",
-  "DECLINED",
-  "ARCHIVED",
-  "NEEDS_REVIEW",
+  "draft",
+  "queued",
+  "analyzing",
+  "analyzed",
+  "generating",
+  "ready",
+  "applied",
+  "interviewing",
+  "offered",
+  "rejected",
+  "archived",
+  "needs_review",
+  "error",
 ]
 
 interface JobDetailProps {
@@ -156,13 +159,15 @@ function GenerationStatusBanner({
   error, 
   attempts,
   onRetry,
-  isRetrying 
+  isRetrying,
+  retryCountdown = 0,
 }: { 
   status: GenerationStatus | null | undefined
   error: string | null | undefined
   attempts: number | null | undefined
   onRetry: () => void
   isRetrying: boolean
+  retryCountdown?: number
 }) {
   if (!status) return null
   
@@ -231,7 +236,7 @@ function GenerationStatusBanner({
           variant="outline" 
           size="sm" 
           onClick={onRetry}
-          disabled={isRetrying}
+          disabled={isRetrying || retryCountdown > 0}
           className="gap-2"
         >
           {isRetrying ? (
@@ -239,7 +244,7 @@ function GenerationStatusBanner({
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          {isRetrying ? "Retrying..." : "Retry Generation"}
+          {isRetrying ? "Retrying..." : retryCountdown > 0 ? `Retry in ${retryCountdown}s` : "Retry Generation"}
         </Button>
       )}
     </div>
@@ -248,10 +253,15 @@ function GenerationStatusBanner({
 
 export function JobDetail({ job }: JobDetailProps) {
   const router = useRouter()
-  const [status, setStatus] = useState<JobStatus>(job.status)
+  const [status, setStatus] = useState<JobStatus>(normalizeJobStatus(job.status))
   const [isPending, startTransition] = useTransition()
   const [isGenerating, setIsGenerating] = useState(false)
   const [candidateName, setCandidateName] = useState("Candidate")
+
+  // Sync local status when job prop updates (e.g. after router.refresh())
+  useEffect(() => {
+    setStatus(normalizeJobStatus(job.status))
+  }, [job.status])
 
   // Load candidate name from profile
   useEffect(() => {
@@ -279,9 +289,9 @@ export function JobDetail({ job }: JobDetailProps) {
   const hasResume = !!job.generated_resume
   const hasCoverLetter = !!job.generated_cover_letter
   const hasScore = job.score !== null
-  const isReadyToApply = status === "READY" || (hasResume && hasCoverLetter && hasScore)
-  const hasError = status === "ERROR"
-  const needsReview = status === "NEEDS_REVIEW"
+  const isReadyToApply = status === "ready" || (hasResume && hasCoverLetter && hasScore)
+  const hasError = status === "error"
+  const needsReview = status === "needs_review"
   
   // Export readiness - block if critical quality issues exist
   const criticalIssueCount = (job.generation_quality_issues || []).filter(
@@ -398,7 +408,7 @@ export function JobDetail({ job }: JobDetailProps) {
       toast.info("Mark as applied when done", {
         action: {
           label: "Mark Applied",
-          onClick: () => handleStatusChange("APPLIED"),
+          onClick: () => handleStatusChange("applied"),
         },
       })
     }, 1000)
@@ -623,7 +633,7 @@ export function JobDetail({ job }: JobDetailProps) {
                 />
               )}
               
-              <Button variant="outline" onClick={() => handleStatusChange("ARCHIVED")}>
+              <Button variant="outline" onClick={() => handleStatusChange("archived")}>
               <Save className="mr-2 h-4 w-4" />
               Save for Later
             </Button>
@@ -797,7 +807,11 @@ export function JobDetail({ job }: JobDetailProps) {
                 step={4}
                 title="Interview Prep"
                 description="Evidence-based interview coaching"
-                status={hasResume ? "not_started" : "not_started"}
+                status={
+                  !hasResume ? "blocked" :
+                  job.status === "ready" || job.status === "applied" || job.status === "interviewing" ? "not_started" :
+                  "not_started"
+                }
                 statusReason={hasResume ? "Ready to generate prep" : "Generate materials first"}
                 color="purple"
               />
@@ -1020,10 +1034,11 @@ export function JobDetail({ job }: JobDetailProps) {
           {/* Generation Status Banner */}
           <GenerationStatusBanner
             status={job.generation_status}
-            error={job.generation_error}
+            error={generationError ?? job.generation_error}
             attempts={job.generation_attempts}
             onRetry={handleGenerateMaterials}
             isRetrying={isGenerating}
+            retryCountdown={retryCountdown}
           />
           
           <Card className="mt-4">

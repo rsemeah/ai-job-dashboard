@@ -1,28 +1,23 @@
 import { Badge } from "@/components/ui/badge"
-import type { JobStatus, JobFit, STATUS_CONFIG } from "@/lib/types"
+import type { JobStatus, JobFit } from "@/lib/types"
+import { normalizeJobStatus } from "@/lib/job-lifecycle"
 import { cn } from "@/lib/utils"
-import { CheckCircle2, Circle, Loader2, Clock, AlertCircle, AlertTriangle, Copy, FileX } from "lucide-react"
+import { CheckCircle2, Circle, Loader2, Clock, AlertCircle, AlertTriangle, FileX } from "lucide-react"
 
 // Editorial status colors - subtle and sophisticated
 const statusColors: Record<JobStatus, string> = {
-  submitted: "bg-secondary text-foreground/70 border-border",
-  fetching: "bg-secondary text-foreground/70 border-border",
-  parsing: "bg-secondary text-foreground/70 border-border",
-  parsed: "bg-secondary text-foreground/80 border-border",
-  parsed_partial: "bg-amber-50 text-amber-700 border-amber-200",
-  duplicate: "bg-secondary text-muted-foreground border-border",
-  scoring: "bg-secondary text-foreground/70 border-border",
-  scored: "bg-secondary text-foreground/80 border-border",
-  below_threshold: "bg-orange-50 text-orange-700 border-orange-200",
-  generating_documents: "bg-secondary text-foreground/70 border-border",
-  manual_review_required: "bg-amber-50 text-amber-700 border-amber-200",
+  draft: "bg-secondary text-foreground/70 border-border",
+  queued: "bg-secondary text-foreground/70 border-border",
+  analyzing: "bg-secondary text-foreground/70 border-border",
+  analyzed: "bg-secondary text-foreground/80 border-border",
+  generating: "bg-secondary text-foreground/70 border-border",
   ready: "bg-primary/10 text-primary border-primary/20",
   applied: "bg-emerald-50 text-emerald-700 border-emerald-200",
   interviewing: "bg-blue-50 text-blue-700 border-blue-200",
   offered: "bg-emerald-50 text-emerald-700 border-emerald-200",
   rejected: "bg-secondary text-muted-foreground border-border",
-  declined: "bg-secondary text-muted-foreground border-border",
   archived: "bg-secondary text-muted-foreground border-border",
+  needs_review: "bg-amber-50 text-amber-700 border-amber-200",
   error: "bg-red-50 text-red-700 border-red-200",
 }
 
@@ -35,34 +30,28 @@ const fitColors: Record<string, string> = {
 
 // Status labels
 const statusLabels: Record<JobStatus, string> = {
-  submitted: "Submitted",
-  fetching: "Fetching",
-  parsing: "Parsing",
-  parsed: "Parsed",
-  parsed_partial: "Partial Parse",
-  duplicate: "Duplicate",
-  scoring: "Scoring",
-  scored: "Scored",
-  below_threshold: "Low Score",
-  generating_documents: "Generating",
-  manual_review_required: "Review Needed",
+  draft: "Draft",
+  queued: "Queued",
+  analyzing: "Analyzing",
+  analyzed: "Analyzed",
+  generating: "Generating",
   ready: "Ready",
   applied: "Applied",
   interviewing: "Interview",
   offered: "Offer",
   rejected: "Rejected",
-  declined: "Declined",
   archived: "Archived",
+  needs_review: "Review Needed",
   error: "Error",
 }
 
 // Processing states
 const processingStatuses: JobStatus[] = [
-  "submitted", "fetching", "parsing", "scoring", "generating_documents"
+  "queued", "analyzing", "generating"
 ]
 
 export function StatusBadge({ status }: { status: JobStatus | string | null | undefined }) {
-  const safeStatus = (status as JobStatus) || "submitted"
+  const safeStatus = normalizeJobStatus(status, "draft")
   const colorClass = statusColors[safeStatus] || "bg-muted/50 text-muted-foreground"
   const label = statusLabels[safeStatus] || safeStatus
   
@@ -81,7 +70,7 @@ export function StatusBadgeWithIndicator({
 }: { 
   status: JobStatus | string | null | undefined
 }) {
-  const safeStatus = (status as JobStatus) || "submitted"
+  const safeStatus = normalizeJobStatus(status, "draft")
   const colorClass = statusColors[safeStatus] || "bg-muted/50 text-muted-foreground"
   const label = statusLabels[safeStatus] || safeStatus
   const isProcessing = processingStatuses.includes(safeStatus)
@@ -103,30 +92,23 @@ function StatusIcon({ status, isProcessing }: { status: JobStatus; isProcessing?
   }
 
   switch (status) {
-    case "submitted":
-    case "fetching":
-    case "parsing":
-    case "scoring":
-    case "generating_documents":
+    case "queued":
+    case "analyzing":
+    case "generating":
       return <Loader2 className="h-3 w-3 animate-spin" />
-    case "parsed":
-    case "scored":
+    case "draft":
+    case "analyzed":
     case "ready":
     case "offered":
       return <CheckCircle2 className="h-3 w-3" />
-    case "parsed_partial":
-    case "manual_review_required":
-    case "below_threshold":
+    case "needs_review":
       return <AlertTriangle className="h-3 w-3" />
-    case "duplicate":
-      return <Copy className="h-3 w-3" />
     case "applied":
     case "interviewing":
       return <Clock className="h-3 w-3" />
     case "error":
     case "rejected":
       return <AlertCircle className="h-3 w-3" />
-    case "declined":
     case "archived":
       return <FileX className="h-3 w-3" />
     default:

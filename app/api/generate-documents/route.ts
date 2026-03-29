@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createGroq } from "@ai-sdk/groq"
 import { generateObject, generateText } from "ai"
 import { z } from "zod"
-import { createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import {
   BANNED_PHRASES,
   detectBannedPhrases,
@@ -92,11 +92,11 @@ const QualityCheckSchema = z.object({
   improvement_suggestions: z.array(z.string()).describe("Specific suggestions to improve weak sections"),
 })
 
-async function loadUserProfile(supabase: ReturnType<typeof createAdminClient>) {
+async function loadUserProfile(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data: profile, error } = await supabase
     .from("user_profile")
     .select("*")
-    .limit(1)
+    .eq("user_id", userId)
     .maybeSingle()
 
   if (error || !profile) {
@@ -106,10 +106,11 @@ async function loadUserProfile(supabase: ReturnType<typeof createAdminClient>) {
   return profile
 }
 
-async function loadEvidenceLibrary(supabase: ReturnType<typeof createAdminClient>) {
+async function loadEvidenceLibrary(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data: evidence, error } = await supabase
     .from("evidence_library")
     .select("*")
+    .eq("user_id", userId)
     .eq("is_active", true)
     .order("priority_rank", { ascending: false })
 
@@ -120,7 +121,7 @@ async function loadEvidenceLibrary(supabase: ReturnType<typeof createAdminClient
   return evidence || []
 }
 
-async function loadJobAnalysis(supabase: ReturnType<typeof createAdminClient>, jobId: string) {
+async function loadJobAnalysis(supabase: Awaited<ReturnType<typeof createClient>>, jobId: string, userId: string) {
   const { data: job, error } = await supabase
     .from("jobs")
     .select(`
@@ -128,6 +129,7 @@ async function loadJobAnalysis(supabase: ReturnType<typeof createAdminClient>, j
       job_analyses (*)
     `)
     .eq("id", jobId)
+    .eq("user_id", userId)
     .single()
 
   if (error || !job) {
@@ -194,24 +196,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = createAdminClient()
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      )
+    }
 
     // Set status to 'generating' immediately
     await supabase
       .from("jobs")
       .update({ 
+        status: "generating",
         generation_status: "generating",
         generation_error: null,
         generation_attempts: _retry_count + 1,
         last_generation_at: new Date().toISOString()
       })
       .eq("id", job_id)
+      .eq("user_id", user.id)
 
     // Load all required data in parallel
     const [profile, allEvidence, jobData] = await Promise.all([
-      loadUserProfile(supabase),
-      loadEvidenceLibrary(supabase),
-      loadJobAnalysis(supabase, job_id),
+      loadUserProfile(supabase, user.id),
+      loadEvidenceLibrary(supabase, user.id),
+      loadJobAnalysis(supabase, job_id, user.id),
     ])
 
     if (!profile) {
@@ -340,6 +355,9 @@ ${jobAnalysis.qualifications_preferred.map((q: string) => `- ${q}`).join("\n")}`
 
 ${jobAnalysis?.keywords?.length ? `Important Keywords: ${jobAnalysis.keywords.join(", ")}` : ""}
 ${jobAnalysis?.ats_phrases?.length ? `ATS Phrases to Include: ${jobAnalysis.ats_phrases.join(", ")}` : ""}
+${!jobAnalysis && jobData.raw_description ? `
+Full Job Description (manually entered — extract responsibilities and keywords from this):
+${(jobData.raw_description as string).slice(0, 3000)}` : ""}
 `
 
     // Step 1: Create evidence map and determine strategy
@@ -374,6 +392,16 @@ Be conservative - only include matches that are clearly supported by the evidenc
 
     // Block generation if strategy is "do_not_generate"
     if (strategy === "do_not_generate") {
+      await supabase
+        .from("jobs")
+        .update({
+          status: "error",
+          generation_status: "failed",
+          generation_error: "Generation blocked: role too much of a stretch",
+        })
+        .eq("id", job_id)
+        .eq("user_id", user.id)
+
       return NextResponse.json({
         success: false,
         error: "Generation blocked: This role is too much of a stretch.",
@@ -483,7 +511,7 @@ Generate 5-8 strong achievement bullets with full provenance. More bullets is be
           description: exp.description,
         })),
       },
-      evidence
+      allEvidence
     )
 
     // Generate Selected Products section if we have named products with artifacts
@@ -725,7 +753,7 @@ Be strict - flag anything that seems fabricated or generic.`,
           paragraph_provenance: paragraphProvenance,
           blocked_evidence: blockedEvidence.map((e: { id: string; source_title: string }) => ({ id: e.id, title: e.source_title, reason: getEvidenceUsageRule(e) }))
         },
-        status: "SCORED",
+        status: qualityPassed ? "ready" : "needs_review",
         scored_at: new Date().toISOString(),
         generation_timestamp: new Date().toISOString(),
         generation_status: qualityPassed ? "ready" : "needs_review",
@@ -742,6 +770,7 @@ Be strict - flag anything that seems fabricated or generic.`,
         quality_passed: qualityPassed,
       })
       .eq("id", job_id)
+      .eq("user_id", user.id)
 
     if (updateError) {
       console.error("Error updating job:", updateError)
@@ -759,10 +788,12 @@ Be strict - flag anything that seems fabricated or generic.`,
           ats_match_score: evidenceMap.fit_score,
         })
         .eq("id", jobAnalysis.id)
+        .eq("user_id", user.id)
     }
 
     // Save quality check
     await supabase.from("generation_quality_checks").insert({
+      user_id: user.id,
       job_id,
       document_type: "resume",
       invented_claims_found: qualityCheck.invented_claims,
@@ -847,14 +878,21 @@ Be strict - flag anything that seems fabricated or generic.`,
     try {
       const { job_id } = await request.clone().json()
       if (job_id) {
-        const supabase = createAdminClient()
-        await supabase
-          .from("jobs")
-          .update({ 
-            generation_status: "failed",
-            generation_error: errorMessage
-          })
-          .eq("id", job_id)
+        const supabase = await createClient()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (user) {
+          await supabase
+            .from("jobs")
+            .update({ 
+              status: "error",
+              generation_status: "failed",
+              generation_error: errorMessage
+            })
+            .eq("id", job_id)
+            .eq("user_id", user.id)
+        }
       }
     } catch {
       // Ignore errors updating status

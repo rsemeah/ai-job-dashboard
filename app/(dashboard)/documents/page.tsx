@@ -98,8 +98,19 @@ export default function DocumentsPage() {
   useEffect(() => {
     async function loadDocuments() {
       try {
-        const { createBrowserClient } = await import("@/lib/supabase/client")
-        const supabase = createBrowserClient()
+        const { createClient } = await import("@/lib/supabase/client")
+        const supabase = createClient()
+
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (!user) {
+          setJobs([])
+          setFilteredJobs([])
+          setLoading(false)
+          return
+        }
         
         // Load all jobs that have generation status or generated materials
         const { data: jobsData, error } = await supabase
@@ -116,6 +127,7 @@ export default function DocumentsPage() {
             quality_passed,
             created_at
           `)
+          .eq("user_id", user.id)
           .or("generated_resume.not.is.null,generation_status.not.is.null")
           .order("generation_timestamp", { ascending: false, nullsFirst: false })
         
@@ -125,7 +137,7 @@ export default function DocumentsPage() {
         const { data: profileData } = await supabase
           .from("user_profile")
           .select("full_name")
-          .limit(1)
+          .eq("user_id", user.id)
           .maybeSingle()
         
         if (profileData?.full_name) {
@@ -439,7 +451,7 @@ export default function DocumentsPage() {
                     
                     {/* Actions */}
                     <div className="flex items-center gap-2 shrink-0">
-                      {(hasResume || hasCoverLetter) && (
+                      {status === "ready" && (hasResume || hasCoverLetter) && (
                         <ExportButtons
                           jobId={job.id}
                           hasResume={hasResume}
@@ -450,6 +462,12 @@ export default function DocumentsPage() {
                           company={job.company}
                           role={job.title}
                         />
+                      )}
+
+                      {status !== "ready" && (
+                        <Badge variant="outline" className="text-xs">
+                          Awaiting readiness
+                        </Badge>
                       )}
                       
                       <Link href={`/jobs/${job.id}`}>

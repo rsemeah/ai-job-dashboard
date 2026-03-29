@@ -1,6 +1,7 @@
 "use client"
 
 import type { Job, JobStatus, JobFit } from "@/lib/types"
+import { normalizeJobStatus } from "@/lib/job-lifecycle"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   BarChart,
@@ -32,7 +33,7 @@ interface AnalyticsChartsProps {
 export function AnalyticsCharts({ jobs }: AnalyticsChartsProps) {
   // Status distribution (using canonical statuses)
   const statusCounts = jobs.reduce((acc, job) => {
-    const status = job.status || "submitted"
+    const status = normalizeJobStatus(job.status)
     acc[status] = (acc[status] || 0) + 1
     return acc
   }, {} as Record<string, number>)
@@ -90,12 +91,12 @@ export function AnalyticsCharts({ jobs }: AnalyticsChartsProps) {
   const totalJobs = jobs.length
   const scoredJobs = jobs.filter(j => j.score !== null).length
   const appliedJobs = jobs.filter(j => 
-    ["applied", "interviewing", "offered"].includes(j.status || "")
+    ["applied", "interviewing", "offered"].includes(normalizeJobStatus(j.status))
   ).length
   const interviewJobs = jobs.filter(j => 
-    ["interviewing", "offered"].includes(j.status || "")
+    ["interviewing", "offered"].includes(normalizeJobStatus(j.status))
   ).length
-  const offerJobs = jobs.filter(j => j.status === "offered").length
+  const offerJobs = jobs.filter(j => normalizeJobStatus(j.status) === "offered").length
 
   const conversionData = [
     { stage: "Total", value: totalJobs },

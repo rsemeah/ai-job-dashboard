@@ -5,6 +5,7 @@ import { useState, useMemo } from "react"
 import Link from "next/link"
 import type { Job, JobStatus, JobFit, RoleFamily, GenerationStatus } from "@/lib/types"
 import { STATUS_CONFIG, FIT_CONFIG, STATUS_GROUPS, ROLE_FAMILIES, INDUSTRIES } from "@/lib/types"
+import { normalizeJobStatus } from "@/lib/job-lifecycle"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,10 +42,10 @@ import {
 
 // Status groupings for the view
 const STATUS_GROUP_CONFIG = {
-  active: { label: "Active", statuses: ["NEW", "REVIEWING", "GENERATING", "SCORED", "READY"], color: "blue" },
-  applied: { label: "Applied", statuses: ["APPLIED", "INTERVIEWING", "OFFERED"], color: "green" },
-  attention: { label: "Needs Attention", statuses: ["NEEDS_REVIEW", "ERROR"], color: "amber" },
-  closed: { label: "Closed", statuses: ["REJECTED", "DECLINED", "ARCHIVED"], color: "gray" },
+  active: { label: "Active", statuses: ["draft", "queued", "analyzing", "analyzed", "generating", "ready"], color: "blue" },
+  applied: { label: "Applied", statuses: ["applied", "interviewing", "offered"], color: "green" },
+  attention: { label: "Needs Attention", statuses: ["needs_review", "error"], color: "amber" },
+  closed: { label: "Closed", statuses: ["rejected", "archived"], color: "gray" },
 } as const
 
 type StatusGroup = keyof typeof STATUS_GROUP_CONFIG
@@ -352,7 +353,7 @@ export function JobsTable({ jobs }: JobsTableProps) {
     }
 
     filteredJobs.forEach((job) => {
-      const status = job.status
+      const status = normalizeJobStatus(job.status)
       if (STATUS_GROUP_CONFIG.active.statuses.includes(status as any)) {
         groups.active.push(job)
       } else if (STATUS_GROUP_CONFIG.applied.statuses.includes(status as any)) {

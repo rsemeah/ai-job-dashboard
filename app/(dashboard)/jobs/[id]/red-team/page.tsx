@@ -135,7 +135,7 @@ export default function RedTeamReviewPage() {
       .from("jobs")
       .update({
         quality_passed: true,
-        status: "READY",
+        status: "ready",
         generation_quality_issues: activeIssues.map(i => `${i.type}: ${i.original_text.substring(0, 50)}`),
       })
       .eq("id", jobId)

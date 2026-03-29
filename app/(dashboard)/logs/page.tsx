@@ -22,6 +22,8 @@ import {
 import Link from "next/link"
 import type { ProcessingEventType, Job } from "@/lib/types"
 import { BackButton } from "@/components/back-button"
+import { listRunLedger } from "@/lib/logs/runLedger"
+import { normalizeJobStatus } from "@/lib/job-lifecycle"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -32,6 +34,25 @@ const eventConfig: Record<string, {
   icon: typeof CheckCircle2
   color: string 
 }> = {
+  // ── Run Ledger step event types (canonical orchestration) ──────────────────
+  intake_success: { label: "Job Received", icon: Download, color: "text-blue-500" },
+  intake_started: { label: "Processing Started", icon: Clock, color: "text-blue-400" },
+  intake_error: { label: "Intake Error", icon: XCircle, color: "text-red-500" },
+  load_job_success: { label: "Job Loaded", icon: CheckCircle2, color: "text-green-500" },
+  load_job_error: { label: "Job Not Found", icon: XCircle, color: "text-red-500" },
+  analysis_started: { label: "Analyzing Job", icon: FileSearch, color: "text-purple-400" },
+  analysis_success: { label: "Analysis Complete", icon: CheckCircle2, color: "text-green-500" },
+  analysis_skipped: { label: "Analysis Skipped", icon: ArrowRight, color: "text-gray-400" },
+  analysis_error: { label: "Analysis Failed", icon: XCircle, color: "text-red-500" },
+  generate_documents_started: { label: "Generating Documents", icon: Sparkles, color: "text-indigo-400" },
+  generate_documents_success: { label: "Documents Ready", icon: CheckCircle2, color: "text-emerald-500" },
+  generate_documents_error: { label: "Generation Failed", icon: XCircle, color: "text-red-500" },
+  generate_documents_skipped: { label: "Generation Skipped", icon: ArrowRight, color: "text-gray-400" },
+  interview_prep_started: { label: "Generating Interview Prep", icon: Sparkles, color: "text-blue-400" },
+  interview_prep_success: { label: "Interview Prep Ready", icon: CheckCircle2, color: "text-green-500" },
+  interview_prep_error: { label: "Interview Prep Failed", icon: XCircle, color: "text-red-500" },
+  interview_prep_skipped: { label: "Interview Prep Skipped", icon: ArrowRight, color: "text-gray-400" },
+  // ── Legacy processing_events types (n8n era fallback) ─────────────────────
   intake_received: { label: "Job Received", icon: Download, color: "text-blue-500" },
   fetch_started: { label: "Fetching Page", icon: Clock, color: "text-blue-400" },
   fetch_complete: { label: "Page Fetched", icon: CheckCircle2, color: "text-green-500" },
@@ -50,7 +71,6 @@ const eventConfig: Record<string, {
   manual_review_required: { label: "Review Needed", icon: AlertTriangle, color: "text-amber-500" },
   status_changed: { label: "Status Changed", icon: ArrowRight, color: "text-blue-400" },
   error: { label: "Error", icon: AlertCircle, color: "text-red-500" },
-  // Fallback activity types
   created: { label: "Job Added", icon: Briefcase, color: "text-blue-500" },
   scored: { label: "Scored", icon: CheckCircle2, color: "text-emerald-500" },
   applied: { label: "Applied", icon: ArrowRight, color: "text-blue-500" },
@@ -65,7 +85,7 @@ export default async function LogsPage() {
     redirect("/login")
   }
 
-  // Try to fetch processing_events if table exists
+  // Try to fetch run ledger first, then processing_events.
   let hasEventsTable = false
   let events: Array<{
     id: string
@@ -76,15 +96,31 @@ export default async function LogsPage() {
     created_at: string
   }> = []
 
-  const { data: eventsData, error: eventsError } = await supabase
-    .from("processing_events")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(100)
-
-  if (!eventsError && eventsData) {
+  const ledgerRows = await listRunLedger(supabase, user.id, 100)
+  if (ledgerRows.length > 0) {
     hasEventsTable = true
-    events = eventsData
+    events = ledgerRows.map((row) => ({
+      id: String(row.id || `${row.job_id || "job"}-${row.step_name || row.event_type || "event"}-${row.timestamp || row.created_at}`),
+      job_id: String(row.job_id || ""),
+      event_type: String(row.event_type || `${row.step_name || "step"}_${row.status || "success"}`),
+      message: (row.summary_result as string) || (row.message as string) || (row.error_details as string) || undefined,
+      metadata: (row.metadata as Record<string, unknown>) || undefined,
+      created_at: String(row.timestamp || row.created_at || new Date().toISOString()),
+    }))
+  }
+
+  if (!hasEventsTable) {
+    const { data: eventsData, error: eventsError } = await supabase
+      .from("processing_events")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(100)
+
+    if (!eventsError && eventsData) {
+      hasEventsTable = true
+      events = eventsData
+    }
   }
 
   // Always fetch recent jobs for fallback/enrichment - filtered by user
@@ -154,7 +190,7 @@ export default async function LogsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-emerald-500">
-                {events.filter(e => e.event_type.includes("complete")).length}
+                {events.filter(e => e.event_type.endsWith("_success") || e.event_type.includes("complete")).length}
               </div>
             </CardContent>
           </Card>
@@ -166,7 +202,7 @@ export default async function LogsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-500">
-                {events.filter(e => e.event_type.includes("failed") || e.event_type === "error").length}
+                {events.filter(e => e.event_type.endsWith("_error") || e.event_type.includes("failed") || e.event_type === "error").length}
               </div>
             </CardContent>
           </Card>
@@ -258,7 +294,7 @@ export default async function LogsPage() {
       })
     }
     
-    if (job.status === "applied" && job.created_at) {
+    if (normalizeJobStatus(job.status) === "applied" && job.created_at) {
       items.push({
         id: `${job.id}-applied`,
         type: "applied",

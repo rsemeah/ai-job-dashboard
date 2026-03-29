@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { Rocket, CheckCircle, FileText, Mail, ArrowRight, ExternalLink } from "lucide-react"
 import { ReadyJobActions } from "./ready-job-actions"
 import { BackButton } from "@/components/back-button"
+import { normalizeJobStatus } from "@/lib/job-lifecycle"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -45,15 +46,17 @@ export default async function ReadyQueuePage() {
     )
   }
 
-  // Filter for jobs that are ready to apply (using UPPERCASE statuses to match DB)
-  const readyJobs = result.data.filter(job => 
-    (job.status === "READY" || 
-     job.status === "MANUAL_REVIEW_REQUIRED" ||
-     job.status === "SCORED" ||
-     (job.fit === "HIGH" && job.score !== null && job.score >= 60)) &&
-    job.status !== "APPLIED" &&
-    job.status !== "ARCHIVED"
-  ).sort((a, b) => (b.score || 0) - (a.score || 0))
+  const readyJobs = result.data
+    .filter((job) => {
+      const status = normalizeJobStatus(job.status)
+      return (
+        (status === "ready" || status === "needs_review" || status === "analyzed" ||
+          (job.fit === "HIGH" && job.score !== null && job.score >= 60)) &&
+        status !== "applied" &&
+        status !== "archived"
+      )
+    })
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
 
   // Jobs with complete materials
   const completeJobs = readyJobs.filter(job => job.generated_resume && job.generated_cover_letter)

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { CardWireAccent, CTAWireUnderline, BarbedWireLine, EmptyStateWire, HeaderTexture } from "@/components/barbed-wire"
 import { useUser } from "@/components/user-provider"
 import type { Job } from "@/lib/types"
+import { toast } from "sonner"
 import {
   Search,
   Zap,
@@ -129,17 +130,29 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
 
   const firstName = profile?.full_name?.split(" ")[0] || "there"
 
+  const isMalformedJob = (job: Job) => {
+    const patterns = [/^placeholder/i, /^test/i, /^unknown$/i, /^n\/a$/i]
+    return (
+      !job.title ||
+      !job.company ||
+      patterns.some((p) => p.test(job.title)) ||
+      patterns.some((p) => p.test(job.company))
+    )
+  }
+
+  const cleanJobs = jobs.filter((job) => !isMalformedJob(job))
+
   // Get recent jobs (last 5)
-  const recentJobs = jobs.slice(0, 5)
+  const recentJobs = cleanJobs.slice(0, 5)
   
   // Get jobs with documents
-  const jobsWithDocs = jobs.filter(j => j.generated_resume || j.generated_cover_letter).slice(0, 4)
+  const jobsWithDocs = cleanJobs.filter(j => j.generated_resume || j.generated_cover_letter).slice(0, 4)
   
   // Calculate high fit count
   const highFitCount = stats.byFit["HIGH"] || 0
   
   // Best match score
-  const bestMatch = jobs.length > 0 ? Math.max(...jobs.map(j => j.score || 0)) : 0
+  const bestMatch = cleanJobs.length > 0 ? Math.max(...cleanJobs.map(j => j.score || 0)) : 0
 
   const handleAnalyze = async () => {
     if (!jobUrl.trim()) return
@@ -149,15 +162,31 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: jobUrl }),
+        body: JSON.stringify({ job_url: jobUrl }),
       })
       
       const data = await response.json()
-      if (data.success && data.job_id) {
+
+      if (response.status === 429) {
+        const wait = data.retryAfter || 30
+        toast.warning(`AI service is busy. Please wait ${wait} seconds and try again.`)
+        return
+      }
+
+      if (!data.success) {
+        toast.error(data.error || "Analysis failed — check the URL and try again.")
+        return
+      }
+
+      if (data.job_id) {
+        if (data.duplicate) {
+          toast.info("Already in your pipeline", { description: data.message })
+        }
         router.push(`/jobs/${data.job_id}`)
       }
     } catch (error) {
       console.error("Analysis failed:", error)
+      toast.error("Connection error — please check your internet and try again.")
     } finally {
       setIsAnalyzing(false)
     }
@@ -275,7 +304,7 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
                         {job.title || "Untitled Position"}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {job.company || "Unknown Company"}
+                        {job.company}
                       </p>
                       <p className="text-[10px] text-muted-foreground/70 mt-0.5">
                         {job.fit === "HIGH" ? "Strong fit for your profile" : "Analyzing fit..."}
@@ -360,11 +389,11 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
                 <div className="text-xs text-muted-foreground">High Fit</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{stats.byStatus["READY"] || 0}</div>
+                  <div className="text-2xl font-bold text-blue-600">{stats.byStatus["ready"] || 0}</div>
                 <div className="text-xs text-muted-foreground">Ready</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">{stats.byStatus["APPLIED"] || 0}</div>
+                <div className="text-2xl font-bold text-purple-600">{stats.byStatus["applied"] || 0}</div>
                 <div className="text-xs text-muted-foreground">Applied</div>
               </div>
             </div>

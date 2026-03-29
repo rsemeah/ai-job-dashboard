@@ -30,18 +30,14 @@ interface DashboardChartsProps {
 const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))"]
 
 export function DashboardCharts({ stats, jobs }: DashboardChartsProps) {
-  // Aggregate pipeline stages from canonical statuses
-  const submitted = (stats.byStatus["submitted"] || 0) + 
-                    (stats.byStatus["fetching"] || 0) + 
-                    (stats.byStatus["parsing"] || 0)
-  const parsed = (stats.byStatus["parsed"] || 0) + 
-                 (stats.byStatus["parsed_partial"] || 0)
-  const scored = (stats.byStatus["scoring"] || 0) + 
-                 (stats.byStatus["scored"] || 0) + 
-                 (stats.byStatus["below_threshold"] || 0)
-  const ready = (stats.byStatus["generating_documents"] || 0) + 
-                (stats.byStatus["ready"] || 0) + 
-                (stats.byStatus["manual_review_required"] || 0)
+  // Aggregate pipeline stages using canonical status keys only
+  const submitted = (stats.byStatus["draft"] || 0) +
+                    (stats.byStatus["queued"] || 0) +
+                    (stats.byStatus["analyzing"] || 0)
+  const parsed = (stats.byStatus["analyzed"] || 0)
+  const scored = (stats.byStatus["generating"] || 0) +
+                 (stats.byStatus["needs_review"] || 0)
+  const ready = (stats.byStatus["ready"] || 0)
   const applied = (stats.byStatus["applied"] || 0) + 
                   (stats.byStatus["interviewing"] || 0) + 
                   (stats.byStatus["offered"] || 0)

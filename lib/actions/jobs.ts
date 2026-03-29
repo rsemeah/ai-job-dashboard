@@ -1,8 +1,9 @@
 "use server"
 
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { Job, JobStatus } from "@/lib/types"
+import { normalizeJobStatus } from "@/lib/job-lifecycle"
 
 export type JobsResult =
   | { success: true; data: Job[] }
@@ -37,7 +38,6 @@ export type GenerateDocumentsResult =
       job_id: string
       evidence_map: {
         fit_score: number
-        fit_rationale: string
         matched_skills: string[]
         matched_tools: string[]
         matched_experiences: Array<{
@@ -341,9 +341,11 @@ export async function updateJobStatus(
     return { success: false, error: "Not authenticated" }
   }
 
+  const canonicalStatus = normalizeJobStatus(status)
+
   const { error } = await supabase
     .from("jobs")
-    .update({ status })
+    .update({ status: canonicalStatus })
     .eq("id", id)
     .eq("user_id", user.id) // Ensure user can only update their own jobs
 
@@ -410,7 +412,7 @@ export async function getJobStats(): Promise<StatsResult> {
     const jobs = data || []
 
     const byStatus = jobs.reduce((acc, job) => {
-      const currentStatus = job.status || "submitted"
+      const currentStatus = normalizeJobStatus(job.status)
       acc[currentStatus] = (acc[currentStatus] || 0) + 1
       return acc
     }, {} as Record<string, number>)

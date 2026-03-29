@@ -195,7 +195,7 @@ export default function ScoringCenterPage() {
       return
     }
     
-    const newStatus = choice === "apply" ? "READY" : "ARCHIVED"
+    const newStatus = choice === "apply" ? "ready" : "archived"
     
     const { error } = await supabase
       .from("jobs")

@@ -107,7 +107,7 @@ export default function ManualEntryPage() {
           location: formData.location.trim() || (formData.is_remote ? "Remote" : null),
           salary_range: formData.salary_range.trim() || null,
           source: "MANUAL",
-          status: "NEW",
+          status: "queued",
           fit: null,
           user_id: user.id,
         })
@@ -118,8 +118,19 @@ export default function ManualEntryPage() {
         throw insertError
       }
 
+      if (job?.id) {
+        // Kick off orchestration in the background for deterministic step tracking.
+        fetch(`/api/jobs/${job.id}/run-flow`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trigger_interview_prep: false }),
+        }).catch((orchestrationError) => {
+          console.error("Failed to trigger orchestration:", orchestrationError)
+        })
+      }
+
       toast.success("Job added to your review queue", {
-        description: `"${formData.title}" at ${formData.company} will be analyzed shortly.`,
+        description: `"${formData.title}" at ${formData.company} has entered the orchestration queue.`,
       })
 
       // Redirect to the new job or jobs list

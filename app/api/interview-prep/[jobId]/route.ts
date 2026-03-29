@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 
 export async function GET(
   request: NextRequest,
@@ -15,12 +15,25 @@ export async function GET(
       )
     }
 
-    const supabase = createAdminClient()
+    const supabase = await createClient()
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { success: false, error: "Not authenticated" },
+        { status: 401 }
+      )
+    }
 
     const { data, error } = await supabase
       .from("interview_prep")
       .select("*")
       .eq("job_id", jobId)
+      .eq("user_id", user.id)
       .maybeSingle()
 
     if (error) {
@@ -61,13 +74,33 @@ export async function PATCH(
       )
     }
 
-    const supabase = createAdminClient()
+    if (!["strong", "weak", "needs_proof"].includes(rating)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid rating value" },
+        { status: 400 }
+      )
+    }
+
+    const supabase = await createClient()
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { success: false, error: "Not authenticated" },
+        { status: 401 }
+      )
+    }
 
     // Get current interview prep
     const { data: prep, error: fetchError } = await supabase
       .from("interview_prep")
       .select("user_marked_stories")
       .eq("job_id", jobId)
+      .eq("user_id", user.id)
       .single()
 
     if (fetchError || !prep) {
@@ -99,6 +132,7 @@ export async function PATCH(
       .from("interview_prep")
       .update({ user_marked_stories: currentMarks })
       .eq("job_id", jobId)
+      .eq("user_id", user.id)
 
     if (updateError) {
       return NextResponse.json(

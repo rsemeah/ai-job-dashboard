@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { createGroq } from "@ai-sdk/groq"
 import { generateObject } from "ai"
 import { z } from "zod"
-import { createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
+import { runJobFlow } from "@/lib/orchestrator/runJobFlow"
 
 const groq = createGroq({
   apiKey: process.env.GROQ_API_KEY,
@@ -212,7 +213,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = createAdminClient()
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      )
+    }
     const source = detectSource(job_url)
 
     // Check for existing job with this URL
@@ -220,6 +232,7 @@ export async function POST(request: NextRequest) {
       .from("jobs")
       .select("*")
       .eq("source_url", job_url)
+      .eq("user_id", user.id)
       .maybeSingle()
 
     if (existingJob) {
@@ -304,6 +317,7 @@ Extract the job details following the schema. Be accurate with the role_family c
     const { data: job, error: insertError } = await supabase
       .from("jobs")
       .insert({
+        user_id: user.id,
         title: analysis.title,
         company: analysis.company,
         source: source,
@@ -326,7 +340,7 @@ Extract the job details following the schema. Be accurate with the role_family c
         score: fitResult.score,
         score_strengths: fitResult.reasoning.filter(r => !r.includes("not")),
         score_gaps: fitResult.reasoning.filter(r => r.includes("not")),
-        status: "NEW",
+        status: "analyzed",
         analyzed_at: new Date().toISOString(),
       })
       .select()
@@ -342,6 +356,7 @@ Extract the job details following the schema. Be accurate with the role_family c
 
     // Create detailed analysis record
     await supabase.from("job_analyses").insert({
+      user_id: user.id,
       job_id: job.id,
       title: analysis.title,
       company: analysis.company,
@@ -359,45 +374,21 @@ Extract the job details following the schema. Be accurate with the role_family c
       analysis_version: "2.0-truthserum",
     })
 
-    // AUTO-GENERATE: Immediately trigger document generation after successful analysis
-    // This ensures the user sees complete materials without manual intervention
-    let generationResult = null
-    let generationError = null
-    
-    try {
-      // Construct the base URL using Vercel environment variables
-      const vercelUrl = process.env.VERCEL_URL || process.env.NEXT_PUBLIC_VERCEL_URL
-      const baseUrl = vercelUrl 
-        ? `https://${vercelUrl}` 
-        : (request.headers.get("origin") || `http://${request.headers.get("host") || "localhost:3000"}`)
-      
-      console.log("[v0] Calling generate-documents at:", `${baseUrl}/api/generate-documents`)
-      
-      // Call generate-documents API internally
-      const generateResponse = await fetch(`${baseUrl}/api/generate-documents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id: job.id }),
-      })
-      
-      generationResult = await generateResponse.json()
-      
-      if (!generationResult.success) {
-        generationError = generationResult.error
-        console.error("[v0] Auto-generation failed:", generationError)
-      } else {
-        console.log("[v0] Auto-generation successful for job:", job.id)
-      }
-    } catch (genErr) {
-      generationError = genErr instanceof Error ? genErr.message : "Auto-generation failed"
-      console.error("[v0] Auto-generation error:", genErr)
-    }
+    // Orchestrate the async flow through a single execution path.
+    const orchestration = await runJobFlow({
+      supabase,
+      request,
+      userId: user.id,
+      jobId: job.id,
+      triggerInterviewPrep: false,
+    })
 
     // Fetch the updated job with generated materials
     const { data: updatedJob } = await supabase
       .from("jobs")
       .select("*")
       .eq("id", job.id)
+      .eq("user_id", user.id)
       .single()
 
     return NextResponse.json({
@@ -425,11 +416,15 @@ Extract the job details following the schema. Be accurate with the role_family c
       job: updatedJob || job,
       // Include generation status so UI knows what happened
       generation: {
-        attempted: true,
-        success: generationResult?.success || false,
-        error: generationError,
-        strategy: generationResult?.strategy,
-        quality_passed: generationResult?.quality_check?.passed,
+        attempted: orchestration.generation?.attempted || false,
+        success: orchestration.generation?.success || false,
+        error: orchestration.generation?.error || null,
+        strategy: orchestration.generation?.strategy,
+        quality_passed: orchestration.generation?.quality_passed,
+      },
+      flow: {
+        success: orchestration.success,
+        steps: orchestration.steps,
       },
     })
   } catch (error) {

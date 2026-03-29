@@ -23,20 +23,20 @@ ALTER TABLE interview_prep ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth
 -- Interview bank
 ALTER TABLE interview_bank ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
 
--- Generated documents
-ALTER TABLE generated_documents ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
+-- Generated documents (legacy/optional)
+ALTER TABLE IF EXISTS generated_documents ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
 
--- Generation quality checks
-ALTER TABLE generation_quality_checks ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
+-- Generation quality checks (legacy/optional)
+ALTER TABLE IF EXISTS generation_quality_checks ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
 
 -- Processing events
 ALTER TABLE processing_events ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
 
--- Profile snapshots
-ALTER TABLE profile_snapshots ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
+-- Profile snapshots (legacy/optional)
+ALTER TABLE IF EXISTS profile_snapshots ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
 
--- Resumes
-ALTER TABLE resumes ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
+-- Resumes (legacy/optional)
+ALTER TABLE IF EXISTS resumes ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
 
 -- ============================================================================
 -- STEP 2: Create indexes for performance
@@ -57,11 +57,11 @@ ALTER TABLE job_analyses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_profile ENABLE ROW LEVEL SECURITY;
 ALTER TABLE interview_prep ENABLE ROW LEVEL SECURITY;
 ALTER TABLE interview_bank ENABLE ROW LEVEL SECURITY;
-ALTER TABLE generated_documents ENABLE ROW LEVEL SECURITY;
-ALTER TABLE generation_quality_checks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS generated_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS generation_quality_checks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE processing_events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE profile_snapshots ENABLE ROW LEVEL SECURITY;
-ALTER TABLE resumes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS profile_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS resumes ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- STEP 4: Drop old permissive policies on jobs
@@ -154,25 +154,35 @@ CREATE POLICY "interview_bank_update_own" ON interview_bank
 CREATE POLICY "interview_bank_delete_own" ON interview_bank
   FOR DELETE USING (auth.uid() = user_id);
 
--- Generated documents policies
-CREATE POLICY "documents_select_own" ON generated_documents
-  FOR SELECT USING (auth.uid() = user_id);
+-- Generated documents policies (legacy/optional)
+DO $$
+BEGIN
+  IF to_regclass('public.generated_documents') IS NOT NULL THEN
+    CREATE POLICY "documents_select_own" ON generated_documents
+      FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "documents_insert_own" ON generated_documents
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "documents_insert_own" ON generated_documents
+      FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "documents_update_own" ON generated_documents
-  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "documents_update_own" ON generated_documents
+      FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "documents_delete_own" ON generated_documents
-  FOR DELETE USING (auth.uid() = user_id);
+    CREATE POLICY "documents_delete_own" ON generated_documents
+      FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
--- Generation quality checks policies
-CREATE POLICY "quality_checks_select_own" ON generation_quality_checks
-  FOR SELECT USING (auth.uid() = user_id);
+-- Generation quality checks policies (legacy/optional)
+DO $$
+BEGIN
+  IF to_regclass('public.generation_quality_checks') IS NOT NULL THEN
+    CREATE POLICY "quality_checks_select_own" ON generation_quality_checks
+      FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "quality_checks_insert_own" ON generation_quality_checks
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "quality_checks_insert_own" ON generation_quality_checks
+      FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- Processing events policies
 CREATE POLICY "events_select_own" ON processing_events
@@ -181,22 +191,32 @@ CREATE POLICY "events_select_own" ON processing_events
 CREATE POLICY "events_insert_own" ON processing_events
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
--- Profile snapshots policies
-CREATE POLICY "snapshots_select_own" ON profile_snapshots
-  FOR SELECT USING (auth.uid() = user_id);
+-- Profile snapshots policies (legacy/optional)
+DO $$
+BEGIN
+  IF to_regclass('public.profile_snapshots') IS NOT NULL THEN
+    CREATE POLICY "snapshots_select_own" ON profile_snapshots
+      FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "snapshots_insert_own" ON profile_snapshots
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "snapshots_insert_own" ON profile_snapshots
+      FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
 
--- Resumes policies
-CREATE POLICY "resumes_select_own" ON resumes
-  FOR SELECT USING (auth.uid() = user_id);
+-- Resumes policies (legacy/optional)
+DO $$
+BEGIN
+  IF to_regclass('public.resumes') IS NOT NULL THEN
+    CREATE POLICY "resumes_select_own" ON resumes
+      FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "resumes_insert_own" ON resumes
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "resumes_insert_own" ON resumes
+      FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "resumes_update_own" ON resumes
-  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "resumes_update_own" ON resumes
+      FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "resumes_delete_own" ON resumes
-  FOR DELETE USING (auth.uid() = user_id);
+    CREATE POLICY "resumes_delete_own" ON resumes
+      FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;

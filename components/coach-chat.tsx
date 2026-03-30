@@ -1,8 +1,7 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import { useChat } from "@ai-sdk/react"
-import { DefaultChatTransport } from "ai"
+import { useRef, useEffect } from "react"
+import { useChat } from "ai/react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -35,30 +34,18 @@ const quickActions = [
   { label: "Build my evidence", icon: Lightbulb, prompt: "Help me add to my evidence library. Ask me about my achievements and experiences." },
 ]
 
-// Helper to extract text from UIMessage parts
-function getMessageText(message: { parts?: Array<{ type: string; text?: string }> }): string {
-  if (!message.parts || !Array.isArray(message.parts)) return ""
-  return message.parts
-    .filter((p): p is { type: "text"; text: string } => p.type === "text" && typeof p.text === "string")
-    .map((p) => p.text)
-    .join("")
+// Helper to extract text from message (v4 uses content directly)
+function getMessageText(message: { content?: string }): string {
+  return message.content || ""
 }
 
 export function CoachChat({ className, conversationId, compact = false, onClose }: CoachChatProps) {
-  const [input, setInput] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const { messages, sendMessage, status } = useChat({
-    transport: new DefaultChatTransport({ 
-      api: "/api/coach",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }),
+  const { messages, input, setInput, handleSubmit: submitMessage, isLoading, append } = useChat({
+    api: "/api/coach",
   })
-
-  const isLoading = status === "streaming" || status === "submitted"
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -71,15 +58,13 @@ export function CoachChat({ className, conversationId, compact = false, onClose 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
-    
-    sendMessage({ text: input })
-    setInput("")
+    submitMessage(e)
   }
 
   // Handle quick action click
   const handleQuickAction = (prompt: string) => {
     if (isLoading) return
-    sendMessage({ text: prompt })
+    append({ role: "user", content: prompt })
   }
 
   // Handle keyboard shortcuts

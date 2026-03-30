@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { generateText, Output } from "ai"
+import { generateText, generateObject } from "ai"
 import { createGroq } from "@ai-sdk/groq"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
@@ -338,12 +338,12 @@ TRUTH RULES:
       sectionPrompt: string,
       sectionName: string
     ): Promise<T> => {
-      const { output } = await generateText({
+      const { object } = await generateObject({
         model: groq("llama-3.3-70b-versatile"),
-        output: Output.object({ schema }),
+        schema,
         prompt: `${basePrompt}\n\n${sectionPrompt}`,
       })
-      return output as T
+      return object as T
     }
 
     // If regenerating a specific section, only regenerate that one

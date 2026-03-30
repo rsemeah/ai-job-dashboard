@@ -8,7 +8,7 @@
  */
 
 import { createGroq } from "@ai-sdk/groq"
-import { generateText, streamText, Output } from "ai"
+import { generateText, streamText, generateObject } from "ai"
 import type { z } from "zod"
 
 // ============================================================================
@@ -80,6 +80,31 @@ async function generate<T extends z.ZodType>(
   const startTime = Date.now()
   
   try {
+    // Use generateObject if schema is provided, otherwise generateText
+    if (options.schema) {
+      const result = await generateObject({
+        model: groq(modelName),
+        prompt: options.prompt,
+        system: options.system,
+        messages: options.messages,
+        schema: options.schema,
+      })
+
+      const duration = Date.now() - startTime
+      console.log(`[AI Service] Model: ${modelName}, Duration: ${duration}ms, Tokens: ${result.usage?.totalTokens || 0}`)
+
+      return {
+        output: result.object as z.infer<T>,
+        text: JSON.stringify(result.object),
+        usage: {
+          promptTokens: result.usage?.promptTokens || 0,
+          completionTokens: result.usage?.completionTokens || 0,
+          totalTokens: result.usage?.totalTokens || 0,
+        },
+        finishReason: result.finishReason || "unknown",
+      }
+    }
+
     const result = await generateText({
       model: groq(modelName),
       prompt: options.prompt,
@@ -87,18 +112,13 @@ async function generate<T extends z.ZodType>(
       messages: options.messages,
       maxTokens: options.maxTokens,
       temperature: options.temperature,
-      ...(options.schema && {
-        output: Output.object({ schema: options.schema }),
-      }),
     })
 
     const duration = Date.now() - startTime
-    
-    // Log for observability (can be enhanced with external logging service)
     console.log(`[AI Service] Model: ${modelName}, Duration: ${duration}ms, Tokens: ${result.usage?.totalTokens || 0}`)
 
     return {
-      output: result.output as z.infer<T> | null,
+      output: null,
       text: result.text,
       usage: {
         promptTokens: result.usage?.promptTokens || 0,
@@ -160,5 +180,4 @@ export const aiService = {
 }
 
 // Re-export commonly used items
-export { Output } from "ai"
 export type { z as ZodType } from "zod"

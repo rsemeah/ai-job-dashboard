@@ -8,15 +8,42 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useState, Suspense, useEffect } from "react"
+import { useState, Suspense } from "react"
 import { Loader2, Mail } from "lucide-react"
+import dynamic from "next/dynamic"
+
+// Email/password inputs are loaded client-only to prevent hydration mismatch
+// caused by password manager extensions (LastPass, 1Password) injecting DOM elements
+const EmailInput = dynamic(
+  () => Promise.resolve(({ value, onChange, disabled }: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; disabled: boolean }) => (
+    <Input
+      id="email"
+      type="email"
+      placeholder="you@example.com"
+      required
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+    />
+  )),
+  { ssr: false, loading: () => <div className="h-10 w-full bg-muted rounded animate-pulse" /> }
+)
+
+const PasswordInput = dynamic(
+  () => Promise.resolve(({ value, onChange, disabled }: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; disabled: boolean }) => (
+    <Input
+      id="password"
+      type="password"
+      required
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+    />
+  )),
+  { ssr: false, loading: () => <div className="h-10 w-full bg-muted rounded animate-pulse" /> }
+)
 
 function LoginForm() {
-  // Prevent hydration mismatch from browser extensions (LastPass, 1Password, etc.)
-  const [isMounted, setIsMounted] = useState(false)
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
   // Use empty strings as defaults to prevent null/undefined warnings
   const [email, setEmail] = useState<string>("")
   const [password, setPassword] = useState<string>("")
@@ -165,51 +192,26 @@ function LoginForm() {
           </div>
         </div>
 
-        {/* Email Auth - Only render form inputs after mount to avoid hydration mismatch from password manager extensions */}
+        {/* Email Auth - Inputs use dynamic import with ssr:false to prevent hydration mismatch from password manager extensions */}
         <form onSubmit={authMode === "magic" ? handleMagicLink : handlePasswordLogin}>
           <div className="space-y-4">
-            {isMounted ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    required
-                    value={email || ""}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={isLoading}
-                  />
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <EmailInput
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
 
-                {authMode === "password" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      required
-                      value={password || ""}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  </div>
-                )}
-              </>
-            ) : (
-              // Placeholder while waiting for client mount
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <div className="h-5 w-12 bg-muted rounded animate-pulse" />
-                  <div className="h-10 w-full bg-muted rounded animate-pulse" />
-                </div>
-                {authMode === "password" && (
-                  <div className="space-y-2">
-                    <div className="h-5 w-16 bg-muted rounded animate-pulse" />
-                    <div className="h-10 w-full bg-muted rounded animate-pulse" />
-                  </div>
-                )}
+            {authMode === "password" && (
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <PasswordInput
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
+                />
               </div>
             )}
 

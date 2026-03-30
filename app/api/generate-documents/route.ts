@@ -327,10 +327,10 @@ Education:
 ${effectiveEducation.map((edu: { degree: string; school: string; year?: string }) => `
 - ${edu.degree} from ${edu.school} ${edu.year ? `(${edu.year})` : ""}
 `).join("\n")}
-${sourceResume?.raw_text ? `
+${sourceResume?.parsed_text ? `
 ADDITIONAL CONTEXT FROM SOURCE RESUME:
 (Use this for additional details if the structured data above is incomplete)
-${sourceResume.raw_text.slice(0, 5000)}
+${sourceResume.parsed_text.slice(0, 5000)}
 ` : ""}
 `
 

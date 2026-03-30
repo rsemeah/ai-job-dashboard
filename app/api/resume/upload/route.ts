@@ -157,11 +157,13 @@ Be precise with company names and job titles - copy them exactly as written.`,
         file_name: file.name,
         file_type: file.type,
         file_size: file.size,
-        blob_url: blob.url,
-        blob_pathname: blob.pathname,
-        raw_text: rawText,
+        file_url: blob.url,
+        file_pathname: blob.pathname,
+        parsed_text: rawText,
         parsed_data: parsedData,
         is_primary: true,
+        parse_status: "complete",
+        parsed_at: new Date().toISOString(),
       })
       .select()
       .single()

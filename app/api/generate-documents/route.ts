@@ -140,6 +140,21 @@ async function loadJobAnalysis(supabase: Awaited<ReturnType<typeof createClient>
   return job
 }
 
+async function loadSourceResume(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
+  const { data: resume, error } = await supabase
+    .from("source_resumes")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_primary", true)
+    .maybeSingle()
+
+  if (error || !resume) {
+    return null
+  }
+
+  return resume
+}
+
 /**
  * Build strategy-aware generation prompt based on fit
  */
@@ -224,10 +239,11 @@ export async function POST(request: NextRequest) {
       .eq("user_id", user.id)
 
     // Load all required data in parallel
-    const [profile, allEvidence, jobData] = await Promise.all([
+    const [profile, allEvidence, jobData, sourceResume] = await Promise.all([
       loadUserProfile(supabase, user.id),
       loadEvidenceLibrary(supabase, user.id),
       loadJobAnalysis(supabase, job_id, user.id),
+      loadSourceResume(supabase, user.id),
     ])
 
     if (!profile) {
@@ -263,24 +279,59 @@ export async function POST(request: NextRequest) {
     })
 
     // Build the evidence context with usage rules annotated
+    // Use source resume parsed data when profile data is incomplete
+    const sourceResumeData = sourceResume?.parsed_data as {
+      full_name?: string;
+      location?: string;
+      summary?: string;
+      skills?: string[];
+      experience?: Array<{
+        title: string;
+        company: string;
+        start_date?: string;
+        end_date?: string;
+        description?: string;
+        bullets?: string[];
+      }>;
+      education?: Array<{
+        degree: string;
+        school: string;
+        year?: string;
+      }>;
+    } | null
+
+    // Merge profile with source resume data (profile takes precedence)
+    const effectiveName = profile.full_name || sourceResumeData?.full_name || "Not provided"
+    const effectiveLocation = profile.location || sourceResumeData?.location || "Not provided"
+    const effectiveSummary = profile.summary || sourceResumeData?.summary || "Not provided"
+    const effectiveSkills = (profile.skills?.length > 0 ? profile.skills : sourceResumeData?.skills) || []
+    const effectiveExperience = (profile.experience?.length > 0 ? profile.experience : sourceResumeData?.experience) || []
+    const effectiveEducation = (profile.education?.length > 0 ? profile.education : sourceResumeData?.education) || []
+
     const profileContext = `
 CANDIDATE PROFILE:
-Name: ${profile.full_name || "Not provided"}
-Location: ${profile.location || "Not provided"}
-Summary: ${profile.summary || "Not provided"}
+Name: ${effectiveName}
+Location: ${effectiveLocation}
+Summary: ${effectiveSummary}
 
-Skills: ${(profile.skills || []).join(", ")}
+Skills: ${effectiveSkills.join(", ")}
 
 Work Experience:
-${(profile.experience || []).map((exp: { title: string; company: string; start_date?: string; end_date?: string; description?: string }) => `
+${effectiveExperience.map((exp: { title: string; company: string; start_date?: string; end_date?: string; description?: string; bullets?: string[] }) => `
 - ${exp.title} at ${exp.company} (${exp.start_date || ""} - ${exp.end_date || "Present"})
   ${exp.description || ""}
+  ${exp.bullets ? exp.bullets.map(b => `  • ${b}`).join("\n") : ""}
 `).join("\n")}
 
 Education:
-${(profile.education || []).map((edu: { degree: string; school: string; year?: string }) => `
+${effectiveEducation.map((edu: { degree: string; school: string; year?: string }) => `
 - ${edu.degree} from ${edu.school} ${edu.year ? `(${edu.year})` : ""}
 `).join("\n")}
+${sourceResume?.raw_text ? `
+ADDITIONAL CONTEXT FROM SOURCE RESUME:
+(Use this for additional details if the structured data above is incomplete)
+${sourceResume.raw_text.slice(0, 5000)}
+` : ""}
 `
 
     const evidenceContext = resumeEvidence.length > 0 ? `

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { HireWireLogo } from "@/components/hirewire-logo"
 import { useRouter } from "next/navigation"

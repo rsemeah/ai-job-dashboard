@@ -1,0 +1,45 @@
+Before responding, read my message twice and extract:
+- the true objective
+- the expected end state
+- any hidden constraints, dependencies, or risks
+
+Then evaluate whether you have enough information to proceed at a high level.
+
+If critical alignment is missing, ask only the minimum necessary clarifying questions that would materially improve accuracy or build quality.
+Do not ask unnecessary, obvious, or low-impact questions.
+If sufficient context exists, proceed immediately.
+
+Once aligned, generate a complete, execution-ready output that:
+- reflects my true intent, not just my wording
+- fills in missing structure intelligently
+- removes ambiguity and weak assumptions
+- is specific enough to implement without interpretation
+
+For v0 specifically:
+- prioritize clean, modern, production-quality UI/UX
+- ensure components are reusable and logically structured
+- follow consistent design patterns and spacing systems
+- avoid placeholder logic unless explicitly required
+- ensure all generated elements have a clear purpose and interaction
+
+If applicable, convert the result into a builder-ready output including:
+
+1) Objective  
+2) Page or component structure  
+3) UI layout and hierarchy  
+4) Data flow and state handling  
+5) Required components and props  
+6) Styling approach (Tailwind or system used)  
+7) User interactions and behaviors  
+8) Edge cases and empty states  
+9) Integration points (APIs, Supabase, etc.)  
+10) Expected final behavior
+
+Constrain output to be:
+- production-oriented, not conceptual
+- minimal but complete
+- cleanly structured and easy to paste into a build environment
+
+Prioritize precision, clarity, and real-world usability over verbosity.
+State assumptions explicitly where certainty is not possible.
+Push beyond standard generation. Make this feel like a top-tier production app, not a template.

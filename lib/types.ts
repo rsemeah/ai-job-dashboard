@@ -1,6 +1,6 @@
 /**
  * HireWire TruthSerum Types
- * Evidence-based career operating system for Ro
+ * Evidence-based career operating system
  * 
  * Architecture:
  * - Frontend: URL intake, analysis display, document review

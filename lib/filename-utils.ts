@@ -9,8 +9,8 @@
  * - Cover Letter: {CandidateName}_{Role}_{Company}_CoverLetter.{ext}
  * 
  * Examples:
- * - Rory Semeah_Senior Product Manager_OpenAI_Resume.pdf
- * - Rory Semeah_AI Technical Product Manager_Stripe_CoverLetter.docx
+ * - Alex Chen_Senior Product Manager_OpenAI_Resume.pdf
+ * - Alex Chen_AI Technical Product Manager_Stripe_CoverLetter.docx
  */
 
 export type DocumentType = "resume" | "cover_letter"
@@ -63,7 +63,7 @@ function sanitizeForFilename(input: string, preserveSpaces: boolean = false): st
 /**
  * Formats candidate name for filename.
  * Keeps readable capitalization and preserves spaces.
- * Example: "Rory Semeah" stays as "Rory Semeah"
+ * Example: "Alex Chen" stays as "Alex Chen"
  */
 function formatCandidateName(name: string): string {
   const sanitized = sanitizeForFilename(name, true) // Preserve spaces in name
@@ -107,13 +107,13 @@ function formatCompany(company: string | undefined): string {
  * 
  * @example
  * generateDocumentFilename({
- *   candidateName: "Rory Semeah",
+ *   candidateName: "Alex Chen",
  *   role: "Senior Product Manager",
  *   company: "OpenAI",
  *   documentType: "resume",
  *   extension: "pdf"
  * })
- * // Returns: "Rory Semeah_Senior_Product_Manager_OpenAI_Resume.pdf"
+ * // Returns: "Alex Chen_Senior_Product_Manager_OpenAI_Resume.pdf"
  */
 export function generateDocumentFilename(params: FilenameParams): string {
   const {

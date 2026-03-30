@@ -1,3 +1,4 @@
+// Applications Page - Tracks applied jobs and interview stages
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"

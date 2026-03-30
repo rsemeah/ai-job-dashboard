@@ -10,7 +10,7 @@ const groq = createGroq({
   apiKey: process.env.GROQ_API_KEY,
 })
 
-// Role families Ro targets - used for categorization
+// Role families for categorization - PM-focused but extensible
 const ROLE_FAMILIES = [
   "AI Technical Product Manager",
   "Technical Product Manager",
@@ -45,7 +45,7 @@ const JobAnalysisSchema = z.object({
   industry_guess: z.string().nullable().describe("Primary industry (AI, SaaS, FinTech, EdTech, etc.) or null if unknown"),
   seniority_level: z.string().nullable().describe("Seniority level: Entry, Mid, Senior, Lead, Principal, Director, VP, or C-Level"),
   
-  // Fit signals for Ro specifically
+  // Fit signals for candidate matching
   fit_signals: z.object({
     has_ai_focus: z.boolean().describe("Does the role involve AI/ML products?"),
     has_technical_requirements: z.boolean().describe("Does it require technical fluency?"),
@@ -134,7 +134,7 @@ function calculateInitialFitFromSignals(fitSignals: z.infer<typeof JobAnalysisSc
   let score = 50 // Start at neutral
   const reasoning: string[] = []
 
-  // Positive signals for Ro
+  // Positive signals for technical PM profiles
   if (fitSignals.has_ai_focus) {
     score += 15
     reasoning.push("AI/ML product focus aligns well")

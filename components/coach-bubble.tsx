@@ -16,6 +16,7 @@ const STORAGE_KEY = "hirewire-coach-bubble-position"
 const DEFAULT_POSITION: Position = { x: 20, y: 20 } // From bottom-right
 
 export function CoachBubble() {
+  const [mounted, setMounted] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
   const [position, setPosition] = useState<Position>(DEFAULT_POSITION)
@@ -23,8 +24,9 @@ export function CoachBubble() {
   const dragRef = useRef<{ startX: number; startY: number; startPos: Position } | null>(null)
   const bubbleRef = useRef<HTMLDivElement>(null)
 
-  // Load position from localStorage
+  // Mount guard + load position from localStorage
   useEffect(() => {
+    setMounted(true)
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) {
       try {
@@ -103,6 +105,11 @@ export function CoachBubble() {
     document.addEventListener("keydown", handleKeyDown)
     return () => document.removeEventListener("keydown", handleKeyDown)
   }, [isOpen])
+
+  // Prevent hydration mismatch - render nothing until mounted
+  if (!mounted) {
+    return null
+  }
 
   return (
     <div

@@ -19,7 +19,7 @@ import { BackButton } from "@/components/back-button"
 import { normalizeJobStatus } from "@/lib/job-lifecycle"
 
 export const dynamic = "force-dynamic"
-export const revalidate = 0 // Force fresh data
+export const revalidate = 0
 
 function formatDate(dateString: string | null) {
   if (!dateString) return "--"

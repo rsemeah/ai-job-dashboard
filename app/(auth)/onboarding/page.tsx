@@ -66,7 +66,7 @@ export default function OnboardingPage() {
   // Evidence builder state
   const [useAIBuilder, setUseAIBuilder] = useState(false)
 
-  // Handle resume file upload
+  // Handle resume file upload - uses the new upload API that stores and parses
   const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -77,8 +77,9 @@ export default function OnboardingPage() {
     try {
       const formData = new FormData()
       formData.append("file", file)
+      formData.append("replaceExisting", "true")
 
-      const response = await fetch("/api/parse-resume", {
+      const response = await fetch("/api/resume/upload", {
         method: "POST",
         body: formData,
       })
@@ -89,17 +90,37 @@ export default function OnboardingPage() {
         throw new Error(result.error || "Failed to parse resume")
       }
 
-      const data = result.data as ParsedResumeData
+      // Map from the new API format to our expected format
+      const parsed = result.resume?.parsed_data
+      if (parsed) {
+        const data: ParsedResumeData = {
+          name: parsed.full_name || null,
+          email: parsed.email || null,
+          phone: parsed.phone || null,
+          location: parsed.location || null,
+          headline: null,
+          summary: parsed.summary || null,
+          skills: parsed.skills || [],
+          extractedEvidence: (parsed.experience || []).map((exp: { title: string; company: string; description?: string; bullets?: string[] }, i: number) => ({
+            title: `${exp.title} at ${exp.company}`,
+            description: exp.description || exp.bullets?.join(" ") || "",
+            category: "achievement",
+            metrics: null,
+            tags: [],
+          })),
+        }
 
-      // Pre-fill form fields
-      if (data.name) setFullName(data.name)
-      if (data.location) setLocation(data.location)
-      if (data.headline) setHeadline(data.headline)
-      if (data.summary) setSummary(data.summary)
-      if (data.skills?.length) setSkills(data.skills.slice(0, 10))
+        // Pre-fill form fields
+        if (data.name) setFullName(data.name)
+        if (data.location) setLocation(data.location)
+        if (data.headline) setHeadline(data.headline)
+        if (data.summary) setSummary(data.summary)
+        if (data.skills?.length) setSkills(data.skills.slice(0, 10))
 
-      setParsedResume(data)
-      toast.success("Resume parsed successfully!")
+        setParsedResume(data)
+      }
+      
+      toast.success("Resume uploaded and parsed successfully!")
     } catch (err) {
       console.error("Resume parse error:", err)
       setError(err instanceof Error ? err.message : "Failed to parse resume")

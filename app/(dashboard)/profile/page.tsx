@@ -26,6 +26,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useUser } from "@/components/user-provider"
 import { toast } from "sonner"
 import { BackButton } from "@/components/back-button"
+import { ResumeUpload } from "@/components/resume-upload"
 
 interface Experience {
   title: string
@@ -356,6 +357,14 @@ export default function ProfilePage() {
       )}
 
       <div className="grid gap-6">
+        {/* Source Resume Upload */}
+        <ResumeUpload 
+          onUploadComplete={() => {
+            // Reload profile to get any auto-populated fields from the parsed resume
+            loadProfile()
+          }}
+        />
+
         {/* Basic Info */}
         <Card>
           <CardHeader>

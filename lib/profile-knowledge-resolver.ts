@@ -69,46 +69,19 @@ const ABSTRACT_PATTERNS = [
 // ============================================================================
 
 /**
- * Known product mappings based on common descriptions
- * These are used to match abstract descriptions to known products
+ * Product hints are now dynamically extracted from user evidence.
+ * 
+ * REMOVED: Hardcoded founder-specific product mappings (HireWire, TradeSwarm, 
+ * PhonePop, Authentic Hadith, Clarity) that biased multi-user generation.
+ * 
+ * Product matching now relies solely on:
+ * 1. Explicit product_name fields in evidence
+ * 2. PascalCase/camelCase product names extracted from evidence text
+ * 3. User's own evidence library - no global hints
  */
 const PRODUCT_HINTS: Record<string, string[]> = {
-  "HireWire": [
-    "AI career operating system",
-    "career platform",
-    "job analysis",
-    "resume generation",
-    "application materials",
-    "job matching",
-    "ATS optimization",
-  ],
-  "TradeSwarm": [
-    "AI trading",
-    "trading system",
-    "algorithmic trading",
-    "trading platform",
-    "trade automation",
-  ],
-  "PhonePop": [
-    "lead parsing",
-    "lead generation",
-    "phone lead",
-    "contractor leads",
-    "lead qualification",
-  ],
-  "Authentic Hadith": [
-    "Islamic study",
-    "hadith",
-    "religious content",
-    "Islamic platform",
-    "hadith verification",
-  ],
-  "Clarity": [
-    "real estate intelligence",
-    "property analytics",
-    "real estate dashboard",
-    "real estate data",
-  ],
+  // Empty - product hints are now user-scoped and data-driven
+  // Each user's evidence library defines their own product vocabulary
 }
 
 /**

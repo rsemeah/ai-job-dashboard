@@ -304,9 +304,7 @@ ${resumeEvidence.map((e: {
   industries?: string[];
   project_name?: string;
 }) => `
-═══════════════════════════════════════════════════════════
-EVIDENCE [ID: ${e.id}]
-═══════════════════════════════════════════════════════════
+--- EVIDENCE [ID: ${e.id}] ---
 Type: ${e.source_type}
 Title: ${e.source_title}
 ${e.project_name ? `Project: ${e.project_name}` : ""}
@@ -316,24 +314,23 @@ ${e.date_range ? `Period: ${e.date_range}` : ""}
 ${e.industries?.length ? `Industry: ${e.industries.join(", ")}` : ""}
 Confidence: ${e.confidence_level.toUpperCase()}
 
-${e.team_size ? `SCOPE INDICATORS:
+${e.team_size ? `SCOPE:
   Team Size: ${e.team_size} people
-  ${e.budget_scope ? `Budget/Revenue Scope: ${e.budget_scope}` : ""}
-  ${e.user_impact_scale ? `User/Customer Impact: ${e.user_impact_scale}` : ""}
+  ${e.budget_scope ? `Budget/Revenue: ${e.budget_scope}` : ""}
+  ${e.user_impact_scale ? `User Impact: ${e.user_impact_scale}` : ""}
 ` : ""}
-${e.what_not_to_overstate ? `⚠️ CONSTRAINT - DO NOT OVERSTATE: ${e.what_not_to_overstate}
+${e.what_not_to_overstate ? `CONSTRAINT: ${e.what_not_to_overstate}
 ` : ""}
-${e.responsibilities?.length ? `RESPONSIBILITIES (preserve full scope when writing bullets):
-${e.responsibilities.map(r => `  • ${r}`).join("\n")}
+${e.responsibilities?.length ? `RESPONSIBILITIES:
+${e.responsibilities.map(r => `  - ${r}`).join("\n")}
 ` : ""}
-${e.tools_used?.length ? `TOOLS & TECHNOLOGIES:
-  ${e.tools_used.join(", ")}
+${e.tools_used?.length ? `TOOLS: ${e.tools_used.join(", ")}
 ` : ""}
-${e.outcomes?.length ? `OUTCOMES & ACHIEVEMENTS (use these exact metrics when available):
-${e.outcomes.map(o => `  ✓ ${o}`).join("\n")}
+${e.outcomes?.length ? `OUTCOMES:
+${e.outcomes.map(o => `  - ${o}`).join("\n")}
 ` : ""}
-${e.approved_achievement_bullets?.length ? `PRE-APPROVED BULLETS (use these verbatim or adapt closely):
-${e.approved_achievement_bullets.map(b => `  ★ ${b}`).join("\n")}
+${e.approved_achievement_bullets?.length ? `APPROVED BULLETS:
+${e.approved_achievement_bullets.map(b => `  - ${b}`).join("\n")}
 ` : ""}
 `).join("\n")}
 ` : ""
@@ -426,10 +423,11 @@ Be conservative - only include matches that are clearly supported by the evidenc
     const templateGuidance = getTemplateGuidance(selectedTemplate)
 
     // Step 2: Generate resume with bullet-level provenance
+    // SIMPLIFIED: Reduced prompt verbosity to produce more natural, human-sounding output
     const { object: resumeWithProvenance } = await generateObject({
       model: groq("llama-3.3-70b-versatile"),
       schema: ResumeWithProvenanceSchema,
-      prompt: `Generate resume content with FULL PROVENANCE TRACKING for this job application.
+      prompt: `Write resume content for this job application. Sound like a sharp professional, not a bot.
 
 ${profileContext}
 
@@ -437,47 +435,28 @@ ${evidenceContext}
 
 ${jobContext}
 
-MATCHED EVIDENCE:
-- Matched Skills: ${evidenceMap.matched_skills.join(", ")}
-- Matched Tools: ${evidenceMap.matched_tools.join(", ")}
-- Key Gaps to Address: ${evidenceMap.gaps.join(", ")}
-
-RESUME TEMPLATE: ${templateConfig.name}
-${templateGuidance}
-Emphasis areas: ${templateConfig.emphasisAreas.join(", ")}
-${selectedTemplate === "technical_resume" ? "TECH FOCUS: Lead with technical skills, projects, and measurable engineering impact." : ""}
-${selectedTemplate === "professional_cv" ? "CV FOCUS: Emphasize credentials, publications, and leadership scope." : ""}
-${selectedTemplate === "non_technical_resume" ? "BUSINESS FOCUS: Emphasize stakeholder impact, revenue/growth metrics, and leadership." : ""}
+MATCH CONTEXT:
+Skills: ${evidenceMap.matched_skills.join(", ")}
+Tools: ${evidenceMap.matched_tools.join(", ")}
+Gaps: ${evidenceMap.gaps.join(", ")}
 
 ${strategyPrompt}
 
-STRICT RULES:
-1. For EVERY bullet, you MUST specify which evidence item (by ID) it comes from
-2. Use ONLY information from the profile and evidence library - NEVER invent facts
-3. Include relevant keywords from the job posting naturally
-4. Write strong action verbs to start each bullet
-5. Include specific metrics and outcomes ONLY if they exist in the evidence
-6. Do NOT include fake percentages, numbers, or achievements
-7. Every bullet must be something the candidate could defend in an interview
-8. BANNED PHRASES (never use these): ${BANNED_PHRASES.slice(0, 15).join(", ")}
-9. Prefer specificity over hype
-10. Each bullet should have at least 2 of: action verb, system/artifact, business context, measurable result
+WRITING RULES:
+1. Link every bullet to a specific evidence ID
+2. Use only facts from the evidence - never invent
+3. Start bullets with strong verbs (Built, Led, Shipped, Launched)
+4. Include real metrics from evidence when available
+5. Write like a human professional would - confident but not robotic
+6. If pre-approved bullets exist in evidence, use them directly
 
-DEPTH & SCOPE PRESERVATION:
-- If evidence shows team size, include it: "Led team of 5 engineers" not "Led engineering team"
-- If evidence shows user/customer scale, include it: "serving 50K users" not "serving users"
-- If evidence shows budget/revenue scope, include it: "$2M ARR platform" not "SaaS platform"
-- If evidence shows specific tools, name them: "Built with React, Node.js, PostgreSQL" not "Built with modern stack"
-- If evidence shows specific outcomes with numbers, use the exact numbers
-- If PRE-APPROVED BULLETS exist in evidence, use them verbatim or adapt very closely
-- Preserve industry context: "B2B fintech" not just "software company"
+KEEP IT SPECIFIC:
+- Use exact numbers: "team of 5" not "team"
+- Name tools: "React, PostgreSQL" not "modern stack"
+- Include scale: "50K users" not "users"
+- Preserve industry: "B2B fintech" not "software"
 
-ANTI-COMPRESSION RULE:
-Do NOT summarize or compress the candidate's scope. If evidence shows they managed a $5M budget, 
-led 12 people, shipped 8 products, and impacted 100K users - ALL of that should appear across 
-the bullets, not reduced to "managed team and budget."
-
-Generate 5-8 strong achievement bullets with full provenance. More bullets is better if the evidence supports it.`,
+Write 5-8 achievement bullets that the candidate could confidently discuss in an interview.`,
     })
 
     // Step 2.5: PRE-GENERATION ENHANCEMENT PASS
@@ -516,48 +495,37 @@ Generate 5-8 strong achievement bullets with full provenance. More bullets is be
     )
 
     // Generate Selected Products section if we have named products with artifacts
-    const knownProducts = extractKnownProducts(evidence)
+    // FIX: Use allEvidence (correct in-scope variable) instead of undefined 'evidence'
+    const knownProducts = extractKnownProducts(allEvidence)
     const projectsSection = generateProjectsSection(knownProducts, 3)
 
     // Step 3: Generate cover letter with paragraph provenance
+    // SIMPLIFIED: More direct prompt for natural, human-sounding cover letters
     const { object: coverLetterWithProvenance } = await generateObject({
       model: groq("llama-3.3-70b-versatile"),
       schema: CoverLetterWithProvenanceSchema,
-      prompt: `Generate a tailored cover letter with PROVENANCE TRACKING for each paragraph.
+      prompt: `Write a cover letter for this role. Sound confident and human, not like a template.
 
 ${profileContext}
 
-EVIDENCE FOR COVER LETTER:
+EVIDENCE:
 ${coverLetterEvidence.map((e: {
   id: string;
   source_title: string;
   source_type: string;
   company_name?: string;
-  outcomes?: string[];
-}) => `[ID: ${e.id}] ${e.source_type}: ${e.source_title} at ${e.company_name || "N/A"}`).join("\n")}
+}) => `[${e.id}] ${e.source_title} at ${e.company_name || "N/A"}`).join("\n")}
 
 ${jobContext}
 
-MATCHED EVIDENCE:
-- Matched Skills: ${evidenceMap.matched_skills.join(", ")}
-- Matched Experiences: ${evidenceMap.matched_experiences.map(e => `${e.experience_title} at ${e.company}: ${e.relevance}`).join("; ")}
-
 ${strategyPrompt}
 
-STRICT RULES:
-1. For EVERY paragraph, list which evidence IDs support the claims
-2. Sound like a confident professional, not a bot
-3. Be concise - 3-4 paragraphs maximum
-4. Reference specific aspects of the role and company
-5. Connect your actual experience to their needs
-6. NEVER use phrases like "I am excited to apply" or "I would be thrilled"
-7. Do not claim experience or skills you don't have
-8. Mark claim confidence as "low" if the paragraph stretches evidence
-
-Structure:
-- Paragraph 1: Direct opening - who you are and why you're a fit
-- Paragraph 2-3: Specific evidence of your relevant experience and impact
-- Paragraph 4: Brief closing with next steps`,
+TONE: Write like a sharp professional sending a letter to someone they respect.
+- Open directly with who you are and why you fit
+- Give 1-2 specific examples of relevant work (link to evidence IDs)
+- Close briefly - no groveling or excessive enthusiasm
+- Never say "I am excited to apply" or "I would be thrilled"
+- 3-4 paragraphs total`,
     })
 
     // Build final formatted documents - Premium Clean Minimalist format
@@ -572,34 +540,25 @@ Structure:
       .map(b => `• ${b.bullet_text}`)
       .join("\n")
     
-    // Build premium formatted resume
+    // Build ATS-safe formatted resume (no unicode dividers, clean structure)
+    // CHANGED: Removed unicode box-drawing characters that break ATS parsing
     const formattedResume = `${(profile.full_name || "CANDIDATE NAME").toUpperCase()}
 ${contactInfo}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 PROFESSIONAL SUMMARY
 ${resumeWithProvenance.summary}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 PROFESSIONAL EXPERIENCE
-
 ${experienceBullets}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${projectsSection ? `
 ${projectsSection}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ` : ""}
 CORE COMPETENCIES
-${resumeWithProvenance.skills_section.join(" | ")}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${resumeWithProvenance.skills_section.join(", ")}
 
 EDUCATION
 ${(profile.education || []).map((edu: { degree: string; school: string; year?: string }) => 
-  `${edu.degree} — ${edu.school}${edu.year ? ` (${edu.year})` : ""}`
+  `${edu.degree}, ${edu.school}${edu.year ? ` (${edu.year})` : ""}`
 ).join("\n")}`
 
     // Build premium formatted cover letter with professional signature

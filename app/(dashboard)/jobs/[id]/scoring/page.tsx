@@ -108,10 +108,24 @@ export default function ScoringCenterPage() {
       
       if (jobData) {
         setJob(jobData as Job)
-        // Auto-detect role and set weights
-        const inferredRole = inferRoleFromJobTitle(jobData.title) || jobData.role_family || "Other"
-        setSelectedRole(inferredRole)
-        setWeights(getWeightsForRole(inferredRole))
+        
+        // Check if job has pre-computed role-aware weights stored
+        const scoreReasoning = jobData.score_reasoning as {
+          inferred_role?: string
+          weights?: ScoringWeights
+          scoring_version?: string
+        } | null
+        
+        if (scoreReasoning?.scoring_version === "2.0-role-aware" && scoreReasoning?.weights) {
+          // Use the pre-computed weights from job analysis
+          setSelectedRole(scoreReasoning.inferred_role || "Other")
+          setWeights(scoreReasoning.weights)
+        } else {
+          // Fallback: Auto-detect role and set weights
+          const inferredRole = inferRoleFromJobTitle(jobData.title) || jobData.role_family || "Other"
+          setSelectedRole(inferredRole)
+          setWeights(getWeightsForRole(inferredRole))
+        }
       }
       if (evidenceData) setEvidence(evidenceData as EvidenceRecord[])
       

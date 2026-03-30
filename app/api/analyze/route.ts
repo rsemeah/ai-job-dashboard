@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { generateText, generateObject } from "ai"
+import { generateObject } from "ai"
 import { createGroq } from "@ai-sdk/groq"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { runJobFlow } from "@/lib/orchestrator/runJobFlow"
+import { inferRoleFromJobTitle, getWeightsForRole, calculateWeightedScore, type ScoringWeights } from "@/lib/scoring-weights"
 
 const groq = createGroq({
   apiKey: process.env.GROQ_API_KEY,
@@ -124,8 +125,8 @@ function normalizeSeniority(level: string | null): string {
   return "Mid" // Default to Mid if unclear
 }
 
-// Calculate initial fit based on fit signals
-function calculateInitialFit(fitSignals: z.infer<typeof JobAnalysisSchema>["fit_signals"]): {
+// Calculate initial fit based on fit signals (legacy method - kept for backwards compatibility)
+function calculateInitialFitFromSignals(fitSignals: z.infer<typeof JobAnalysisSchema>["fit_signals"]): {
   fit: "HIGH" | "MEDIUM" | "LOW"
   score: number
   reasoning: string[]
@@ -173,6 +174,54 @@ function calculateInitialFit(fitSignals: z.infer<typeof JobAnalysisSchema>["fit_
   const fit = score >= 70 ? "HIGH" : score >= 40 ? "MEDIUM" : "LOW"
 
   return { fit, score, reasoning }
+}
+
+// Calculate role-aware fit score using weighted dimensions
+function calculateRoleAwareFit(
+  jobTitle: string,
+  dimensionScores: {
+    experience: number
+    evidence: number
+    skills: number
+    seniority: number
+    ats: number
+  }
+): {
+  fit: "HIGH" | "MEDIUM" | "LOW"
+  score: number
+  weights: ScoringWeights
+  inferredRole: string
+  reasoning: string[]
+} {
+  // Infer role category from job title
+  const inferredRole = inferRoleFromJobTitle(jobTitle)
+  const weights = getWeightsForRole(inferredRole)
+  
+  // Calculate weighted score
+  const score = calculateWeightedScore(dimensionScores, weights)
+  
+  // Generate reasoning based on which dimensions contributed most
+  const reasoning: string[] = []
+  const sortedDimensions = Object.entries(weights)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3) // Top 3 weighted dimensions
+  
+  for (const [dimension, weight] of sortedDimensions) {
+    if (weight >= 20) {
+      const dimScore = dimensionScores[dimension as keyof typeof dimensionScores]
+      if (dimScore >= 70) {
+        reasoning.push(`Strong ${dimension} alignment (${weight}% weight, ${dimScore} score)`)
+      } else if (dimScore >= 40) {
+        reasoning.push(`Moderate ${dimension} fit (${weight}% weight, ${dimScore} score)`)
+      } else {
+        reasoning.push(`${dimension} gap identified (${weight}% weight, ${dimScore} score)`)
+      }
+    }
+  }
+  
+  const fit = score >= 70 ? "HIGH" : score >= 40 ? "MEDIUM" : "LOW"
+  
+  return { fit, score, weights, inferredRole, reasoning }
 }
 
 export async function POST(request: NextRequest) {
@@ -307,11 +356,30 @@ ${pageContent}
 Extract the job details following the schema. Be accurate with the role_family categorization based on the actual role requirements.`,
     })
 
-    // Calculate initial fit
-    const fitResult = calculateInitialFit(analysis.fit_signals)
+    // Calculate initial fit using legacy signals method
+    const signalsFitResult = calculateInitialFitFromSignals(analysis.fit_signals)
     
     // Normalize seniority level
     const normalizedSeniority = normalizeSeniority(analysis.seniority_level)
+    
+    // Calculate role-aware fit using weighted scoring dimensions
+    // For now, use signal-based scores as dimension proxies until we have full profile matching
+    const dimensionScores = {
+      experience: signalsFitResult.score, // Will be refined with profile comparison
+      evidence: signalsFitResult.score,   // Will be refined with evidence matching
+      skills: analysis.tech_stack.length > 0 ? 60 : 40, // Basic skill signal
+      seniority: normalizedSeniority === "Senior" || normalizedSeniority === "Lead" ? 70 : 50,
+      ats: analysis.keywords.length >= 5 ? 70 : 50, // ATS keyword coverage signal
+    }
+    
+    const roleAwareFit = calculateRoleAwareFit(analysis.title, dimensionScores)
+    
+    // Use the role-aware score as the primary score
+    const fitResult = {
+      fit: roleAwareFit.fit,
+      score: roleAwareFit.score,
+      reasoning: [...roleAwareFit.reasoning, ...signalsFitResult.reasoning.slice(0, 2)],
+    }
 
     // Create job record with new fields
     const { data: job, error: insertError } = await supabase
@@ -335,14 +403,21 @@ Extract the job details following the schema. Be accurate with the role_family c
         role_family: analysis.role_family,
         industry_guess: analysis.industry_guess || "Unknown",
         seniority_level: normalizedSeniority,
-        // Initial scoring
-        fit: fitResult.fit,
-        score: fitResult.score,
-        score_strengths: fitResult.reasoning.filter(r => !r.includes("not")),
-        score_gaps: fitResult.reasoning.filter(r => r.includes("not")),
-        status: "analyzed",
-        analyzed_at: new Date().toISOString(),
-      })
+    // Initial scoring with role-aware weights
+    fit: fitResult.fit,
+    score: fitResult.score,
+    score_strengths: fitResult.reasoning.filter(r => !r.includes("gap")),
+    score_gaps: fitResult.reasoning.filter(r => r.includes("gap")),
+    // Store scoring metadata in score_reasoning jsonb
+    score_reasoning: {
+      inferred_role: roleAwareFit.inferredRole,
+      weights: roleAwareFit.weights,
+      dimension_scores: dimensionScores,
+      scoring_version: "2.0-role-aware",
+    },
+    status: "analyzed",
+    analyzed_at: new Date().toISOString(),
+    })
       .select()
       .single()
 
@@ -412,8 +487,13 @@ Extract the job details following the schema. Be accurate with the role_family c
         industry_guess: analysis.industry_guess || "Unknown",
         fit_signals: analysis.fit_signals,
       },
-      initial_fit: fitResult,
-      job: updatedJob || job,
+    initial_fit: fitResult,
+    role_aware_scoring: {
+      inferred_role: roleAwareFit.inferredRole,
+      weights: roleAwareFit.weights,
+      dimension_scores: dimensionScores,
+    },
+    job: updatedJob || job,
       // Include generation status so UI knows what happened
       generation: {
         attempted: orchestration.generation?.attempted || false,

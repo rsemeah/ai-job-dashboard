@@ -177,7 +177,7 @@ export default async function ApplicationsPage() {
             </CardContent>
           </Card>
 
-          {/* Interviews Section */}
+          {/* Interviews Section - Interview Stage Applications */}
           {applications.filter(j => normalizeJobStatus(j.status) === "interviewing").length > 0 && (
             <Card>
               <CardHeader>

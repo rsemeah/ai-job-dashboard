@@ -1,7 +1,12 @@
 import { createBrowserClient } from '@supabase/ssr'
 
-// Create a fresh client each time to avoid stale singleton issues
-// The @supabase/ssr package handles session persistence automatically
+/**
+ * Creates a Supabase browser client for client-side operations.
+ * Uses default @supabase/ssr configuration which handles:
+ * - Session persistence via cookies
+ * - Automatic token refresh
+ * - Auth state management
+ */
 export function createClient() {
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

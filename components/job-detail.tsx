@@ -236,7 +236,11 @@ function GenerationStatusBanner({
       icon: XCircle,
       className: "text-red-600",
       bgClassName: "bg-red-50 border-red-200",
-      label: error || "Generation failed",
+      // Show user-friendly error message, not technical details
+      label: error?.includes("profile") ? "Complete your profile to generate materials" :
+             error?.includes("evidence") ? "Add evidence to your library first" :
+             error?.includes("stretch") ? "This role may not be a good fit" :
+             "Generation failed - tap retry to try again",
       showRetry: true,
     },
     needs_review: {
@@ -385,6 +389,39 @@ export function JobDetail({ job }: JobDetailProps) {
         })
         router.refresh()
       } else {
+        // Convert technical errors to user-friendly messages
+        const getUserFriendlyError = (error: string): { title: string; description: string } => {
+          if (error?.includes("profile not found") || error?.includes("Profile not found")) {
+            return {
+              title: "Profile Required",
+              description: "Please complete your profile before generating materials"
+            }
+          }
+          if (error?.includes("evidence") && error?.includes("not found")) {
+            return {
+              title: "Add Some Evidence First",
+              description: "Add work experience to your Evidence Library to generate tailored materials"
+            }
+          }
+          if (error?.includes("Job not found")) {
+            return {
+              title: "Job Not Found",
+              description: "This job may have been deleted"
+            }
+          }
+          if (error?.includes("stretch") || error?.includes("blocked")) {
+            return {
+              title: "Generation Blocked",
+              description: "This role is too much of a stretch based on your current evidence"
+            }
+          }
+          // Default - don't show technical details
+          return {
+            title: "Generation Failed",
+            description: "Something went wrong. Please try again or contact support."
+          }
+        }
+        
         // Handle rate limit specially
         if (data.isRateLimit || response.status === 429) {
           const retryAfter = data.retryAfter || 30
@@ -404,26 +441,28 @@ export function JobDetail({ job }: JobDetailProps) {
           }, 1000)
           
           toast.error("AI service is busy", {
-            description: `Please wait ${retryAfter} seconds before retrying`,
-            action: {
-              label: "Retry in " + retryAfter + "s",
-              onClick: () => {}
-            }
+            description: `Please wait ${retryAfter} seconds before retrying`
           })
         } else if (data.strategy === "do_not_generate") {
           // Generation was blocked due to poor fit
-          setGenerationError(data.error)
-          toast.error("Generation blocked", {
-            description: data.strategy_reasoning || "This role is too much of a stretch"
+          const friendly = getUserFriendlyError("blocked")
+          setGenerationError(friendly.description)
+          toast.error(friendly.title, {
+            description: data.strategy_reasoning || friendly.description
           })
         } else {
-          setGenerationError(data.error)
-          toast.error(data.error || "Failed to generate materials")
+          const friendly = getUserFriendlyError(data.error || "")
+          setGenerationError(friendly.description)
+          toast.error(friendly.title, {
+            description: friendly.description
+          })
         }
       }
     } catch (err) {
-      setGenerationError("Network error - please try again")
-      toast.error("Failed to generate materials")
+      setGenerationError("Something went wrong. Please try again.")
+      toast.error("Connection Error", {
+        description: "Please check your internet connection and try again"
+      })
     } finally {
       setIsGenerating(false)
     }

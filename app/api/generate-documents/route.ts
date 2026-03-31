@@ -252,12 +252,31 @@ export async function POST(request: NextRequest) {
       loadSourceResume(supabase, user.id),
     ])
 
-    if (!profile) {
+    // If no profile exists, create a minimal one or use source resume data
+    if (!profile && !sourceResume?.parsed_data) {
+      // Update job status to indicate why generation failed
+      await supabase
+        .from("jobs")
+        .update({
+          status: "needs_review",
+          generation_status: "failed",
+          generation_error: "profile_required",
+        })
+        .eq("id", job_id)
+        .eq("user_id", user.id)
+      
       return NextResponse.json(
-        { success: false, error: "User profile not found. Please complete your profile first." },
+        { 
+          success: false, 
+          error: "profile_required",
+          user_message: "Please complete your profile or upload a resume before generating materials."
+        },
         { status: 400 }
       )
     }
+    
+    // Allow generation with just source resume if profile is missing
+    const hasUsableData = profile || sourceResume?.parsed_data
 
     if (!jobData) {
       return NextResponse.json(

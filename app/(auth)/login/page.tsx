@@ -83,15 +83,23 @@ function LoginForm() {
     setIsLoading(true)
     setError(null)
 
+    console.log("[v0] Attempting password login for:", email)
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
+      
+      console.log("[v0] Login response - data:", data, "error:", error)
+      
       if (error) throw error
+      
+      console.log("[v0] Login successful, redirecting to:", redirectTo)
       router.push(redirectTo)
       router.refresh()
     } catch (err: unknown) {
+      console.error("[v0] Login error:", err)
       setError(err instanceof Error ? err.message : "Invalid email or password")
     } finally {
       setIsLoading(false)

@@ -1,6 +1,7 @@
 "use client"
 
 import { JobUrlInput } from "@/components/job-input"
+import { UsageLimitWarning } from "@/components/premium-gate"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
@@ -33,6 +34,9 @@ export default function AddJobPage() {
 
       {/* Content */}
       <div className="max-w-4xl mx-auto px-6 py-8">
+        {/* Usage limit warning */}
+        <UsageLimitWarning action="add_job" className="mb-6" />
+        
         <JobUrlInput />
       </div>
     </div>

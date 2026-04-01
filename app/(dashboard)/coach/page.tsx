@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { BackButton } from "@/components/back-button"
+import { PremiumGate, LockedState } from "@/components/premium-gate"
+import { usePremium } from "@/hooks/use-premium"
 import { Sparkles, MessageSquare, Plus, Trash2, Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { format } from "date-fns"
@@ -20,6 +22,7 @@ interface Conversation {
 }
 
 export default function CoachPage() {
+  const { isPro, isLoading: premiumLoading } = usePremium()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -99,6 +102,24 @@ export default function CoachPage() {
     if (activeConversationId === id) {
       setActiveConversationId(null)
     }
+  }
+
+  // Show locked state for free users
+  if (!premiumLoading && !isPro) {
+    return (
+      <div className="p-6">
+        <div className="mb-4">
+          <BackButton fallbackHref="/" />
+        </div>
+        <div className="max-w-lg mx-auto mt-12">
+          <LockedState 
+            feature="ai_coach" 
+            title="AI Career Coach"
+            description="Get personalized career guidance, interview prep, and job search strategy from your AI coach. Available with Pro."
+          />
+        </div>
+      </div>
+    )
   }
 
   return (

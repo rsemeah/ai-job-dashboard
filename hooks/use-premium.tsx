@@ -1,5 +1,6 @@
 "use client"
 
+// Premium subscription management hook
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { 

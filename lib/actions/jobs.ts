@@ -288,11 +288,18 @@ export async function getJobs(): Promise<JobsResult> {
       return { success: false, error: "Not authenticated" }
     }
 
+    // Fetch jobs with their scores from job_scores table
     const { data, error } = await supabase
       .from("jobs")
-      .select("*")
-      .eq("user_id", user.id) // Explicit filter for safety
-      .order("score", { ascending: false, nullsFirst: false })
+      .select(`
+        *,
+        job_scores (
+          overall_score,
+          confidence_score
+        )
+      `)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
 
     if (error) {
       console.error("Error fetching jobs:", error)

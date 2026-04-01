@@ -101,31 +101,39 @@ export default function ScoringCenterPage() {
         return
       }
       
+      // Fetch job with related data from normalized tables
       const [{ data: jobData }, { data: evidenceData }] = await Promise.all([
-        supabase.from("jobs").select("*").eq("id", jobId).eq("user_id", user.id).single(),
+        supabase.from("jobs").select(`
+          *,
+          job_scores (*),
+          job_analyses (*)
+        `).eq("id", jobId).eq("user_id", user.id).single(),
         supabase.from("evidence_library").select("*").eq("is_active", true).eq("user_id", user.id),
       ])
       
       if (jobData) {
-        setJob(jobData as Job)
+        // Transform to UI-expected format
+        const analyses = (jobData.job_analyses as Array<Record<string, unknown>>) || []
+        const scores = (jobData.job_scores as Array<Record<string, unknown>>) || []
+        const analysis = analyses[0] || {}
+        const scoreData = scores[0] || {}
         
-        // Check if job has pre-computed role-aware weights stored
-        const scoreReasoning = jobData.score_reasoning as {
-          inferred_role?: string
-          weights?: ScoringWeights
-          scoring_version?: string
-        } | null
-        
-        if (scoreReasoning?.scoring_version === "2.0-role-aware" && scoreReasoning?.weights) {
-          // Use the pre-computed weights from job analysis
-          setSelectedRole(scoreReasoning.inferred_role || "Other")
-          setWeights(scoreReasoning.weights)
-        } else {
-          // Fallback: Auto-detect role and set weights
-          const inferredRole = inferRoleFromJobTitle(jobData.title) || jobData.role_family || "Other"
-          setSelectedRole(inferredRole)
-          setWeights(getWeightsForRole(inferredRole))
+        const transformedJob = {
+          ...jobData,
+          title: jobData.role_title || analysis.title,
+          company: jobData.company_name || analysis.company,
+          score: scoreData.overall_score || null,
+          role_family: analysis.role_family || null,
+          job_analyses: analyses,
+          job_scores: scores,
         }
+        
+        setJob(transformedJob as Job)
+        
+        // Auto-detect role from job title
+        const inferredRole = inferRoleFromJobTitle(transformedJob.title as string) || transformedJob.role_family || "Other"
+        setSelectedRole(inferredRole)
+        setWeights(getWeightsForRole(inferredRole))
       }
       if (evidenceData) setEvidence(evidenceData as EvidenceRecord[])
       

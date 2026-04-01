@@ -147,14 +147,44 @@ async function loadJobWithAnalysis(supabase: Awaited<ReturnType<typeof createCli
     .from("jobs")
     .select(`
       *,
-      job_analyses (*)
+      job_analyses (*),
+      job_scores (
+        overall_score,
+        confidence_score
+      )
     `)
     .eq("id", jobId)
     .eq("user_id", userId)
     .single()
 
   if (error || !job) return null
-  return job
+  
+  // Transform to UI-expected format
+  const analyses = (job.job_analyses as Array<Record<string, unknown>>) || []
+  const scores = (job.job_scores as Array<{ overall_score?: number }>) || []
+  const analysis = analyses[0] || {}
+  const score = scores[0]?.overall_score ?? null
+  
+  // Derive fit from score
+  let fit: string | null = null
+  if (score !== null) {
+    if (score >= 75) fit = "HIGH"
+    else if (score >= 50) fit = "MEDIUM"
+    else fit = "LOW"
+  }
+  
+  return {
+    ...job,
+    // Map normalized columns to legacy names
+    title: job.role_title || analysis.title || job.title,
+    company: job.company_name || analysis.company || job.company,
+    score,
+    fit,
+    score_gaps: analysis.known_gaps || [],
+    score_strengths: analysis.matched_skills || [],
+    location: analysis.location || job.location,
+    salary_range: analysis.salary_text || job.salary_range,
+  }
 }
 
 async function loadUserProfile(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {

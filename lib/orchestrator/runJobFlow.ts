@@ -67,9 +67,10 @@ export async function runJobFlow(input: RunJobFlowInput): Promise<RunJobFlowResu
   try {
     await addStep("intake", "success", "Job accepted for orchestration")
 
+    // Only select columns that exist in the jobs table
     const { data: existingJob } = await supabase
       .from("jobs")
-      .select("status, analyzed_at")
+      .select("status")
       .eq("id", jobId)
       .eq("user_id", userId)
       .maybeSingle()
@@ -92,9 +93,10 @@ export async function runJobFlow(input: RunJobFlowInput): Promise<RunJobFlowResu
       await addStep("analysis", "skipped", "Analysis already completed")
     }
 
+    // Only update status - generation_status column doesn't exist in new schema
     await supabase
       .from("jobs")
-      .update({ status: "generating", generation_status: "generating" })
+      .update({ status: "generating" })
       .eq("id", jobId)
       .eq("user_id", userId)
     await addStep("generate_documents", "started", "Document generation started")
@@ -113,9 +115,10 @@ export async function runJobFlow(input: RunJobFlowInput): Promise<RunJobFlowResu
     const generationPayload = await generationResponse.json()
     if (!generationPayload.success) {
       const errorMessage = generationPayload.error || "Document generation failed"
+      // Only update status - generation_status/generation_error columns don't exist
       await supabase
         .from("jobs")
-        .update({ status: "error", generation_status: "failed", generation_error: errorMessage })
+        .update({ status: "error" })
         .eq("id", jobId)
         .eq("user_id", userId)
       await addStep("generate_documents", "error", "Document generation failed", errorMessage)
@@ -190,9 +193,10 @@ export async function runJobFlow(input: RunJobFlowInput): Promise<RunJobFlowResu
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Run flow failed"
+    // Only update status - generation_status/generation_error columns don't exist
     await supabase
       .from("jobs")
-      .update({ status: "error", generation_status: "failed", generation_error: errorMessage })
+      .update({ status: "error" })
       .eq("id", jobId)
       .eq("user_id", userId)
 

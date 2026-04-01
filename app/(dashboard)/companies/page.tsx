@@ -18,11 +18,17 @@ export default async function CompaniesPage() {
     redirect("/login")
   }
   
-  const { data: jobs, error } = await supabase
+  // Fetch jobs with scores - use correct column names
+  const { data: rawJobs, error } = await supabase
     .from("jobs")
-    .select("*")
+    .select(`
+      *,
+      job_scores (
+        overall_score
+      )
+    `)
     .eq("user_id", user.id)
-    .order("company", { ascending: true })
+    .order("company_name", { ascending: true })
 
   if (error) {
     return (
@@ -45,8 +51,27 @@ export default async function CompaniesPage() {
     )
   }
 
+  // Transform jobs to UI-expected format
+  const jobs = (rawJobs || []).map(j => {
+    const scores = (j.job_scores as Array<{overall_score?: number}>) || []
+    const score = scores[0]?.overall_score ?? null
+    let fit: string | null = null
+    if (score !== null) {
+      if (score >= 75) fit = "HIGH"
+      else if (score >= 50) fit = "MEDIUM"
+      else fit = "LOW"
+    }
+    return {
+      ...j,
+      title: j.role_title,
+      company: j.company_name,
+      score,
+      fit,
+    }
+  })
+  
   // Filter out any invalid/placeholder jobs
-  const allJobs = ((jobs || []) as Job[]).filter(job => {
+  const allJobs = (jobs as Job[]).filter(job => {
     // Skip jobs with missing or placeholder data
     if (!job.title || !job.company) return false
     if (job.title.includes('PLACEHOLDER') || job.company.includes('PLACEHOLDER')) return false

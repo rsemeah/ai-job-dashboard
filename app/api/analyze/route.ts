@@ -419,85 +419,72 @@ Extract the job details following the schema. Be accurate with the role_family c
       reasoning: fitResult.reasoning,
     }
 
-    // Create job record with new fields
+    // Create job record using the CORRECT schema columns
+    // jobs table only has: id, user_id, status, role_title, company_name, job_url, job_description, source, created_at
     const { data: job, error: insertError } = await supabase
       .from("jobs")
       .insert({
         user_id: user.id,
-        title: analysis.title,
-        company: analysis.company,
+        role_title: analysis.title,
+        company_name: analysis.company,
         source: source,
-        source_url: job_url,
-        location: analysis.location,
-        employment_type: analysis.employment_type,
-        salary_range: analysis.salary_text,
-        raw_description: pageContent.slice(0, 10000),
-        responsibilities: analysis.responsibilities,
-        qualifications_required: analysis.qualifications_required,
-        qualifications_preferred: analysis.qualifications_preferred,
-        ats_keywords: analysis.keywords,
-        keywords_extracted: analysis.keywords,
-        // New TruthSerum fields
-        role_family: analysis.role_family,
-        industry_guess: analysis.industry_guess || "Unknown",
-        seniority_level: normalizedSeniority,
-    // Initial scoring with role-aware weights
-    fit: fitResult.fit,
-    score: fitResult.score,
-    score_strengths: fitResult.reasoning.filter(r => !r.includes("gap")),
-    score_gaps: fitResult.reasoning.filter(r => r.includes("gap")),
-    // Store full explainable scoring metadata in score_reasoning jsonb
-    score_reasoning: {
-      inferred_role: roleAwareFit.inferredRole,
-      weights: roleAwareFit.weights,
-      dimension_scores: dimensionScores,
-      scoring_version: "3.0-explainable",
-      // Explainable fit data
-      fit_band: explainableFit.band,
-      confidence: explainableFit.confidence,
-      matched_requirements: explainableFit.matched_requirements_count,
-      partial_matches: explainableFit.partial_matches_count,
-      missing_requirements: explainableFit.missing_requirements_count,
-      total_requirements: explainableFit.total_requirements_count,
-      score_explanation: explainableFit.score_explanation,
-      strengths: explainableFit.strengths.slice(0, 5), // Top 5 strengths
-      gaps: explainableFit.gaps.slice(0, 5), // Top 5 gaps
-      warnings: explainableFit.warnings,
-      evidence_count: canonicalEvidence.length,
-    },
-    status: "analyzed",
-    analyzed_at: new Date().toISOString(),
-    })
+        job_url: job_url,
+        job_description: pageContent.slice(0, 10000),
+        status: "analyzed",
+      })
       .select()
       .single()
 
     if (insertError) {
-      console.error("Error inserting job:", insertError)
-      return NextResponse.json(
-        { success: false, error: `Failed to save job: ${insertError.message}` },
-        { status: 500 }
-      )
+      console.error("Job insert error:", insertError)
+      return NextResponse.json({ success: false, error: "Failed to save job" }, { status: 500 })
     }
 
-    // Create detailed analysis record
-    await supabase.from("job_analyses").insert({
-      user_id: user.id,
-      job_id: job.id,
-      title: analysis.title,
-      company: analysis.company,
-      location: analysis.location,
-      employment_type: analysis.employment_type,
-      salary_text: analysis.salary_text,
-      description_raw: pageContent.slice(0, 10000),
-      responsibilities: analysis.responsibilities,
-      qualifications_required: analysis.qualifications_required,
-      qualifications_preferred: analysis.qualifications_preferred,
-      keywords: analysis.keywords,
-      ats_phrases: analysis.ats_phrases,
-      ats_match_score: fitResult.score,
-      analysis_model: "llama-3.3-70b-versatile",
-      analysis_version: "2.0-truthserum",
-    })
+    // Insert job analysis data into job_analyses table
+    const { error: analysisError } = await supabase
+      .from("job_analyses")
+      .insert({
+        user_id: user.id,
+        job_id: job.id,
+        title: analysis.title,
+        company: analysis.company,
+        location: analysis.location,
+        employment_type: analysis.employment_type,
+        salary_text: analysis.salary_text,
+        description_raw: pageContent.slice(0, 10000),
+        responsibilities: analysis.responsibilities,
+        qualifications_required: analysis.qualifications_required,
+        qualifications_preferred: analysis.qualifications_preferred,
+        keywords: analysis.keywords,
+        ats_phrases: analysis.keywords,
+        matched_skills: fitResult.reasoning.filter((r: string) => !r.includes("gap")),
+        known_gaps: fitResult.reasoning.filter((r: string) => r.includes("gap")),
+        analysis_version: "3.0-explainable",
+        analysis_model: "llama-3.3-70b-versatile",
+      })
+
+    if (analysisError) {
+      console.error("Analysis insert error:", analysisError)
+    }
+
+    // Insert job scores into job_scores table
+    const { error: scoresError } = await supabase
+      .from("job_scores")
+      .insert({
+        job_id: job.id,
+        overall_score: fitResult.score,
+        confidence_score: explainableFit.confidence,
+        skills_match: dimensionScores.skills,
+        experience_relevance: dimensionScores.experience,
+        evidence_quality: dimensionScores.evidence,
+        seniority_alignment: dimensionScores.seniority,
+        ats_keywords: dimensionScores.ats || 0,
+        scoring_version: "3.0-explainable",
+      })
+
+    if (scoresError) {
+      console.error("Scores insert error:", scoresError)
+    }
 
     // Orchestrate the async flow through a single execution path.
     const orchestration = await runJobFlow({

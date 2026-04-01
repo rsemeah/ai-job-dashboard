@@ -162,7 +162,24 @@ export default async function LogsPage() {
     )
   }
 
-  const jobs = recentJobs || []
+  // Transform jobs to include title/company for UI compatibility
+  const jobs = (recentJobs || []).map(j => {
+    const scores = (j.job_scores as Array<{overall_score?: number}>) || []
+    const score = scores[0]?.overall_score ?? null
+    let fit: string | null = null
+    if (score !== null) {
+      if (score >= 75) fit = "HIGH"
+      else if (score >= 50) fit = "MEDIUM"
+      else fit = "LOW"
+    }
+    return {
+      ...j,
+      title: j.role_title,
+      company: j.company_name,
+      score,
+      fit,
+    }
+  })
   const jobsMap = new Map(jobs.map(j => [j.id, j]))
 
   // If we have processing_events, show them

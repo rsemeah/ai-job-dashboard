@@ -1,6 +1,7 @@
 "use client"
 
-// Premium subscription management hook
+// Premium subscription management hook for HireWire
+// This file must have .tsx extension for JSX support
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { 

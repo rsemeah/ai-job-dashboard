@@ -15,10 +15,11 @@ export async function findJobByUrl(
   userId: string,
   sourceUrl: string
 ) {
+  // jobs table uses job_url not source_url
   const { data, error } = await supabase
     .from("jobs")
     .select("*")
-    .eq("source_url", sourceUrl)
+    .eq("job_url", sourceUrl)
     .eq("user_id", userId)
     .maybeSingle()
 
@@ -74,19 +75,28 @@ export async function updateJobStatus(
 
 /**
  * Update job generation status.
+ * Note: generation_status and generation_error don't exist in the new schema.
+ * We use the status column to track generation state.
  */
 export async function updateJobGenerationStatus(
   supabase: AnySupabaseClient,
   jobId: string,
   userId: string,
   generationStatus: "idle" | "generating" | "completed" | "failed",
-  error?: string
+  _error?: string // Unused - kept for API compatibility
 ) {
+  // Map generation status to job status
+  const statusMap: Record<string, string> = {
+    idle: "analyzed",
+    generating: "generating",
+    completed: "ready",
+    failed: "error",
+  }
+  
   const { data, error: dbError } = await supabase
     .from("jobs")
     .update({
-      generation_status: generationStatus,
-      ...(error ? { generation_error: error } : {}),
+      status: statusMap[generationStatus] || "error",
     })
     .eq("id", jobId)
     .eq("user_id", userId)

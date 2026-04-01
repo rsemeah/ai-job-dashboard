@@ -498,28 +498,36 @@ function createCoachTools(userId: string) {
         status: z.enum(["ANALYZING", "REVIEWING", "READY", "APPLIED", "INTERVIEWING", "OFFER", "REJECTED", "WITHDRAWN"]).describe("The new status"),
         notes: z.string().optional().describe("Optional notes about the status change"),
       }),
-      execute: async ({ jobId, status, notes }) => {
+      execute: async ({ jobId, status }) => {
         const supabase = await createClient()
         
-        const updateData: Record<string, unknown> = { status }
-        if (status === "APPLIED") {
-          updateData.applied_at = new Date().toISOString()
-        }
-        
+        // Update job status
         const { data, error } = await supabase
           .from("jobs")
-          .update(updateData)
+          .update({ status })
           .eq("id", jobId)
           .eq("user_id", userId)
-          .select("id, title, company, status")
+          .select("id, role_title, company_name, status")
           .single()
         
         if (error) return { error: "Failed to update job status" }
         if (!data) return { error: "Job not found or access denied" }
         
+        // If marking as applied, create an application record
+        if (status === "APPLIED") {
+          await supabase
+            .from("applications")
+            .upsert({
+              job_id: jobId,
+              user_id: userId,
+              status: "applied",
+              applied_at: new Date().toISOString(),
+            })
+        }
+        
         return { 
           success: true, 
-          message: `Updated ${data.title} at ${data.company} to ${status}.`,
+          message: `Updated ${data.role_title} at ${data.company_name} to ${status}.`,
           job: data
         }
       },

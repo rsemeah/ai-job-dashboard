@@ -38,11 +38,17 @@ export default async function ApplicationsPage() {
     redirect("/login")
   }
   
-  const { data: appliedJobs, error } = await supabase
+  // Fetch applied jobs with scores - use lowercase status values
+  const { data: rawJobs, error } = await supabase
     .from("jobs")
-    .select("*")
+    .select(`
+      *,
+      job_scores (
+        overall_score
+      )
+    `)
     .eq("user_id", user.id)
-    .in("status", ["APPLIED", "INTERVIEWING", "OFFERED", "REJECTED"])
+    .in("status", ["applied", "interviewing", "offered", "rejected", "APPLIED", "INTERVIEWING", "OFFERED", "REJECTED"])
     .order("created_at", { ascending: false })
 
   if (error) {
@@ -66,7 +72,17 @@ export default async function ApplicationsPage() {
     )
   }
 
-  const applications = appliedJobs || []
+  // Transform jobs to UI-expected format
+  const applications = (rawJobs || []).map(j => {
+    const scores = (j.job_scores as Array<{overall_score?: number}>) || []
+    const score = scores[0]?.overall_score ?? null
+    return {
+      ...j,
+      title: j.role_title,
+      company: j.company_name,
+      score,
+    }
+  })
   
   const interviewingCount = applications.filter(j => normalizeJobStatus(j.status) === "interviewing").length
   const offeredCount = applications.filter(j => normalizeJobStatus(j.status) === "offered").length

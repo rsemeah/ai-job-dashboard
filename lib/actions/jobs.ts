@@ -277,6 +277,35 @@ export async function createJobFromUrl(url: string): Promise<CreateJobResult> {
   return analyzeJobFromUrl(url)
 }
 
+/**
+ * Transform normalized job data to the UI-expected format.
+ * Maps: role_title -> title, company_name -> company, job_scores -> score/fit
+ */
+function transformJobForUI(job: Record<string, unknown>): Record<string, unknown> {
+  const scores = (job.job_scores as Array<{ overall_score?: number; confidence_score?: number }>) || []
+  const score = scores[0]?.overall_score ?? null
+  
+  // Derive fit from score
+  let fit: string | null = null
+  if (score !== null) {
+    if (score >= 75) fit = "HIGH"
+    else if (score >= 50) fit = "MEDIUM"
+    else fit = "LOW"
+  }
+  
+  return {
+    ...job,
+    // Map normalized columns to legacy names for UI compatibility
+    title: job.role_title || job.title,
+    company: job.company_name || job.company,
+    score,
+    fit,
+    // Keep original columns too for components that use them
+    role_title: job.role_title,
+    company_name: job.company_name,
+  }
+}
+
 export async function getJobs(): Promise<JobsResult> {
   try {
     // Use authenticated client - RLS will filter by user_id
@@ -306,7 +335,9 @@ export async function getJobs(): Promise<JobsResult> {
       return { success: false, error: error.message }
     }
 
-    return { success: true, data: data || [] }
+    // Transform data for UI compatibility
+    const transformedData = (data || []).map(transformJobForUI)
+    return { success: true, data: transformedData }
   } catch (err) {
     console.error("Connection error:", err)
     return { success: false, error: "Unable to connect to database" }
@@ -322,18 +353,104 @@ export async function getJobById(id: string): Promise<Job | null> {
     return null
   }
 
+  // Fetch job with all related data for UI compatibility
   const { data, error } = await supabase
     .from("jobs")
-    .select("*")
+    .select(`
+      *,
+      job_scores (
+        overall_score,
+        confidence_score,
+        skills_match,
+        experience_relevance,
+        evidence_quality,
+        seniority_alignment,
+        ats_keywords
+      ),
+      job_analyses (
+        title,
+        company,
+        location,
+        salary_text,
+        employment_type,
+        responsibilities,
+        qualifications_required,
+        qualifications_preferred,
+        keywords,
+        ats_phrases,
+        matched_skills,
+        matched_tools,
+        matched_industries,
+        matched_projects,
+        matched_achievements,
+        known_gaps,
+        matched_keywords,
+        missing_keywords,
+        ats_match_score
+      ),
+      generated_documents (
+        document_type,
+        content,
+        version,
+        created_at
+      )
+    `)
     .eq("id", id)
-    .eq("user_id", user.id) // Ensure user can only access their own jobs
+    .eq("user_id", user.id)
     .single()
 
   if (error) {
     return null
   }
 
-  return data
+  // Transform to UI-expected format
+  const scores = (data.job_scores as Array<Record<string, unknown>>) || []
+  const analyses = (data.job_analyses as Array<Record<string, unknown>>) || []
+  const documents = (data.generated_documents as Array<Record<string, unknown>>) || []
+  
+  const score = scores[0]?.overall_score as number | null ?? null
+  const analysis = analyses[0] || {}
+  
+  // Find latest resume and cover letter
+  const resume = documents.find(d => d.document_type === "resume")
+  const coverLetter = documents.find(d => d.document_type === "cover_letter")
+  
+  // Derive fit from score
+  let fit: string | null = null
+  if (score !== null) {
+    if (score >= 75) fit = "HIGH"
+    else if (score >= 50) fit = "MEDIUM"
+    else fit = "LOW"
+  }
+  
+  return {
+    ...data,
+    // Map normalized columns to legacy names for UI compatibility
+    title: data.role_title || analysis.title || data.title,
+    company: data.company_name || analysis.company || data.company,
+    score,
+    fit,
+    // Score details
+    score_strengths: [],
+    score_gaps: analysis.known_gaps || [],
+    // Generated content
+    generated_resume: resume?.content || null,
+    generated_cover_letter: coverLetter?.content || null,
+    // Analysis data (flatten for backwards compatibility)
+    location: analysis.location || data.location,
+    salary_range: analysis.salary_text || data.salary_range,
+    employment_type: analysis.employment_type || data.employment_type,
+    responsibilities: analysis.responsibilities || [],
+    qualifications_required: analysis.qualifications_required || [],
+    qualifications_preferred: analysis.qualifications_preferred || [],
+    ats_keywords: analysis.ats_phrases || analysis.keywords || [],
+    // Keep original for components that use them
+    role_title: data.role_title,
+    company_name: data.company_name,
+    job_scores: scores,
+    job_analyses: analyses,
+    generated_documents: documents,
+  } as Job
 }
 
 export async function updateJobStatus(
@@ -454,7 +571,10 @@ export async function getJobStats(): Promise<StatsResult> {
       return acc
     }, {} as Record<string, number>)
 
-    const hasWorkflowOutputs = jobs.some((job) => job.score !== null)
+    const hasWorkflowOutputs = jobs.some((job) => {
+      const scores = job.job_scores as Array<{ overall_score?: number }> | undefined
+      return scores?.[0]?.overall_score !== null && scores?.[0]?.overall_score !== undefined
+    })
 
     return {
       success: true,

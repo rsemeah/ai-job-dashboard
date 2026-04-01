@@ -517,6 +517,7 @@ export async function getJobStats(): Promise<StatsResult> {
     }
 
     // Query jobs with their scores from job_scores table
+    // Filter out soft-deleted jobs
     const { data, error } = await supabase
       .from("jobs")
       .select(`
@@ -530,6 +531,7 @@ export async function getJobStats(): Promise<StatsResult> {
         )
       `)
       .eq("user_id", user.id)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
 
     if (error) {

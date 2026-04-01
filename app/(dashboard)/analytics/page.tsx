@@ -15,10 +15,12 @@ export default async function AnalyticsPage() {
     redirect("/login")
   }
   
+  // Filter out soft-deleted jobs
   const { data: jobs, error } = await supabase
     .from("jobs")
     .select("*")
     .eq("user_id", user.id)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
 
   if (error) {

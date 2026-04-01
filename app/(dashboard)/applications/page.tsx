@@ -39,6 +39,7 @@ export default async function ApplicationsPage() {
   }
   
   // Fetch applied jobs with scores - use lowercase status values
+  // Filter out soft-deleted jobs
   const { data: rawJobs, error } = await supabase
     .from("jobs")
     .select(`
@@ -48,6 +49,7 @@ export default async function ApplicationsPage() {
       )
     `)
     .eq("user_id", user.id)
+    .is("deleted_at", null)
     .in("status", ["applied", "interviewing", "offered", "rejected", "APPLIED", "INTERVIEWING", "OFFERED", "REJECTED"])
     .order("created_at", { ascending: false })
 

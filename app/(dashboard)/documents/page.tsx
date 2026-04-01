@@ -113,6 +113,7 @@ export default function DocumentsPage() {
         }
         
         // Load all jobs that have generation status or generated materials
+        // Filter out soft-deleted jobs
         const { data: jobsData, error } = await supabase
           .from("jobs")
           .select(`
@@ -128,6 +129,7 @@ export default function DocumentsPage() {
             created_at
           `)
           .eq("user_id", user.id)
+          .is("deleted_at", null)
           .or("generated_resume.not.is.null,generation_status.not.is.null")
           .order("generation_timestamp", { ascending: false, nullsFirst: false })
         

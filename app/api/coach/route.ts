@@ -4,6 +4,7 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { checkSafety, logSafetyAudit } from "@/lib/safety"
 import { groq, MODELS } from "@/lib/adapters/groq"
+import { GAP_CLARIFICATION_SYSTEM_PROMPT } from "@/lib/coach-prompts/gap-questions"
 
 export const maxDuration = 60
 
@@ -537,7 +538,7 @@ function createCoachTools(userId: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, conversationId } = await req.json()
+    const { messages, conversationId, gapContext } = await req.json()
 
     // Get current user
     const supabase = await createClient()
@@ -577,10 +578,16 @@ export async function POST(req: NextRequest) {
     // Create tools with userId bound
     const tools = createCoachTools(user.id)
 
+    // Build system prompt - add gap clarification mode if context provided
+    let systemPrompt = COACH_SYSTEM_PROMPT
+    if (gapContext) {
+      systemPrompt = `${COACH_SYSTEM_PROMPT}\n\n${GAP_CLARIFICATION_SYSTEM_PROMPT}\n\n## Current Gap Context\nThe user is asking about gaps for job: "${gapContext.jobTitle}" at "${gapContext.company}".\n${gapContext.gap ? `Specific gap to address: ${gapContext.gap.requirement} (${gapContext.gap.category})` : "Help the user address their evidence gaps for this role."}`
+    }
+
     // Stream response using Groq
     const result = streamText({
       model: groq(MODELS.VERSATILE),
-      system: COACH_SYSTEM_PROMPT,
+      system: systemPrompt,
       messages,
       tools,
       maxSteps: 10,

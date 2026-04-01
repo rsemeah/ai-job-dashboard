@@ -32,6 +32,18 @@ interface CoachChatProps {
     score?: number | null
     status?: string
   }
+  /** Optional gap context for targeted gap clarification mode */
+  gapContext?: {
+    jobTitle: string
+    company: string
+    gap?: {
+      requirement: string
+      category: string
+      coach_question: string
+    }
+  }
+  /** Initial message to send when component mounts */
+  initialMessage?: string
 }
 
 // Quick action suggestions
@@ -47,22 +59,34 @@ function getMessageText(message: { content?: string }): string {
   return message.content || ""
 }
 
-export function CoachChat({ className, conversationId, compact = false, onClose, jobContext }: CoachChatProps) {
+export function CoachChat({ className, conversationId, compact = false, onClose, jobContext, gapContext, initialMessage }: CoachChatProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const initialMessageSent = useRef(false)
 
   const { messages, input, setInput, handleSubmit: submitMessage, isLoading, append } = useChat({
     api: "/api/coach",
-    body: jobContext ? {
-      jobContext: {
-        jobId: jobContext.jobId,
-        title: jobContext.title,
-        company: jobContext.company,
-        score: jobContext.score,
-        status: jobContext.status,
-      }
-    } : undefined,
+    body: {
+      ...(jobContext ? {
+        jobContext: {
+          jobId: jobContext.jobId,
+          title: jobContext.title,
+          company: jobContext.company,
+          score: jobContext.score,
+          status: jobContext.status,
+        }
+      } : {}),
+      ...(gapContext ? { gapContext } : {}),
+    },
   })
+
+  // Send initial message on mount if provided
+  useEffect(() => {
+    if (initialMessage && !initialMessageSent.current && messages.length === 0) {
+      initialMessageSent.current = true
+      append({ role: "user", content: initialMessage })
+    }
+  }, [initialMessage, messages.length, append])
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {

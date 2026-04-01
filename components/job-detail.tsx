@@ -48,8 +48,10 @@ import { toast } from "sonner"
 import { ExportButtons } from "@/components/export-buttons"
 import { ResumeTemplatePicker, ResumeActionsBar, getRecommendedTemplate } from "@/components/resume-templates"
 import { DeleteJobDialog } from "@/components/delete-job-dialog"
+import { PreGenerationReview } from "@/components/pre-generation-review"
 import { TEMPLATE_CONFIGS } from "@/lib/resume-templates/config/resumeTemplates.config"
 import type { TemplateId } from "@/lib/resume-templates/types/ResumeProps"
+import { detectGaps, type GapAnalysisResult, type DetectedGap } from "@/lib/gap-detection"
 
 // Available status transitions
 const STATUS_OPTIONS: JobStatus[] = [
@@ -306,6 +308,13 @@ export function JobDetail({ job }: JobDetailProps) {
     job.seniority_level
   )
   const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>(recommendedTemplateId)
+  
+  // Pre-generation gap review state
+  const [showGapReview, setShowGapReview] = useState(false)
+  const [gapAnalysis, setGapAnalysis] = useState<GapAnalysisResult | null>(null)
+  const [isLoadingGaps, setIsLoadingGaps] = useState(false)
+  const [selectedGapForCoach, setSelectedGapForCoach] = useState<DetectedGap | null>(null)
+  const [showCoachForGaps, setShowCoachForGaps] = useState(false)
 
   // Sync local status when job prop updates (e.g. after router.refresh())
   useEffect(() => {
@@ -363,6 +372,60 @@ export function JobDetail({ job }: JobDetailProps) {
 
   const [retryCountdown, setRetryCountdown] = useState(0)
   const [generationError, setGenerationError] = useState<string | null>(null)
+
+  // Run gap detection before generation
+  const runGapDetection = async () => {
+    setIsLoadingGaps(true)
+    try {
+      const { createClient } = await import("@/lib/supabase/client")
+      const supabase = createClient()
+      
+      // Load user evidence and profile
+      const [evidenceResult, profileResult] = await Promise.all([
+        supabase.from("evidence_library").select("*").eq("is_active", true),
+        supabase.from("user_profile").select("*").limit(1).maybeSingle()
+      ])
+      
+      const evidence = evidenceResult.data || []
+      const profile = profileResult.data
+      
+      // Run gap detection
+      const result = detectGaps(
+        {
+          qualifications_required: job.qualifications_required || [],
+          qualifications_preferred: job.qualifications_preferred || [],
+          tech_stack: job.tech_stack || [],
+          keywords: job.keywords || [],
+          responsibilities: job.responsibilities || [],
+          seniority_level: job.seniority_level,
+          industry_guess: job.industry_guess,
+        },
+        evidence,
+        profile ? {
+          skills: profile.skills || [],
+          experience: profile.experience || [],
+        } : null,
+        job.score_gaps || []
+      )
+      
+      result.job_id = job.id
+      setGapAnalysis(result)
+      
+      // Show review if there are critical gaps, otherwise allow direct generation
+      if (result.critical_gaps.length > 0 || result.gaps.length > 2) {
+        setShowGapReview(true)
+      } else {
+        // Few/no gaps - proceed directly to generation
+        handleGenerateMaterials()
+      }
+    } catch (error) {
+      console.error("Gap detection error:", error)
+      // On error, proceed to generation anyway
+      handleGenerateMaterials()
+    } finally {
+      setIsLoadingGaps(false)
+    }
+  }
 
   const handleGenerateMaterials = async (templateId?: TemplateId) => {
     setIsGenerating(true)
@@ -725,18 +788,43 @@ export function JobDetail({ job }: JobDetailProps) {
 
           <Separator className="my-4" />
 
+          {/* Pre-generation gap review */}
+          {showGapReview && gapAnalysis && (
+            <PreGenerationReview
+              gapAnalysis={gapAnalysis}
+              onContinueGenerate={() => {
+                setShowGapReview(false)
+                handleGenerateMaterials()
+              }}
+              onOpenCoach={(gap) => {
+                setSelectedGapForCoach(gap || null)
+                setShowCoachForGaps(true)
+                setShowGapReview(false)
+              }}
+              onDismiss={() => setShowGapReview(false)}
+              isGenerating={isGenerating}
+              jobTitle={job.title}
+              company={job.company_name}
+            />
+          )}
+
           {/* Action buttons */}
           <div className="flex flex-wrap gap-3">
             {!hasResume || !hasCoverLetter ? (
               <Button 
-                onClick={() => handleGenerateMaterials()} 
-                disabled={isGenerating}
+                onClick={() => runGapDetection()} 
+                disabled={isGenerating || isLoadingGaps}
                 className="bg-primary hover:bg-primary/90"
               >
                 {isGenerating ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Generating...
+                  </>
+                ) : isLoadingGaps ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Checking Evidence...
                   </>
                 ) : (
                   <>

@@ -138,7 +138,7 @@ export default async function CompaniesPage() {
     const existing = companiesMap.get(normalizedName) || {
       name: job.company!,
       normalizedName,
-      jobs: [],
+      jobs: [] as typeof allJobs,
       totalJobs: 0,
       appliedJobs: 0,
       readyJobs: 0,

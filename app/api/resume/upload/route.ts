@@ -1,9 +1,9 @@
 import { put } from "@vercel/blob"
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { groq } from "@ai-sdk/groq"
 import { generateObject } from "ai"
 import { z } from "zod"
+import { groq, MODELS } from "@/lib/adapters/groq"
 
 // Schema for parsed resume data
 const ParsedResumeSchema = z.object({
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     let parsedData: z.infer<typeof ParsedResumeSchema>
     try {
       const { object } = await generateObject({
-        model: groq("llama-3.3-70b-versatile"),
+        model: groq(MODELS.VERSATILE),
         schema: ParsedResumeSchema,
         prompt: `Parse this resume and extract structured information. Be accurate and thorough - extract ALL work experience entries, skills, and education. If information is not present, use empty arrays or omit optional fields.
 

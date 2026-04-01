@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { generateText, generateObject } from "ai"
-import { createGroq } from "@ai-sdk/groq"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
+import { groq, isGroqConfigured, MODELS } from "@/lib/adapters/groq"
+import { GenerateDocumentsInputSchema } from "@/lib/schemas/job-intake"
 import {
   BANNED_PHRASES,
   detectBannedPhrases,
@@ -37,10 +38,6 @@ import {
   getTemplateGuidance,
 } from "@/lib/resume-templates"
 import { sanitizeInput } from "@/lib/safety"
-
-const groq = createGroq({
-  apiKey: process.env.GROQ_API_KEY,
-})
 
 // Schema for evidence mapping
 const EvidenceMapSchema = z.object({
@@ -200,20 +197,24 @@ Return an error explaining why generation was blocked.`
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { job_id, selected_evidence_ids, _retry_count = 0 } = body
-    const isRetry = _retry_count > 0
-    const MAX_RETRIES = 1 // Auto-retry once if quality check fails
-
-    if (!job_id) {
+    const { selected_evidence_ids, _retry_count = 0 } = body
+    
+    // Validate input
+    const parseResult = GenerateDocumentsInputSchema.safeParse(body)
+    if (!parseResult.success) {
       return NextResponse.json(
-        { success: false, error: "job_id is required" },
+        { success: false, error: parseResult.error.errors[0]?.message || "Invalid input" },
         { status: 400 }
       )
     }
+    
+    const { job_id } = parseResult.data
+    const isRetry = _retry_count > 0
+    const MAX_RETRIES = 1 // Auto-retry once if quality check fails
 
-    if (!process.env.GROQ_API_KEY) {
+    if (!isGroqConfigured()) {
       return NextResponse.json(
-        { success: false, error: "GROQ_API_KEY not configured" },
+        { success: false, error: "AI service not configured" },
         { status: 500 }
       )
     }
@@ -436,7 +437,7 @@ ${(jobData.raw_description as string).slice(0, 3000)}` : ""}
 
     // Step 1: Create evidence map and determine strategy
     const { object: evidenceMap } = await generateObject({
-      model: groq("llama-3.3-70b-versatile"),
+      model: groq(MODELS.VERSATILE),
       schema: EvidenceMapSchema,
       prompt: `Analyze the match between this candidate and job opportunity.
 
@@ -501,7 +502,7 @@ Be conservative - only include matches that are clearly supported by the evidenc
     // Step 2: Generate resume with bullet-level provenance
     // SIMPLIFIED: Reduced prompt verbosity to produce more natural, human-sounding output
     const { object: resumeWithProvenance } = await generateObject({
-      model: groq("llama-3.3-70b-versatile"),
+      model: groq(MODELS.VERSATILE),
       schema: ResumeWithProvenanceSchema,
       prompt: `Write resume content for this job application. Sound like a sharp professional, not a bot.
 
@@ -596,7 +597,7 @@ Write 5-8 achievement bullets that the candidate could confidently discuss in an
     // Step 3: Generate cover letter with paragraph provenance
     // SIMPLIFIED: More direct prompt for natural, human-sounding cover letters
     const { object: coverLetterWithProvenance } = await generateObject({
-      model: groq("llama-3.3-70b-versatile"),
+      model: groq(MODELS.VERSATILE),
       schema: CoverLetterWithProvenanceSchema,
       prompt: `Write a cover letter for this role. Sound confident and human, not like a template.
 
@@ -716,7 +717,7 @@ ${signatureBlock}`
     let qualityCheck: z.infer<typeof QualityCheckSchema>
     try {
       const result = await generateObject({
-        model: groq("llama-3.1-8b-instant"),
+        model: groq(MODELS.FAST),
         schema: QualityCheckSchema,
         prompt: `You are a resume quality reviewer. Analyze the generated documents and return a JSON object with your findings.
 

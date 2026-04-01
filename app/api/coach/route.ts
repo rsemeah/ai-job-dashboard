@@ -1,15 +1,11 @@
 import { NextRequest } from "next/server"
 import { streamText, tool } from "ai"
-import { createGroq } from "@ai-sdk/groq"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { checkSafety, logSafetyAudit } from "@/lib/safety"
+import { groq, MODELS } from "@/lib/adapters/groq"
 
 export const maxDuration = 60
-
-const groq = createGroq({
-  apiKey: process.env.GROQ_API_KEY,
-})
 
 // Enhanced System prompt with safety boundaries
 const COACH_SYSTEM_PROMPT = `You are HireWire Coach, a strategic career advisor embedded in the HireWire job application platform.
@@ -552,7 +548,7 @@ export async function POST(req: NextRequest) {
 
     // Stream response using Groq
     const result = streamText({
-      model: groq("llama-3.3-70b-versatile"),
+      model: groq(MODELS.VERSATILE),
       system: COACH_SYSTEM_PROMPT,
       messages,
       tools,

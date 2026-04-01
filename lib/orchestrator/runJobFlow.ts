@@ -1,6 +1,7 @@
 import type { createClient } from "@/lib/supabase/server"
 import { normalizeJobStatus } from "@/lib/job-lifecycle"
 import { recordRunStep } from "@/lib/logs/runLedger"
+import { type JobFlowContext, createJobFlowContext } from "@/lib/context/job-flow"
 
 type ServerSupabase = Awaited<ReturnType<typeof createClient>>
 type RequestLike = {
@@ -27,6 +28,7 @@ export interface RunJobFlowInput {
 export interface RunJobFlowResult {
   success: boolean
   jobId: string
+  correlationId: string
   steps: RunStep[]
   generation?: {
     attempted: boolean
@@ -37,20 +39,12 @@ export interface RunJobFlowResult {
   }
 }
 
-function resolveBaseUrl(request: RequestLike): string {
-  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env || {}
-  const vercelUrl = env.VERCEL_URL || env.NEXT_PUBLIC_VERCEL_URL
-  if (vercelUrl) return `https://${vercelUrl}`
-
-  const origin = request.headers.get("origin")
-  if (origin) return origin
-
-  return `http://${request.headers.get("host") || "localhost:3000"}`
-}
-
 export async function runJobFlow(input: RunJobFlowInput): Promise<RunJobFlowResult> {
   const { supabase, request, userId, jobId, triggerInterviewPrep = false } = input
   const steps: RunStep[] = []
+  
+  // Create execution context for this flow
+  const ctx: JobFlowContext = createJobFlowContext({ request, userId, jobId })
 
   const addStep = async (
     step: string,
@@ -82,7 +76,7 @@ export async function runJobFlow(input: RunJobFlowInput): Promise<RunJobFlowResu
 
     if (!existingJob) {
       await addStep("load_job", "error", "Job not found for current user", "not_found")
-      return { success: false, jobId, steps }
+      return { success: false, jobId, correlationId: ctx.correlationId, steps }
     }
 
     const currentStatus = normalizeJobStatus(existingJob.status)
@@ -105,14 +99,13 @@ export async function runJobFlow(input: RunJobFlowInput): Promise<RunJobFlowResu
       .eq("user_id", userId)
     await addStep("generate_documents", "started", "Document generation started")
 
-    const baseUrl = resolveBaseUrl(request)
-    const generationResponse = await fetch(`${baseUrl}/api/generate-documents`, {
+    // Use context for baseUrl and cookie forwarding
+    const generationResponse = await fetch(`${ctx.baseUrl}/api/generate-documents`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(request.headers.get("cookie")
-          ? { Cookie: request.headers.get("cookie") as string }
-          : {}),
+        "X-Correlation-ID": ctx.correlationId,
+        ...(ctx.cookieHeader ? { Cookie: ctx.cookieHeader } : {}),
       },
       body: JSON.stringify({ job_id: jobId }),
     })
@@ -129,6 +122,7 @@ export async function runJobFlow(input: RunJobFlowInput): Promise<RunJobFlowResu
       return {
         success: false,
         jobId,
+        correlationId: ctx.correlationId,
         steps,
         generation: {
           attempted: true,
@@ -155,13 +149,12 @@ export async function runJobFlow(input: RunJobFlowInput): Promise<RunJobFlowResu
     if (triggerInterviewPrep) {
       await addStep("interview_prep", "started", "Interview prep requested")
       try {
-        const prepResponse = await fetch(`${baseUrl}/api/generate-interview-prep`, {
+        const prepResponse = await fetch(`${ctx.baseUrl}/api/generate-interview-prep`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(request.headers.get("cookie")
-              ? { Cookie: request.headers.get("cookie") as string }
-              : {}),
+            "X-Correlation-ID": ctx.correlationId,
+            ...(ctx.cookieHeader ? { Cookie: ctx.cookieHeader } : {}),
           },
           body: JSON.stringify({ job_id: jobId }),
         })
@@ -186,6 +179,7 @@ export async function runJobFlow(input: RunJobFlowInput): Promise<RunJobFlowResu
     return {
       success: true,
       jobId,
+      correlationId: ctx.correlationId,
       steps,
       generation: {
         attempted: true,
@@ -207,6 +201,7 @@ export async function runJobFlow(input: RunJobFlowInput): Promise<RunJobFlowResu
     return {
       success: false,
       jobId,
+      correlationId: ctx.correlationId,
       steps,
       generation: {
         attempted: true,

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { generateObject } from "ai"
-import { createGroq } from "@ai-sdk/groq"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { runJobFlow } from "@/lib/orchestrator/runJobFlow"
@@ -13,10 +12,10 @@ import {
   type ExplainableFitScore,
   type FitBand,
 } from "@/lib/canonical-evidence"
-
-const groq = createGroq({
-  apiKey: process.env.GROQ_API_KEY,
-})
+import { groq, isGroqConfigured, MODELS } from "@/lib/adapters/groq"
+import { AnalyzeJobInputSchema } from "@/lib/schemas/job-intake"
+import { parseJobPage, detectSource } from "@/lib/parsers"
+import { findJobByUrl } from "@/lib/queries/jobs"
 
 // Role families for categorization - PM-focused but extensible
 const ROLE_FAMILIES = [
@@ -84,39 +83,12 @@ async function fetchJobPage(url: string): Promise<string> {
 
     const html = await response.text()
     
-    // Basic HTML to text conversion - strip tags but keep structure
-    const text = html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-      .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "")
-      .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
-      .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/g, " ")
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 15000) // Limit content size for LLM
-
-    return text
+    // Use parser registry for source-specific parsing
+    const parsed = parseJobPage(html, url)
+    return parsed.text
   } finally {
     clearTimeout(timeoutId)
   }
-}
-
-function detectSource(url: string): string {
-  const lowercase = url.toLowerCase()
-  if (lowercase.includes("greenhouse.io")) return "GREENHOUSE"
-  if (lowercase.includes("lever.co")) return "LEVER"
-  if (lowercase.includes("linkedin.com")) return "LINKEDIN"
-  if (lowercase.includes("indeed.com")) return "INDEED"
-  if (lowercase.includes("workday.com")) return "WORKDAY"
-  if (lowercase.includes("ashbyhq.com")) return "ASHBY"
-  if (lowercase.includes("icims.com")) return "ICIMS"
-  if (lowercase.includes("smartrecruiters.com")) return "SMARTRECRUITERS"
-  return "OTHER"
 }
 
 // Normalize seniority level to standard values
@@ -241,37 +213,22 @@ function calculateRoleAwareFit(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { job_url } = body
-
-    if (!job_url) {
+    
+    // Validate input using schema
+    const parseResult = AnalyzeJobInputSchema.safeParse(body)
+    if (!parseResult.success) {
       return NextResponse.json(
-        { success: false, error: "job_url is required" },
+        { success: false, error: parseResult.error.errors[0]?.message || "Invalid input" },
         { status: 400 }
       )
     }
+    
+    const { job_url } = parseResult.data
 
-    // Validate URL
-    let parsedUrl: URL
-    try {
-      parsedUrl = new URL(job_url)
-    } catch {
+    // Check for Groq configuration
+    if (!isGroqConfigured()) {
       return NextResponse.json(
-        { success: false, error: "Invalid URL format" },
-        { status: 400 }
-      )
-    }
-
-    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-      return NextResponse.json(
-        { success: false, error: "URL must use http or https" },
-        { status: 400 }
-      )
-    }
-
-    // Check for GROQ_API_KEY
-    if (!process.env.GROQ_API_KEY) {
-      return NextResponse.json(
-        { success: false, error: "GROQ_API_KEY not configured" },
+        { success: false, error: "AI service not configured" },
         { status: 500 }
       )
     }
@@ -290,13 +247,8 @@ export async function POST(request: NextRequest) {
     }
     const source = detectSource(job_url)
 
-    // Check for existing job with this URL
-    const { data: existingJob } = await supabase
-      .from("jobs")
-      .select("*")
-      .eq("source_url", job_url)
-      .eq("user_id", user.id)
-      .maybeSingle()
+    // Check for existing job with this URL (using extracted query)
+    const { data: existingJob } = await findJobByUrl(supabase, user.id, job_url)
 
     if (existingJob) {
       // Return full analysis data for duplicates so UI can render properly
@@ -345,7 +297,7 @@ export async function POST(request: NextRequest) {
 
     // Analyze with Groq
     const { object: analysis } = await generateObject({
-      model: groq("llama-3.3-70b-versatile"),
+      model: groq(MODELS.VERSATILE),
       schema: JobAnalysisSchema,
       prompt: `Analyze this job posting and extract structured information.
 

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { generateText, generateObject } from "ai"
-import { createGroq } from "@ai-sdk/groq"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
+import { groq, isGroqConfigured, MODELS } from "@/lib/adapters/groq"
 import type { 
   InterviewPrep,
   InterviewSnapshot,
@@ -18,10 +18,6 @@ import type {
   ObjectionHandlingItem,
   QuickSheet,
 } from "@/lib/interview-prep-types"
-
-const groq = createGroq({
-  apiKey: process.env.GROQ_API_KEY,
-})
 
 // ============================================================================
 // ZOD SCHEMAS FOR STRUCTURED GENERATION
@@ -339,7 +335,7 @@ TRUTH RULES:
       sectionName: string
     ): Promise<T> => {
       const { object } = await generateObject({
-        model: groq("llama-3.3-70b-versatile"),
+        model: groq(MODELS.VERSATILE),
         schema,
         prompt: `${basePrompt}\n\n${sectionPrompt}`,
       })

@@ -195,14 +195,17 @@ async function loadSourceResume(supabase: Awaited<ReturnType<typeof createClient
 /**
  * Build strategy-aware generation prompt based on fit
  */
-function buildStrategyPrompt(strategy: GenerationStrategy): string {
+function buildStrategyPrompt(strategy: GenerationStrategy, hasUnresolvedGaps: boolean = false): string {
+  const gapWarning = hasUnresolvedGaps ? `
+WARNING: Some gaps remain unresolved. Be conservative - avoid overconfident claims in areas where evidence is thin.` : ""
+
   switch (strategy) {
     case "direct_match":
       return `
 GENERATION STRATEGY: DIRECT MATCH
 You may be assertive about qualifications since evidence strongly supports the match.
 Use confident language and highlight achievements directly relevant to the role.
-Still avoid any invention - stick to facts from evidence.`
+Still avoid any invention - stick to facts from evidence.${gapWarning}`
 
     case "adjacent_transition":
       return `
@@ -210,7 +213,7 @@ GENERATION STRATEGY: ADJACENT TRANSITION
 Lean on transferable skills and related experience.
 Do NOT claim direct experience you don't have.
 Frame adjacent work as relevant without pretending direct ownership.
-Be honest about the transition narrative.`
+Be honest about the transition narrative.${gapWarning}`
 
     case "stretch_honest":
       return `
@@ -218,7 +221,7 @@ GENERATION STRATEGY: STRETCH BUT HONEST
 This is a stretch role - be careful not to overclaim.
 Emphasize learning ability and adaptability.
 Acknowledge gaps indirectly through what you bring, not what you lack.
-Do NOT exaggerate or invent qualifications.`
+Do NOT exaggerate or invent qualifications.${gapWarning}`
 
     case "do_not_generate":
       return `
@@ -321,6 +324,13 @@ export async function POST(request: NextRequest) {
     }
 
     const jobAnalysis = jobData.job_analyses?.[0]
+    
+    // Load gap clarifications for this job (job-specific context)
+    const gapClarifications = (jobData.gap_clarifications as Array<{
+      gap_requirement: string
+      answer: string
+      routing: string
+    }>) || []
 
     // TRUTH-LOCK: Filter evidence based on usage rules
     // If user selected specific evidence, use that; otherwise filter automatically
@@ -467,6 +477,14 @@ ${jobAnalysis?.ats_phrases?.length ? `ATS Phrases to Include: ${jobAnalysis.ats_
 ${!jobAnalysis && jobData.raw_description ? `
 Full Job Description (manually entered — extract responsibilities and keywords from this):
 ${(jobData.raw_description as string).slice(0, 3000)}` : ""}
+${gapClarifications.length > 0 ? `
+
+ADDITIONAL CONTEXT FROM CANDIDATE (use this to address identified gaps):
+${gapClarifications.map(c => `
+Gap: ${c.gap_requirement}
+Candidate's response: ${c.answer}
+`).join("\n")}
+NOTE: The candidate provided this additional context to address gaps. Use this information when crafting the resume and cover letter, but DO NOT fabricate or exaggerate beyond what they stated.` : ""}
 `
 
     // Step 1: Create evidence map and determine strategy
@@ -521,7 +539,9 @@ Be conservative - only include matches that are clearly supported by the evidenc
       }, { status: 400 })
     }
 
-    const strategyPrompt = buildStrategyPrompt(strategy)
+    // Determine if there are unresolved gaps (gaps detected but not clarified)
+    const hasUnresolvedGaps = evidenceMap.gaps.length > 0 && gapClarifications.length === 0
+    const strategyPrompt = buildStrategyPrompt(strategy, hasUnresolvedGaps)
 
     // Auto-select optimal resume template based on job analysis
     const selectedTemplate = suggestTemplate({

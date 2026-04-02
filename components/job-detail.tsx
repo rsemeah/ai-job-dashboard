@@ -52,6 +52,7 @@ import { PreGenerationReview } from "@/components/pre-generation-review"
 import { TEMPLATE_CONFIGS } from "@/lib/resume-templates/config/resumeTemplates.config"
 import type { TemplateId } from "@/lib/resume-templates/types/ResumeProps"
 import { detectGaps, type GapAnalysisResult, type DetectedGap } from "@/lib/gap-detection"
+import { GapClarificationModal, type GapClarification } from "@/components/gap-clarification-modal"
 
 // Available status transitions
 const STATUS_OPTIONS: JobStatus[] = [
@@ -314,7 +315,8 @@ export function JobDetail({ job }: JobDetailProps) {
   const [gapAnalysis, setGapAnalysis] = useState<GapAnalysisResult | null>(null)
   const [isLoadingGaps, setIsLoadingGaps] = useState(false)
   const [selectedGapForCoach, setSelectedGapForCoach] = useState<DetectedGap | null>(null)
-  const [showCoachForGaps, setShowCoachForGaps] = useState(false)
+  const [showGapClarification, setShowGapClarification] = useState(false)
+  const [pendingClarifications, setPendingClarifications] = useState<GapClarification[]>([])
 
   // Sync local status when job prop updates (e.g. after router.refresh())
   useEffect(() => {
@@ -798,7 +800,7 @@ export function JobDetail({ job }: JobDetailProps) {
               }}
               onOpenCoach={(gap) => {
                 setSelectedGapForCoach(gap || null)
-                setShowCoachForGaps(true)
+                setShowGapClarification(true)
                 setShowGapReview(false)
               }}
               onDismiss={() => setShowGapReview(false)}
@@ -1411,6 +1413,23 @@ export function JobDetail({ job }: JobDetailProps) {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Gap Clarification Modal */}
+      {gapAnalysis && (
+        <GapClarificationModal
+          open={showGapClarification}
+          onClose={() => setShowGapClarification(false)}
+          gapAnalysis={gapAnalysis}
+          jobId={job.id}
+          jobTitle={job.title}
+          company={job.company}
+          onComplete={(clarifications) => {
+            setPendingClarifications(clarifications)
+            // After clarification, trigger generation with the new context
+            handleGenerateMaterials()
+          }}
+        />
+      )}
     </div>
   )
 }

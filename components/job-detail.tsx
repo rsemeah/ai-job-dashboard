@@ -46,6 +46,12 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { ExportButtons } from "@/components/export-buttons"
+import { ResumeTemplatePicker, ResumeActionsBar, getRecommendedTemplate } from "@/components/resume-templates"
+import { DeleteJobDialog } from "@/components/delete-job-dialog"
+import { PreGenerationReview } from "@/components/pre-generation-review"
+import { TEMPLATE_CONFIGS } from "@/lib/resume-templates/config/resumeTemplates.config"
+import type { TemplateId } from "@/lib/resume-templates/types/ResumeProps"
+import { detectGaps, type GapAnalysisResult, type DetectedGap } from "@/lib/gap-detection"
 
 // Available status transitions
 const STATUS_OPTIONS: JobStatus[] = [
@@ -68,8 +74,18 @@ interface JobDetailProps {
   job: Job
 }
 
-// Fit badge component with proper styling
-function FitBadge({ fit, score }: { fit: JobFit; score: number | null }) {
+// Fit badge component with proper styling and explainable tooltip
+function FitBadge({ fit, score, scoreReasoning }: { 
+  fit: JobFit; 
+  score: number | null;
+  scoreReasoning?: {
+    fit_band?: string;
+    confidence?: string;
+    matched_requirements?: number;
+    total_requirements?: number;
+    score_explanation?: string;
+  } | null;
+}) {
   if (!fit) return <Badge variant="outline" className="text-xs">Unscored</Badge>
   
   const config = FIT_CONFIG[fit]
@@ -79,10 +95,33 @@ function FitBadge({ fit, score }: { fit: JobFit; score: number | null }) {
     LOW: "bg-red-100 text-red-800 border-red-200",
   }
   
+  // Map fit band to display labels
+  const fitBandLabels: Record<string, string> = {
+    "strong_match": "Strong Match",
+    "moderate_match": "Moderate Match",
+    "stretch_but_viable": "Stretch Fit",
+    "low_match": "Low Match",
+  }
+  
+  const displayLabel = scoreReasoning?.fit_band 
+    ? fitBandLabels[scoreReasoning.fit_band] || config.label
+    : config.label
+  
+  const confidenceLabel = scoreReasoning?.confidence 
+    ? `(${scoreReasoning.confidence} confidence)`
+    : ""
+  
   return (
-    <Badge className={`${colorClasses[fit]} border`}>
-      {config.label} {score ? `(${score})` : ""}
-    </Badge>
+    <div className="flex items-center gap-2">
+      <Badge className={`${colorClasses[fit]} border`}>
+        {displayLabel} {score ? `${score}/100` : ""}
+      </Badge>
+      {scoreReasoning?.matched_requirements !== undefined && scoreReasoning?.total_requirements !== undefined && (
+        <span className="text-xs text-muted-foreground">
+          {scoreReasoning.matched_requirements}/{scoreReasoning.total_requirements} requirements matched {confidenceLabel}
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -203,7 +242,11 @@ function GenerationStatusBanner({
       icon: XCircle,
       className: "text-red-600",
       bgClassName: "bg-red-50 border-red-200",
-      label: error || "Generation failed",
+      // Show user-friendly error message, not technical details
+      label: error?.includes("profile") ? "Complete your profile to generate materials" :
+             error?.includes("evidence") ? "Add evidence to your library first" :
+             error?.includes("stretch") ? "This role may not be a good fit" :
+             "Generation failed - tap retry to try again",
       showRetry: true,
     },
     needs_review: {
@@ -257,6 +300,21 @@ export function JobDetail({ job }: JobDetailProps) {
   const [isPending, startTransition] = useTransition()
   const [isGenerating, setIsGenerating] = useState(false)
   const [candidateName, setCandidateName] = useState("Candidate")
+  
+  // Template state - get recommended template based on job info
+  const recommendedTemplateId = getRecommendedTemplate(
+    job.industry_guess,
+    job.title,
+    job.seniority_level
+  )
+  const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>(recommendedTemplateId)
+  
+  // Pre-generation gap review state
+  const [showGapReview, setShowGapReview] = useState(false)
+  const [gapAnalysis, setGapAnalysis] = useState<GapAnalysisResult | null>(null)
+  const [isLoadingGaps, setIsLoadingGaps] = useState(false)
+  const [selectedGapForCoach, setSelectedGapForCoach] = useState<DetectedGap | null>(null)
+  const [showCoachForGaps, setShowCoachForGaps] = useState(false)
 
   // Sync local status when job prop updates (e.g. after router.refresh())
   useEffect(() => {
@@ -315,9 +373,66 @@ export function JobDetail({ job }: JobDetailProps) {
   const [retryCountdown, setRetryCountdown] = useState(0)
   const [generationError, setGenerationError] = useState<string | null>(null)
 
-  const handleGenerateMaterials = async () => {
+  // Run gap detection before generation
+  const runGapDetection = async () => {
+    setIsLoadingGaps(true)
+    try {
+      const { createClient } = await import("@/lib/supabase/client")
+      const supabase = createClient()
+      
+      // Load user evidence and profile
+      const [evidenceResult, profileResult] = await Promise.all([
+        supabase.from("evidence_library").select("*").eq("is_active", true),
+        supabase.from("user_profile").select("*").limit(1).maybeSingle()
+      ])
+      
+      const evidence = evidenceResult.data || []
+      const profile = profileResult.data
+      
+      // Run gap detection
+      const result = detectGaps(
+        {
+          qualifications_required: job.qualifications_required || [],
+          qualifications_preferred: job.qualifications_preferred || [],
+          tech_stack: job.tech_stack || [],
+          keywords: job.keywords || [],
+          responsibilities: job.responsibilities || [],
+          seniority_level: job.seniority_level,
+          industry_guess: job.industry_guess,
+        },
+        evidence,
+        profile ? {
+          skills: profile.skills || [],
+          experience: profile.experience || [],
+        } : null,
+        job.score_gaps || []
+      )
+      
+      result.job_id = job.id
+      setGapAnalysis(result)
+      
+      // Show review if there are critical gaps, otherwise allow direct generation
+      if (result.critical_gaps.length > 0 || result.gaps.length > 2) {
+        setShowGapReview(true)
+      } else {
+        // Few/no gaps - proceed directly to generation
+        handleGenerateMaterials()
+      }
+    } catch (error) {
+      console.error("Gap detection error:", error)
+      // On error, proceed to generation anyway
+      handleGenerateMaterials()
+    } finally {
+      setIsLoadingGaps(false)
+    }
+  }
+
+  const handleGenerateMaterials = async (templateId?: TemplateId) => {
     setIsGenerating(true)
     setGenerationError(null)
+    
+    // Use provided templateId or fall back to selected state
+    const effectiveTemplateId = templateId || selectedTemplateId
     
     try {
       const response = await fetch("/api/generate-documents", {
@@ -325,6 +440,7 @@ export function JobDetail({ job }: JobDetailProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           job_id: job.id,
+          template_id: effectiveTemplateId,
           // Pass selected evidence if available from evidence_map
           selected_evidence_ids: job.evidence_map && typeof job.evidence_map === 'object' && 'selected_evidence_ids' in job.evidence_map
             ? job.evidence_map.selected_evidence_ids
@@ -352,6 +468,39 @@ export function JobDetail({ job }: JobDetailProps) {
         })
         router.refresh()
       } else {
+        // Convert technical errors to user-friendly messages
+        const getUserFriendlyError = (error: string): { title: string; description: string } => {
+          if (error?.includes("profile not found") || error?.includes("Profile not found")) {
+            return {
+              title: "Profile Required",
+              description: "Please complete your profile before generating materials"
+            }
+          }
+          if (error?.includes("evidence") && error?.includes("not found")) {
+            return {
+              title: "Add Some Evidence First",
+              description: "Add work experience to your Evidence Library to generate tailored materials"
+            }
+          }
+          if (error?.includes("Job not found")) {
+            return {
+              title: "Job Not Found",
+              description: "This job may have been deleted"
+            }
+          }
+          if (error?.includes("stretch") || error?.includes("blocked")) {
+            return {
+              title: "Generation Blocked",
+              description: "This role is too much of a stretch based on your current evidence"
+            }
+          }
+          // Default - don't show technical details
+          return {
+            title: "Generation Failed",
+            description: "Something went wrong. Please try again or contact support."
+          }
+        }
+        
         // Handle rate limit specially
         if (data.isRateLimit || response.status === 429) {
           const retryAfter = data.retryAfter || 30
@@ -371,26 +520,28 @@ export function JobDetail({ job }: JobDetailProps) {
           }, 1000)
           
           toast.error("AI service is busy", {
-            description: `Please wait ${retryAfter} seconds before retrying`,
-            action: {
-              label: "Retry in " + retryAfter + "s",
-              onClick: () => {}
-            }
+            description: `Please wait ${retryAfter} seconds before retrying`
           })
         } else if (data.strategy === "do_not_generate") {
           // Generation was blocked due to poor fit
-          setGenerationError(data.error)
-          toast.error("Generation blocked", {
-            description: data.strategy_reasoning || "This role is too much of a stretch"
+          const friendly = getUserFriendlyError("blocked")
+          setGenerationError(friendly.description)
+          toast.error(friendly.title, {
+            description: data.strategy_reasoning || friendly.description
           })
         } else {
-          setGenerationError(data.error)
-          toast.error(data.error || "Failed to generate materials")
+          const friendly = getUserFriendlyError(data.error || "")
+          setGenerationError(friendly.description)
+          toast.error(friendly.title, {
+            description: friendly.description
+          })
         }
       }
     } catch (err) {
-      setGenerationError("Network error - please try again")
-      toast.error("Failed to generate materials")
+      setGenerationError("Something went wrong. Please try again.")
+      toast.error("Connection Error", {
+        description: "Please check your internet connection and try again"
+      })
     } finally {
       setIsGenerating(false)
     }
@@ -449,7 +600,17 @@ export function JobDetail({ job }: JobDetailProps) {
                 {job.title}
               </CardTitle>
               <div className="flex flex-wrap gap-2 mt-3">
-                <FitBadge fit={job.fit} score={job.score} />
+                <FitBadge 
+                  fit={job.fit} 
+                  score={job.score} 
+                  scoreReasoning={job.score_reasoning as {
+                    fit_band?: string;
+                    confidence?: string;
+                    matched_requirements?: number;
+                    total_requirements?: number;
+                    score_explanation?: string;
+                  } | null}
+                />
                 {job.role_family && (
                   <Badge variant="secondary">{job.role_family}</Badge>
                 )}
@@ -583,14 +744,76 @@ export function JobDetail({ job }: JobDetailProps) {
             </div>
           </div>
 
+          {/* Explainable Score Breakdown - Show when v3.0 scoring is available */}
+          {job.score_reasoning && (job.score_reasoning as { scoring_version?: string }).scoring_version === "3.0-explainable" && (
+            <>
+              <Separator className="my-4" />
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold flex items-center gap-2">
+                  <Target className="h-4 w-4 text-primary" />
+                  Score Breakdown
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  {(job.score_reasoning as { score_explanation?: string }).score_explanation}
+                </p>
+                
+                {/* Dimension scores */}
+                <div className="grid grid-cols-5 gap-2">
+                  {Object.entries((job.score_reasoning as { dimension_scores?: Record<string, number> }).dimension_scores || {}).map(([dim, score]) => (
+                    <div key={dim} className="text-center">
+                      <div className={`text-lg font-bold ${
+                        Number(score) >= 70 ? "text-green-600" : 
+                        Number(score) >= 40 ? "text-amber-600" : "text-red-600"
+                      }`}>
+                        {Math.round(Number(score))}
+                      </div>
+                      <div className="text-xs text-muted-foreground capitalize">{dim}</div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Warnings */}
+                {(job.score_reasoning as { warnings?: string[] }).warnings?.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {((job.score_reasoning as { warnings?: string[] }).warnings || []).map((warning, i) => (
+                      <Badge key={i} variant="outline" className="text-xs bg-amber-50 border-amber-200 text-amber-700">
+                        {warning}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
           <Separator className="my-4" />
+
+          {/* Pre-generation gap review */}
+          {showGapReview && gapAnalysis && (
+            <PreGenerationReview
+              gapAnalysis={gapAnalysis}
+              onContinueGenerate={() => {
+                setShowGapReview(false)
+                handleGenerateMaterials()
+              }}
+              onOpenCoach={(gap) => {
+                setSelectedGapForCoach(gap || null)
+                setShowCoachForGaps(true)
+                setShowGapReview(false)
+              }}
+              onDismiss={() => setShowGapReview(false)}
+              isGenerating={isGenerating}
+              jobTitle={job.title}
+              company={job.company_name}
+            />
+          )}
 
           {/* Action buttons */}
           <div className="flex flex-wrap gap-3">
             {!hasResume || !hasCoverLetter ? (
               <Button 
-                onClick={handleGenerateMaterials} 
-                disabled={isGenerating}
+                onClick={() => runGapDetection()} 
+                disabled={isGenerating || isLoadingGaps}
                 className="bg-primary hover:bg-primary/90"
               >
                 {isGenerating ? (
@@ -598,10 +821,15 @@ export function JobDetail({ job }: JobDetailProps) {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Generating...
                   </>
+                ) : isLoadingGaps ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Checking Evidence...
+                  </>
                 ) : (
                   <>
                     <RefreshCw className="mr-2 h-4 w-4" />
-                    Generate Materials
+                    Generate with {TEMPLATE_CONFIGS[selectedTemplateId]?.label || "Template"}
                   </>
                 )}
               </Button>
@@ -638,7 +866,7 @@ export function JobDetail({ job }: JobDetailProps) {
               Save for Later
             </Button>
             {hasResume && (
-              <Button variant="outline" onClick={handleGenerateMaterials} disabled={isGenerating}>
+              <Button variant="outline" onClick={() => handleGenerateMaterials()} disabled={isGenerating}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Regenerate
               </Button>
@@ -651,6 +879,15 @@ export function JobDetail({ job }: JobDetailProps) {
                 Interview Prep
               </Button>
             </Link>
+            
+            {/* Delete Button */}
+            <DeleteJobDialog
+              jobId={job.id}
+              jobTitle={job.title}
+              company={job.company}
+              variant="button"
+              redirectTo="/jobs"
+            />
           </div>
         </CardContent>
       </Card>
@@ -1020,7 +1257,7 @@ export function JobDetail({ job }: JobDetailProps) {
                   <p className="text-sm text-muted-foreground mb-4">
                     Generate materials to see detailed fit analysis
                   </p>
-                  <Button onClick={handleGenerateMaterials} disabled={isGenerating}>
+                  <Button onClick={() => handleGenerateMaterials()} disabled={isGenerating}>
                     {isGenerating ? "Generating..." : "Generate Materials"}
                   </Button>
                 </div>
@@ -1036,52 +1273,60 @@ export function JobDetail({ job }: JobDetailProps) {
             status={job.generation_status}
             error={generationError ?? job.generation_error}
             attempts={job.generation_attempts}
-            onRetry={handleGenerateMaterials}
+            onRetry={() => handleGenerateMaterials()}
             isRetrying={isGenerating}
             retryCountdown={retryCountdown}
           />
           
-          <Card className="mt-4">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg">Tailored Resume</CardTitle>
-                  <CardDescription>ATS-optimized for this specific role</CardDescription>
-                </div>
-                {hasResume && (
-                  <ExportButtons
+          {hasResume ? (
+            /* Post-Generation: Show resume with template switcher */
+            <Card className="mt-4">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Tailored Resume</CardTitle>
+                    <CardDescription>
+                      Using <strong>{TEMPLATE_CONFIGS[selectedTemplateId]?.label}</strong> template
+                    </CardDescription>
+                  </div>
+                  <ResumeActionsBar
                     jobId={job.id}
-                    hasResume={hasResume}
-                    hasCoverLetter={false}
                     resumeText={job.generated_resume || undefined}
+                    currentTemplateId={selectedTemplateId}
+                    onChangeTemplate={setSelectedTemplateId}
                     candidateName={candidateName}
                     company={job.company}
                     role={job.title}
+                    targetIndustry={job.industry_guess}
+                    targetRole={job.title}
+                    seniorityLevel={job.seniority_level}
                   />
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {hasResume ? (
+                </div>
+              </CardHeader>
+              <CardContent>
                 <ScrollArea className="h-[500px] pr-4">
                   <pre className="whitespace-pre-wrap text-sm font-mono bg-muted p-4 rounded-lg">
                     {job.generated_resume}
                   </pre>
                 </ScrollArea>
-              ) : (
-                <div className="text-center py-8">
-                  <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <p className="text-muted-foreground">No resume generated yet</p>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Click below to generate a tailored resume
-                  </p>
-                  <Button onClick={handleGenerateMaterials} disabled={isGenerating}>
-                    {isGenerating ? "Generating..." : "Generate Resume"}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ) : (
+            /* Pre-Generation: Show template picker */
+            <div className="mt-4">
+              <ResumeTemplatePicker
+                selectedTemplateId={selectedTemplateId}
+                onSelectTemplate={setSelectedTemplateId}
+                onGenerate={handleGenerateMaterials}
+                isGenerating={isGenerating}
+                targetIndustry={job.industry_guess}
+                targetRole={job.title}
+                seniorityLevel={job.seniority_level}
+                previewData={{ name: candidateName, title: job.title }}
+                hasExistingResume={false}
+              />
+            </div>
+          )}
         </TabsContent>
 
         {/* Cover Letter Tab */}

@@ -210,8 +210,8 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
           </h1>
           <p className="text-muted-foreground mt-1">
             {recentJobs.length > 0 
-              ? `${recentJobs[0]?.company || "A company"} just posted a new listing — let's break it down.`
-              : "Ready to analyze your next opportunity."
+              ? "Paste a job URL below to analyze fit and generate tailored materials."
+              : "Paste a job URL below to get started with your first opportunity."
             }
           </p>
         </div>

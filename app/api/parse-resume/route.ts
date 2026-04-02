@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { generateText, generateObject } from "ai"
-import { createGroq } from "@ai-sdk/groq"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { quickRiskCheck, sanitizeInput } from "@/lib/safety"
+import { groq, MODELS } from "@/lib/adapters/groq"
 
 export const maxDuration = 60
-
-const groq = createGroq({
-  apiKey: process.env.GROQ_API_KEY,
-})
 
 // Schema for parsed resume data
 const ResumeSchema = z.object({
@@ -150,7 +146,7 @@ export async function POST(req: NextRequest) {
 
     // Parse resume with AI
     const { object: parsedResume } = await generateObject({
-      model: groq("llama-3.3-70b-versatile"),
+      model: groq(MODELS.VERSATILE),
       schema: ResumeSchema,
       prompt: `You are an expert resume parser. Extract structured information from the following resume text.
 

@@ -39,11 +39,13 @@ export default function SignUpPage() {
     }
 
     try {
+      // Use env var for redirect URL if available (for v0 preview), otherwise use window.location.origin
+      const baseUrl = process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || window.location.origin
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?redirect=/onboarding`,
+          emailRedirectTo: `${baseUrl}/auth/callback?redirect=/onboarding`,
         },
       })
       if (error) throw error
@@ -61,10 +63,11 @@ export default function SignUpPage() {
     setError(null)
 
     try {
+      const baseUrl = process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || window.location.origin
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirect=/onboarding`,
+          redirectTo: `${baseUrl}/auth/callback?redirect=/onboarding`,
         },
       })
       if (error) throw error

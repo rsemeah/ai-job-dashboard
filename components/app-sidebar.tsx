@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { HireWireLogo } from "@/components/hirewire-logo"
+import { Badge } from "@/components/ui/badge"
 import {
   Briefcase,
   FileText,
@@ -11,13 +12,14 @@ import {
   Grid2X2,
   CheckSquare,
   Send,
-  Building2,
   SlidersHorizontal,
   History,
   BarChart3,
   PlusCircle,
   Sparkles,
   Library,
+  CreditCard,
+  Zap,
 } from "lucide-react"
 import {
   Sidebar,
@@ -35,31 +37,31 @@ import { DiagonalStripes } from "@/components/off-white-stripes"
 import { cn } from "@/lib/utils"
 
 // Pipeline navigation - main workflow
+// NOTE: Removed placeholder pages that aren't wired (Companies, Templates)
 const pipelineNav = [
   { name: "Home", href: "/", icon: Grid2X2 },
-  { name: "Coach", href: "/coach", icon: Sparkles },
+  { name: "Coach", href: "/coach", icon: Sparkles, premium: true },
   { name: "All Jobs", href: "/jobs", icon: Briefcase },
   { name: "Ready to Apply", href: "/ready-queue", icon: CheckSquare },
   { name: "Applied", href: "/applications", icon: Send },
   { name: "Materials", href: "/documents", icon: FileText },
   { name: "Evidence", href: "/evidence", icon: Library },
-  { name: "Companies", href: "/companies", icon: Building2 },
+  { name: "Analytics", href: "/analytics", icon: BarChart3, premium: true },
   { name: "Activity Log", href: "/logs", icon: History },
-  { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Add Job", href: "/jobs/new", icon: PlusCircle },
 ]
 
 // Bottom navigation - settings/profile
 const bottomNav = [
   { name: "Profile", href: "/profile", icon: User },
-  { name: "Templates", href: "/templates", icon: SlidersHorizontal },
+  { name: "Billing", href: "/billing", icon: CreditCard },
   { name: "Settings", href: "/settings", icon: Settings },
 ]
 
 export function AppSidebar() {
   const pathname = usePathname()
 
-  const renderNavItem = (item: { name: string; href: string; icon: React.ComponentType<{ className?: string }> }) => {
+  const renderNavItem = (item: { name: string; href: string; icon: React.ComponentType<{ className?: string }>; premium?: boolean }) => {
     const isActive = pathname === item.href || 
       (item.href !== "/" && pathname.startsWith(item.href))
     return (
@@ -77,7 +79,12 @@ export function AppSidebar() {
               "h-4 w-4",
               isActive ? "text-foreground" : "text-muted-foreground"
             )} />
-            <span className="text-sm">{item.name}</span>
+            <span className="text-sm flex-1">{item.name}</span>
+            {item.premium && (
+              <Badge variant="outline" className="h-4 px-1 text-[9px] font-medium text-primary border-primary/30">
+                PRO
+              </Badge>
+            )}
           </Link>
         </SidebarMenuButton>
       </SidebarMenuItem>

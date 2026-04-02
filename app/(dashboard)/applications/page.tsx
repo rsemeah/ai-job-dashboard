@@ -33,18 +33,24 @@ function formatDate(dateString: string | null) {
 export default async function ApplicationsPage() {
   const supabase = await createClient()
   
-  // Get current user
   const { data: { user }, error: userError } = await supabase.auth.getUser()
   if (userError || !user) {
     redirect("/login")
   }
   
-  // Fetch jobs that have been applied to (using canonical statuses) - filtered by user
-  const { data: appliedJobs, error } = await supabase
+  // Fetch applied jobs with scores - use lowercase status values
+  // Filter out soft-deleted jobs
+  const { data: rawJobs, error } = await supabase
     .from("jobs")
-    .select("*")
+    .select(`
+      *,
+      job_scores (
+        overall_score
+      )
+    `)
     .eq("user_id", user.id)
-    .in("status", ["APPLIED", "INTERVIEWING", "OFFERED", "REJECTED"])
+    .is("deleted_at", null)
+    .in("status", ["applied", "interviewing", "offered", "rejected", "APPLIED", "INTERVIEWING", "OFFERED", "REJECTED"])
     .order("created_at", { ascending: false })
 
   if (error) {
@@ -68,7 +74,20 @@ export default async function ApplicationsPage() {
     )
   }
 
-  const applications = appliedJobs || []
+  // Transform jobs to UI-expected format
+  const applications = (rawJobs || []).map(j => {
+    const scores = (j.job_scores as Array<{overall_score?: number}>) || []
+    const score = scores[0]?.overall_score ?? null
+    return {
+      ...j,
+      title: j.role_title,
+      company: j.company_name,
+      score,
+    }
+  })
+  
+  const interviewingCount = applications.filter(j => normalizeJobStatus(j.status) === "interviewing").length
+  const offeredCount = applications.filter(j => normalizeJobStatus(j.status) === "offered").length
 
   return (
     <div className="space-y-8 max-w-6xl">
@@ -87,7 +106,6 @@ export default async function ApplicationsPage() {
         <EmptyState variant="applications" />
       ) : (
         <>
-          {/* Stats */}
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="pb-2">
@@ -108,8 +126,7 @@ export default async function ApplicationsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-pink-500">
-                  {applications.filter(j => j.status === "INTERVIEWING").length}
-                  {applications.filter(j => normalizeJobStatus(j.status) === "interviewing").length}
+                  {interviewingCount}
                 </div>
               </CardContent>
             </Card>
@@ -121,14 +138,12 @@ export default async function ApplicationsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-emerald-500">
-                  {applications.filter(j => j.status === "OFFERED").length}
-                  {applications.filter(j => normalizeJobStatus(j.status) === "offered").length}
+                  {offeredCount}
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Applications Table */}
           <Card>
             <CardHeader>
               <CardTitle>Submitted Applications</CardTitle>
@@ -179,9 +194,7 @@ export default async function ApplicationsPage() {
             </CardContent>
           </Card>
 
-          {/* Interviews Section */}
-          {applications.filter(j => j.status === "INTERVIEWING").length > 0 && (
-          {applications.filter(j => normalizeJobStatus(j.status) === "interviewing").length > 0 && (
+          {interviewingCount > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -192,7 +205,6 @@ export default async function ApplicationsPage() {
               <CardContent>
                 <div className="space-y-4">
                   {applications
-                    .filter(job => job.status === "INTERVIEWING")
                     .filter(job => normalizeJobStatus(job.status) === "interviewing")
                     .map(job => (
                       <Link

@@ -679,7 +679,7 @@ ${qs.thirty_second_close}
                       <div key={category} className="space-y-2">
                         <p className="text-xs font-medium text-muted-foreground capitalize">{category.replace("_", " ")}</p>
                         <ul className="space-y-1.5">
-                          {questions.map((q, i) => (
+                          {questions.map((q: string, i: number) => (
                             <li key={i} className="text-sm flex items-start gap-2">
                               <span className="text-muted-foreground">-</span>
                               {q}

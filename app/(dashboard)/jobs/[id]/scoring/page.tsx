@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
+import { Slider } from "@/components/ui/slider"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   ArrowLeft,
   CheckCircle2,
@@ -32,6 +40,9 @@ import {
   FileText,
   BarChart3,
   Minus,
+  Wand2,
+  Settings2,
+  RotateCcw,
 } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
@@ -42,6 +53,17 @@ import {
   determineGenerationStrategy,
   type ScoreBreakdown as TruthSerumScoreBreakdown 
 } from "@/lib/truthserum"
+import {
+  type ScoringWeights,
+  DEFAULT_WEIGHTS,
+  getWeightsForRole,
+  getRoleProfileDescription,
+  normalizeWeights,
+  calculateWeightedScore,
+  getAvailableRoles,
+  inferRoleFromJobTitle,
+} from "@/lib/scoring-weights"
+import { BackButton } from "@/components/back-button"
 
 interface ScoreCategory {
   category: string
@@ -62,6 +84,11 @@ export default function ScoringCenterPage() {
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [decision, setDecision] = useState<"apply" | "skip" | null>(null)
+  
+  // Scoring weights state
+  const [weights, setWeights] = useState<ScoringWeights>(DEFAULT_WEIGHTS)
+  const [selectedRole, setSelectedRole] = useState<string>("Other")
+  const [isManualMode, setIsManualMode] = useState(false)
 
   useEffect(() => {
     async function loadData() {
@@ -74,18 +101,78 @@ export default function ScoringCenterPage() {
         return
       }
       
+      // Fetch job with related data from normalized tables
       const [{ data: jobData }, { data: evidenceData }] = await Promise.all([
-        supabase.from("jobs").select("*").eq("id", jobId).eq("user_id", user.id).single(),
+        supabase.from("jobs").select(`
+          *,
+          job_scores (*),
+          job_analyses (*)
+        `).eq("id", jobId).eq("user_id", user.id).single(),
         supabase.from("evidence_library").select("*").eq("is_active", true).eq("user_id", user.id),
       ])
       
-      if (jobData) setJob(jobData as Job)
+      if (jobData) {
+        // Transform to UI-expected format
+        const analyses = (jobData.job_analyses as Array<Record<string, unknown>>) || []
+        const scores = (jobData.job_scores as Array<Record<string, unknown>>) || []
+        const analysis = analyses[0] || {}
+        const scoreData = scores[0] || {}
+        
+        const transformedJob = {
+          ...jobData,
+          title: jobData.role_title || analysis.title,
+          company: jobData.company_name || analysis.company,
+          score: scoreData.overall_score || null,
+          role_family: analysis.role_family || null,
+          job_analyses: analyses,
+          job_scores: scores,
+        }
+        
+        setJob(transformedJob as Job)
+        
+        // Auto-detect role from job title
+        const inferredRole = inferRoleFromJobTitle(transformedJob.title as string) || transformedJob.role_family || "Other"
+        setSelectedRole(inferredRole)
+        setWeights(getWeightsForRole(inferredRole))
+      }
       if (evidenceData) setEvidence(evidenceData as EvidenceRecord[])
       
       setLoading(false)
     }
     loadData()
   }, [jobId, router])
+
+  // Handle auto-calculate from role
+  const handleAutoCalculate = () => {
+    const roleWeights = getWeightsForRole(selectedRole)
+    setWeights(roleWeights)
+    setIsManualMode(false)
+    toast.success(`Weights calculated for ${selectedRole}`)
+  }
+
+  // Handle role change
+  const handleRoleChange = (role: string) => {
+    setSelectedRole(role)
+    if (!isManualMode) {
+      const roleWeights = getWeightsForRole(role)
+      setWeights(roleWeights)
+    }
+  }
+
+  // Handle individual weight change
+  const handleWeightChange = (key: keyof ScoringWeights, value: number) => {
+    setIsManualMode(true)
+    const newWeights = { ...weights, [key]: value }
+    // Normalize to keep sum at 100
+    setWeights(normalizeWeights(newWeights))
+  }
+
+  // Reset to defaults
+  const handleResetWeights = () => {
+    setWeights(DEFAULT_WEIGHTS)
+    setIsManualMode(false)
+    setSelectedRole("Other")
+  }
 
   // Calculate scores using grounded metrics
   const scoreBreakdown = useMemo(() => {
@@ -104,6 +191,22 @@ export default function ScoringCenterPage() {
       job.generated_cover_letter || undefined
     )
   }, [job, evidence])
+
+  // Calculate weighted overall score using custom weights
+  const weightedOverallScore = useMemo(() => {
+    if (!scoreBreakdown) return 0
+    
+    // Map TruthSerum scores to our weight dimensions
+    const scores = {
+      experience_relevance: scoreBreakdown.role_alignment_score,
+      evidence_quality: scoreBreakdown.truth_score,
+      skills_match: scoreBreakdown.tool_match_score,
+      seniority_alignment: Math.max(0, 100 - scoreBreakdown.genericity_penalty * 3),
+      ats_keywords: scoreBreakdown.ats_score,
+    }
+    
+    return calculateWeightedScore(scores, weights)
+  }, [scoreBreakdown, weights])
 
   // Determine generation strategy
   const strategy = useMemo(() => {
@@ -126,25 +229,25 @@ export default function ScoringCenterPage() {
         maxScore: 100,
         reasoning: scoreBreakdown.ats_reasoning,
         icon: <Target className="h-5 w-5 text-green-500" />,
-        weight: "15%",
+        weight: `${weights.ats_keywords}%`,
         color: "green"
       },
       {
-        category: "Truth Score",
+        category: "Evidence Quality",
         score: scoreBreakdown.truth_score,
         maxScore: 100,
         reasoning: scoreBreakdown.truth_reasoning,
         icon: <Shield className="h-5 w-5 text-blue-500" />,
-        weight: "20%",
+        weight: `${weights.evidence_quality}%`,
         color: "blue"
       },
       {
-        category: "Role Alignment",
+        category: "Experience Relevance",
         score: scoreBreakdown.role_alignment_score,
         maxScore: 100,
         reasoning: scoreBreakdown.role_alignment_reasoning,
         icon: <Briefcase className="h-5 w-5 text-purple-500" />,
-        weight: "25%",
+        weight: `${weights.experience_relevance}%`,
         color: "purple"
       },
       {
@@ -153,16 +256,16 @@ export default function ScoringCenterPage() {
         maxScore: 100,
         reasoning: scoreBreakdown.recruiter_clarity_reasoning,
         icon: <Eye className="h-5 w-5 text-cyan-500" />,
-        weight: "15%",
+        weight: `${weights.seniority_alignment}%`,
         color: "cyan"
       },
       {
-        category: "Tool Match",
+        category: "Skills Match",
         score: scoreBreakdown.tool_match_score,
         maxScore: 100,
         reasoning: scoreBreakdown.tool_match_reasoning,
         icon: <Wrench className="h-5 w-5 text-orange-500" />,
-        weight: "10%",
+        weight: `${weights.skills_match}%`,
         color: "orange"
       },
       {
@@ -171,11 +274,11 @@ export default function ScoringCenterPage() {
         maxScore: 100,
         reasoning: scoreBreakdown.metric_density_reasoning,
         icon: <BarChart3 className="h-5 w-5 text-indigo-500" />,
-        weight: "15%",
+        weight: "bonus",
         color: "indigo"
       },
     ]
-  }, [scoreBreakdown])
+  }, [scoreBreakdown, weights])
 
   function determineFit(score: number): "HIGH" | "MEDIUM" | "LOW" {
     if (score >= 70) return "HIGH"
@@ -184,7 +287,7 @@ export default function ScoringCenterPage() {
   }
 
   async function makeDecision(choice: "apply" | "skip") {
-    if (!job || !scoreBreakdown) return
+    if (!job) return
     
     const supabase = createClient()
     
@@ -201,8 +304,8 @@ export default function ScoringCenterPage() {
       .from("jobs")
       .update({ 
         status: newStatus,
-        score: scoreBreakdown.overall_score,
-        fit: determineFit(scoreBreakdown.overall_score),
+        score: weightedOverallScore,
+        fit: determineFit(weightedOverallScore),
       })
       .eq("id", jobId)
       .eq("user_id", user.id)
@@ -216,8 +319,21 @@ export default function ScoringCenterPage() {
     }
   }
 
-  const overallScore = scoreBreakdown?.overall_score || job?.score || 0
+  const overallScore = weightedOverallScore || job?.score || 0
   const fit = determineFit(overallScore)
+
+  // Navigate to next step in the workflow
+  const handleProceedToEvidenceMatch = () => {
+    router.push(`/jobs/${jobId}/evidence-match`)
+  }
+
+  const handleProceedToRedTeam = () => {
+    router.push(`/jobs/${jobId}/red-team`)
+  }
+
+  const handleProceedToInterviewPrep = () => {
+    router.push(`/jobs/${jobId}/interview-prep`)
+  }
 
   if (loading) {
     return (
@@ -235,25 +351,184 @@ export default function ScoringCenterPage() {
     )
   }
 
+  const weightsSum = weights.experience_relevance + weights.evidence_quality + weights.skills_match + weights.seniority_alignment + weights.ats_keywords
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href={`/jobs/${jobId}`}>
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
+          <BackButton fallbackHref={`/jobs/${jobId}`} />
           <div>
             <h1 className="text-2xl font-semibold flex items-center gap-2">
               <Target className="h-6 w-6 text-primary" />
-              Final Scoring Center
+              Scoring Center
             </h1>
             <p className="text-muted-foreground">{job.title} at {job.company}</p>
           </div>
         </div>
       </div>
+
+      {/* Role-Based Weight Calculator */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Wand2 className="h-5 w-5 text-primary" />
+              Calculate Automatically Based on Role
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              {isManualMode && (
+                <Badge variant="outline" className="text-xs">Manual Mode</Badge>
+              )}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleResetWeights}
+                className="text-muted-foreground"
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Reset
+              </Button>
+            </div>
+          </div>
+          <CardDescription>
+            Select a role to automatically apply optimized scoring weights, or adjust manually.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <label className="text-sm font-medium mb-2 block">Target Role</label>
+              <Select value={selectedRole} onValueChange={handleRoleChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {getAvailableRoles().map((role) => (
+                    <SelectItem key={role} value={role}>{role}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="pt-6">
+              <Button onClick={handleAutoCalculate} className="gap-2">
+                <Wand2 className="h-4 w-4" />
+                Apply Role Weights
+              </Button>
+            </div>
+          </div>
+          
+          <p className="text-sm text-muted-foreground">
+            {getRoleProfileDescription(selectedRole)}
+          </p>
+
+          {/* Weight Sliders */}
+          <div className="space-y-4 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium flex items-center gap-2">
+                <Settings2 className="h-4 w-4" />
+                Weight Configuration
+              </span>
+              <Badge variant={weightsSum === 100 ? "default" : "destructive"} className="text-xs">
+                Total: {weightsSum}%
+              </Badge>
+            </div>
+            
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2">
+                    <Briefcase className="h-4 w-4 text-purple-500" />
+                    Experience Relevance
+                  </span>
+                  <span className="font-medium">{weights.experience_relevance}%</span>
+                </div>
+                <Slider
+                  value={[weights.experience_relevance]}
+                  onValueChange={([v]) => handleWeightChange("experience_relevance", v)}
+                  max={60}
+                  min={10}
+                  step={1}
+                  className="[&>span]:bg-purple-500"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-blue-500" />
+                    Evidence Quality
+                  </span>
+                  <span className="font-medium">{weights.evidence_quality}%</span>
+                </div>
+                <Slider
+                  value={[weights.evidence_quality]}
+                  onValueChange={([v]) => handleWeightChange("evidence_quality", v)}
+                  max={40}
+                  min={10}
+                  step={1}
+                  className="[&>span]:bg-blue-500"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2">
+                    <Wrench className="h-4 w-4 text-orange-500" />
+                    Skills Match
+                  </span>
+                  <span className="font-medium">{weights.skills_match}%</span>
+                </div>
+                <Slider
+                  value={[weights.skills_match]}
+                  onValueChange={([v]) => handleWeightChange("skills_match", v)}
+                  max={40}
+                  min={5}
+                  step={1}
+                  className="[&>span]:bg-orange-500"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2">
+                    <Eye className="h-4 w-4 text-cyan-500" />
+                    Seniority Alignment
+                  </span>
+                  <span className="font-medium">{weights.seniority_alignment}%</span>
+                </div>
+                <Slider
+                  value={[weights.seniority_alignment]}
+                  onValueChange={([v]) => handleWeightChange("seniority_alignment", v)}
+                  max={25}
+                  min={5}
+                  step={1}
+                  className="[&>span]:bg-cyan-500"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-green-500" />
+                    ATS Keywords
+                  </span>
+                  <span className="font-medium">{weights.ats_keywords}%</span>
+                </div>
+                <Slider
+                  value={[weights.ats_keywords]}
+                  onValueChange={([v]) => handleWeightChange("ats_keywords", v)}
+                  max={20}
+                  min={3}
+                  step={1}
+                  className="[&>span]:bg-green-500"
+                />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Overall Score Card */}
       <Card className={`border-2 ${

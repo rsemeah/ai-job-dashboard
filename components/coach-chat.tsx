@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect } from "react"
-import { useChat } from "ai/react"
+import { useChat } from "@ai-sdk/react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -24,6 +24,26 @@ interface CoachChatProps {
   conversationId?: string
   compact?: boolean
   onClose?: () => void
+  /** Optional job context to help the coach provide job-specific advice */
+  jobContext?: {
+    jobId: string
+    title: string
+    company: string
+    score?: number | null
+    status?: string
+  }
+  /** Optional gap context for targeted gap clarification mode */
+  gapContext?: {
+    jobTitle: string
+    company: string
+    gap?: {
+      requirement: string
+      category: string
+      coach_question: string
+    }
+  }
+  /** Initial message to send when component mounts */
+  initialMessage?: string
 }
 
 // Quick action suggestions
@@ -39,13 +59,34 @@ function getMessageText(message: { content?: string }): string {
   return message.content || ""
 }
 
-export function CoachChat({ className, conversationId, compact = false, onClose }: CoachChatProps) {
+export function CoachChat({ className, conversationId, compact = false, onClose, jobContext, gapContext, initialMessage }: CoachChatProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const initialMessageSent = useRef(false)
 
   const { messages, input, setInput, handleSubmit: submitMessage, isLoading, append } = useChat({
     api: "/api/coach",
+    body: {
+      ...(jobContext ? {
+        jobContext: {
+          jobId: jobContext.jobId,
+          title: jobContext.title,
+          company: jobContext.company,
+          score: jobContext.score,
+          status: jobContext.status,
+        }
+      } : {}),
+      ...(gapContext ? { gapContext } : {}),
+    },
   })
+
+  // Send initial message on mount if provided
+  useEffect(() => {
+    if (initialMessage && !initialMessageSent.current && messages.length === 0) {
+      initialMessageSent.current = true
+      append({ role: "user", content: initialMessage })
+    }
+  }, [initialMessage, messages.length, append])
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -97,9 +138,19 @@ export function CoachChat({ className, conversationId, compact = false, onClose 
                   Hey! I&apos;m your personal career coach. I can help you with job search strategy, 
                   interview prep, building your evidence library, and improving your application materials.
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  What would you like to work on today?
-                </p>
+                {jobContext ? (
+                  <div className="p-2 bg-muted rounded-md border text-sm">
+                    <p className="font-medium">Currently focused on:</p>
+                    <p className="text-muted-foreground">
+                      {jobContext.title} at {jobContext.company}
+                      {jobContext.score !== null && jobContext.score !== undefined && ` (Fit: ${jobContext.score}%)`}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    What would you like to work on today?
+                  </p>
+                )}
               </div>
             </div>
 

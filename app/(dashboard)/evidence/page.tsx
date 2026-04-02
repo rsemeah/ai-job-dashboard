@@ -67,6 +67,7 @@ import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
 import type { EvidenceRecord } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { BackButton } from "@/components/back-button"
 
 type SortField = "priority_rank" | "created_at" | "role_name" | "company_name"
 type SortOrder = "asc" | "desc"
@@ -361,14 +362,19 @@ export default function EvidenceLibraryPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="space-y-6">
+        <BackButton fallbackHref="/" />
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
+      <BackButton fallbackHref="/" />
+      
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>

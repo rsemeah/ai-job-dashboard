@@ -10,6 +10,38 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState, Suspense } from "react"
 import { Loader2, Mail } from "lucide-react"
+import dynamic from "next/dynamic"
+
+// Email/password inputs are loaded client-only to prevent hydration mismatch
+// caused by password manager extensions (LastPass, 1Password) injecting DOM elements
+const EmailInput = dynamic(
+  () => Promise.resolve(({ value, onChange, disabled }: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; disabled: boolean }) => (
+    <Input
+      id="email"
+      type="email"
+      placeholder="you@example.com"
+      required
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+    />
+  )),
+  { ssr: false, loading: () => <div className="h-10 w-full bg-muted rounded animate-pulse" /> }
+)
+
+const PasswordInput = dynamic(
+  () => Promise.resolve(({ value, onChange, disabled }: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; disabled: boolean }) => (
+    <Input
+      id="password"
+      type="password"
+      required
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+    />
+  )),
+  { ssr: false, loading: () => <div className="h-10 w-full bg-muted rounded animate-pulse" /> }
+)
 
 function LoginForm() {
   // Use empty strings as defaults to prevent null/undefined warnings
@@ -30,10 +62,11 @@ function LoginForm() {
     setError(null)
 
     try {
+      const baseUrl = process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || window.location.origin
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
+          emailRedirectTo: `${baseUrl}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
         },
       })
       if (error) throw error
@@ -56,7 +89,9 @@ function LoginForm() {
         email,
         password,
       })
+      
       if (error) throw error
+      
       router.push(redirectTo)
       router.refresh()
     } catch (err: unknown) {
@@ -72,10 +107,11 @@ function LoginForm() {
     setError(null)
 
     try {
+      const baseUrl = process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || window.location.origin
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
+          redirectTo: `${baseUrl}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
         },
       })
       if (error) throw error
@@ -160,30 +196,23 @@ function LoginForm() {
           </div>
         </div>
 
-        {/* Email Auth */}
-        <form onSubmit={authMode === "magic" ? handleMagicLink : handlePasswordLogin} suppressHydrationWarning>
-          <div className="space-y-4" suppressHydrationWarning>
-            <div className="space-y-2" suppressHydrationWarning>
+        {/* Email Auth - Inputs use dynamic import with ssr:false to prevent hydration mismatch from password manager extensions */}
+        <form onSubmit={authMode === "magic" ? handleMagicLink : handlePasswordLogin}>
+          <div className="space-y-4">
+            <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                required
-                value={email || ""}
+              <EmailInput
+                value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
               />
             </div>
 
             {authMode === "password" && (
-              <div className="space-y-2" suppressHydrationWarning>
+              <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  value={password || ""}
+                <PasswordInput
+                  value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
                 />

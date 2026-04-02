@@ -18,9 +18,12 @@ import {
   Check,
   Loader2,
   FileDown,
+  Shield,
 } from "lucide-react"
 import { toast } from "sonner"
 import { generateDocumentFilename, type DocumentType, type ExportExtension } from "@/lib/filename-utils"
+import { runExportAudit, type ExportAuditResult } from "@/lib/ats-validation"
+import { ExportAuditDialog, ExportAuditIndicator } from "@/components/export-audit"
 
 interface ExportButtonsProps {
   jobId: string
@@ -46,6 +49,46 @@ export function ExportButtons({
   const [isExporting, setIsExporting] = useState<string | null>(null)
   const [copiedResume, setCopiedResume] = useState(false)
   const [copiedCover, setCopiedCover] = useState(false)
+  
+  // Export audit state
+  const [showAuditDialog, setShowAuditDialog] = useState(false)
+  const [pendingExport, setPendingExport] = useState<{
+    documentType: DocumentType
+    format: ExportExtension
+  } | null>(null)
+  const [auditResult, setAuditResult] = useState<ExportAuditResult | null>(null)
+
+  // Run audit before export
+  const checkAndExport = async (
+    documentType: DocumentType,
+    format: ExportExtension
+  ) => {
+    const text = documentType === "resume" ? resumeText : coverLetterText
+    if (!text) {
+      handleExport(documentType, format)
+      return
+    }
+
+    // Run the audit
+    const result = runExportAudit(
+      text,
+      documentType === "resume" ? "resume" : "cover_letter",
+      format,
+      {
+        candidateName,
+      }
+    )
+
+    // If there are issues, show the dialog
+    if (result.critical_count > 0 || result.warning_count > 0) {
+      setAuditResult(result)
+      setPendingExport({ documentType, format })
+      setShowAuditDialog(true)
+    } else {
+      // No issues - proceed directly
+      handleExport(documentType, format)
+    }
+  }
 
   const handleExport = async (
     documentType: DocumentType,
@@ -153,7 +196,29 @@ export function ExportButtons({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <>
+      {/* Export Audit Dialog */}
+      {auditResult && (
+        <ExportAuditDialog
+          open={showAuditDialog}
+          onOpenChange={setShowAuditDialog}
+          auditResult={auditResult}
+          onProceed={() => {
+            setShowAuditDialog(false)
+            if (pendingExport) {
+              handleExport(pendingExport.documentType, pendingExport.format)
+            }
+          }}
+          onCancel={() => {
+            setShowAuditDialog(false)
+            setPendingExport(null)
+          }}
+          documentType={auditResult.document_type}
+          exportFormat={pendingExport?.format || "docx"}
+        />
+      )}
+      
+      <div className="flex items-center gap-2">
       {/* Resume Export */}
       {hasResume && (
         <DropdownMenu>
@@ -184,21 +249,21 @@ export function ExportButtons({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem 
-              onClick={() => handleExport("resume", "docx")}
+              onClick={() => checkAndExport("resume", "docx")}
               disabled={isExporting === "resume-docx"}
             >
               <File className="h-4 w-4 mr-2 text-blue-500" />
               Download DOCX
             </DropdownMenuItem>
             <DropdownMenuItem 
-              onClick={() => handleExport("resume", "txt")}
+              onClick={() => checkAndExport("resume", "txt")}
               disabled={isExporting === "resume-txt"}
             >
               <FileText className="h-4 w-4 mr-2 text-gray-500" />
               Download TXT
             </DropdownMenuItem>
             <DropdownMenuItem 
-              onClick={() => handleExport("resume", "html")}
+              onClick={() => checkAndExport("resume", "html")}
               disabled={isExporting === "resume-html"}
             >
               <FileText className="h-4 w-4 mr-2 text-orange-500" />
@@ -247,21 +312,21 @@ export function ExportButtons({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem 
-              onClick={() => handleExport("cover_letter", "docx")}
+              onClick={() => checkAndExport("cover_letter", "docx")}
               disabled={isExporting === "cover_letter-docx"}
             >
               <File className="h-4 w-4 mr-2 text-blue-500" />
               Download DOCX
             </DropdownMenuItem>
             <DropdownMenuItem 
-              onClick={() => handleExport("cover_letter", "txt")}
+              onClick={() => checkAndExport("cover_letter", "txt")}
               disabled={isExporting === "cover_letter-txt"}
             >
               <FileText className="h-4 w-4 mr-2 text-gray-500" />
               Download TXT
             </DropdownMenuItem>
             <DropdownMenuItem 
-              onClick={() => handleExport("cover_letter", "html")}
+              onClick={() => checkAndExport("cover_letter", "html")}
               disabled={isExporting === "cover_letter-html"}
             >
               <FileText className="h-4 w-4 mr-2 text-orange-500" />
@@ -295,7 +360,8 @@ export function ExportButtons({
           <Download className="h-4 w-4" />
           Download All
         </Button>
-      )}
-    </div>
+)}
+      </div>
+    </>
   )
 }

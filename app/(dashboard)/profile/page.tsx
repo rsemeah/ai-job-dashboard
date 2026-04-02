@@ -26,6 +26,8 @@ import { createClient } from "@/lib/supabase/client"
 import { useUser } from "@/components/user-provider"
 import { toast } from "sonner"
 import { BackButton } from "@/components/back-button"
+import { ResumeUpload } from "@/components/resume-upload"
+import { PendingChangeCard } from "@/components/pending-change-card"
 
 interface Experience {
   title: string
@@ -84,11 +86,55 @@ export default function ProfilePage() {
   const [hasChanges, setHasChanges] = useState(false)
   const [newSkill, setNewSkill] = useState("")
   const [profileStatus, setProfileStatus] = useState<"incomplete" | "complete">("incomplete")
+  const [pendingChanges, setPendingChanges] = useState<Array<{
+    id: string
+    summary: string
+    source: string
+    proposed_changes: Record<string, { old_value: unknown; new_value: unknown }>
+    created_at: string
+  }>>([])
+  const [loadingPendingChanges, setLoadingPendingChanges] = useState(false)
 
-  // Load profile on mount
+  // Load profile and pending changes on mount
   useEffect(() => {
     loadProfile()
+    loadPendingChanges()
   }, [])
+
+  const loadPendingChanges = async () => {
+    setLoadingPendingChanges(true)
+    try {
+      const res = await fetch("/api/profile/pending-changes")
+      if (res.ok) {
+        const data = await res.json()
+        setPendingChanges(data.changes || [])
+      }
+    } catch (error) {
+      console.error("Error loading pending changes:", error)
+    } finally {
+      setLoadingPendingChanges(false)
+    }
+  }
+
+  const handlePendingChangeAction = async (changeId: string, action: "approve" | "reject") => {
+    const res = await fetch("/api/profile/pending-changes", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ change_id: changeId, action }),
+    })
+    
+    if (res.ok) {
+      toast.success(action === "approve" ? "Changes applied" : "Changes rejected")
+      // Reload profile if approved
+      if (action === "approve") {
+        await loadProfile()
+      }
+      // Remove from pending list
+      setPendingChanges(prev => prev.filter(c => c.id !== changeId))
+    } else {
+      toast.error("Failed to process change")
+    }
+  }
 
   // Check profile completeness
   useEffect(() => {
@@ -355,7 +401,39 @@ export default function ProfilePage() {
         </Card>
       )}
 
+      {/* Pending Changes Section */}
+      {pendingChanges.length > 0 && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-500" />
+              Pending Profile Changes
+            </CardTitle>
+            <CardDescription>
+              Review and approve suggested updates to your profile
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {pendingChanges.map((change) => (
+              <PendingChangeCard
+                key={change.id}
+                change={change}
+                onAction={handlePendingChangeAction}
+              />
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-6">
+        {/* Source Resume Upload */}
+        <ResumeUpload 
+          onUploadComplete={() => {
+            // Reload profile to get any auto-populated fields from the parsed resume
+            loadProfile()
+          }}
+        />
+
         {/* Basic Info */}
         <Card>
           <CardHeader>

@@ -1,7 +1,7 @@
-<<<<<<< HEAD
 "use client"
 
 import { JobUrlInput } from "@/components/job-input"
+import { UsageLimitWarning } from "@/components/premium-gate"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
@@ -34,14 +34,11 @@ export default function AddJobPage() {
 
       {/* Content */}
       <div className="max-w-4xl mx-auto px-6 py-8">
+        {/* Usage limit warning */}
+        <UsageLimitWarning action="add_job" className="mb-6" />
+        
         <JobUrlInput />
       </div>
     </div>
   )
-=======
-import { redirect } from "next/navigation"
-
-export default function NewJobPage() {
-  redirect("/manual-entry")
->>>>>>> 5cd6e3e (Launch blocker elimination: schema convergence, migration hardening, docs + config alignment)
 }

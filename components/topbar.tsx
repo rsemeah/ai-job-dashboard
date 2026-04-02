@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import Image from "next/image"
 import { HireWireLogo } from "@/components/hirewire-logo"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"

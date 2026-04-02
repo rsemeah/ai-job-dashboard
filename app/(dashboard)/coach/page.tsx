@@ -5,10 +5,14 @@ import { CoachChat } from "@/components/coach-chat"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Sparkles, MessageSquare, Plus, Trash2 } from "lucide-react"
+import { BackButton } from "@/components/back-button"
+import { PremiumGate, LockedState } from "@/components/premium-gate"
+import { usePremium } from "@/hooks/use-premium"
+import { Sparkles, MessageSquare, Plus, Trash2, Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 interface Conversation {
   id: string
@@ -18,9 +22,11 @@ interface Conversation {
 }
 
 export default function CoachPage() {
+  const { isPro, isLoading: premiumLoading } = usePremium()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(false)
 
   // Load conversations on mount
   useEffect(() => {
@@ -33,13 +39,16 @@ export default function CoachPage() {
         return
       }
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("companion_conversations")
         .select("*")
         .eq("user_id", user.id)
         .order("updated_at", { ascending: false })
 
-      if (data) {
+      if (error) {
+        console.error("Failed to load conversations:", error)
+        toast.error("Failed to load conversations")
+      } else if (data) {
         setConversations(data)
       }
       setLoading(false)
@@ -50,10 +59,15 @@ export default function CoachPage() {
 
   // Create new conversation
   async function createConversation() {
+    setCreating(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
-    if (!user) return
+    if (!user) {
+      toast.error("Please log in to create a conversation")
+      setCreating(false)
+      return
+    }
 
     const { data, error } = await supabase
       .from("companion_conversations")
@@ -64,10 +78,15 @@ export default function CoachPage() {
       .select()
       .single()
 
-    if (data && !error) {
+    if (error) {
+      console.error("Failed to create conversation:", error)
+      toast.error("Failed to create conversation")
+    } else if (data) {
       setConversations(prev => [data, ...prev])
       setActiveConversationId(data.id)
+      toast.success("New conversation created")
     }
+    setCreating(false)
   }
 
   // Delete conversation
@@ -85,8 +104,30 @@ export default function CoachPage() {
     }
   }
 
+  // Show locked state for free users
+  if (!premiumLoading && !isPro) {
+    return (
+      <div className="p-6">
+        <div className="mb-4">
+          <BackButton fallbackHref="/" />
+        </div>
+        <div className="max-w-lg mx-auto mt-12">
+          <LockedState 
+            feature="ai_coach" 
+            title="AI Career Coach"
+            description="Get personalized career guidance, interview prep, and job search strategy from your AI coach. Available with Pro."
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex h-[calc(100vh-4rem)] gap-6 p-6">
+    <div className="flex flex-col h-[calc(100vh-4rem)] p-6">
+      <div className="mb-4">
+        <BackButton fallbackHref="/" />
+      </div>
+      <div className="flex flex-1 gap-6 min-h-0">
       {/* Sidebar - Conversation History */}
       <Card className="w-72 shrink-0 flex flex-col">
         <CardHeader className="pb-3">
@@ -99,9 +140,15 @@ export default function CoachPage() {
               size="icon" 
               variant="ghost" 
               onClick={createConversation}
+              disabled={creating}
               className="h-8 w-8"
+              title="New conversation"
             >
-              <Plus className="h-4 w-4" />
+              {creating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
             </Button>
           </div>
           <CardDescription>Your AI career advisor</CardDescription>
@@ -109,8 +156,9 @@ export default function CoachPage() {
         <CardContent className="flex-1 p-0">
           <ScrollArea className="h-full px-4 pb-4">
             {loading ? (
-              <div className="py-4 text-center text-sm text-muted-foreground">
-                Loading...
+              <div className="py-8 text-center">
+                <Loader2 className="h-6 w-6 mx-auto animate-spin text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground">Loading conversations...</p>
               </div>
             ) : conversations.length === 0 ? (
               <div className="py-8 text-center">
@@ -197,7 +245,8 @@ export default function CoachPage() {
             className="h-full"
           />
         </CardContent>
-      </Card>
+</Card>
+      </div>
     </div>
   )
 }

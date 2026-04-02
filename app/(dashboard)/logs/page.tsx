@@ -20,7 +20,7 @@ import {
   Briefcase
 } from "lucide-react"
 import Link from "next/link"
-import type { ProcessingEventType, Job } from "@/lib/types"
+import type { Job } from "@/lib/types"
 import { BackButton } from "@/components/back-button"
 import { listRunLedger } from "@/lib/logs/runLedger"
 import { normalizeJobStatus } from "@/lib/job-lifecycle"
@@ -124,9 +124,19 @@ export default async function LogsPage() {
   }
 
   // Always fetch recent jobs for fallback/enrichment - filtered by user
+  // Use correct column names: role_title, company_name (not title, company)
   const { data: recentJobs, error: jobsError } = await supabase
     .from("jobs")
-    .select("id, title, company, status, fit, score, created_at")
+    .select(`
+      id,
+      role_title,
+      company_name,
+      status,
+      created_at,
+      job_scores (
+        overall_score
+      )
+    `)
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(50)
@@ -152,7 +162,24 @@ export default async function LogsPage() {
     )
   }
 
-  const jobs = recentJobs || []
+  // Transform jobs to include title/company for UI compatibility
+  const jobs = (recentJobs || []).map(j => {
+    const scores = (j.job_scores as Array<{overall_score?: number}>) || []
+    const score = scores[0]?.overall_score ?? null
+    let fit: string | null = null
+    if (score !== null) {
+      if (score >= 75) fit = "HIGH"
+      else if (score >= 50) fit = "MEDIUM"
+      else fit = "LOW"
+    }
+    return {
+      ...j,
+      title: j.role_title,
+      company: j.company_name,
+      score,
+      fit,
+    }
+  })
   const jobsMap = new Map(jobs.map(j => [j.id, j]))
 
   // If we have processing_events, show them
@@ -378,10 +405,9 @@ export default async function LogsPage() {
 
       {activities.length === 0 ? (
         <EmptyState 
-          icon={ScrollText}
+          variant="default"
           title="No activity yet"
-          description="Activity will appear here as you review and apply to jobs."
-          action={{ label: "Add a Job", href: "/" }}
+          message="Activity will appear here as you review and apply to jobs."
         />
       ) : (
         <Card>

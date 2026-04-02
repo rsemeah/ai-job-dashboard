@@ -550,12 +550,16 @@ Extract the job details following the schema. Be accurate with the role_family c
     }
 
     // Insert job scores into job_scores table
+    // Convert confidence string to numeric value
+    const confidenceMap: Record<string, number> = { "HIGH": 0.9, "MEDIUM": 0.7, "LOW": 0.5 }
+    const confidenceScore = confidenceMap[explainableFit.confidence] || 0.7
+    
     const { error: scoresError } = await supabase
       .from("job_scores")
       .insert({
         job_id: job.id,
         overall_score: fitResult.score,
-        confidence_score: explainableFit.confidence,
+        confidence_score: confidenceScore,
         skills_match: dimensionScores.skills,
         experience_relevance: dimensionScores.experience,
         evidence_quality: dimensionScores.evidence,

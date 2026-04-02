@@ -1,17 +1,9 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { stripe } from "@/lib/stripe"
 
 /**
  * Create a Stripe Customer Portal session for billing management
- * 
- * NOTE: This is a placeholder route. VS Code will implement
- * the actual Stripe integration per the HireWire contract.
- * 
- * Expected behavior when Stripe is connected:
- * 1. Verify user is authenticated
- * 2. Look up user's Stripe customer ID
- * 3. Create portal session
- * 4. Return portal URL
  */
 export async function POST() {
   try {
@@ -26,26 +18,30 @@ export async function POST() {
       )
     }
 
-    // Check if Stripe is configured
-    const stripeSecretKey = process.env.STRIPE_SECRET_KEY
-    if (!stripeSecretKey) {
+    // Get user's Stripe customer ID
+    const { data: userData } = await supabase
+      .from("users")
+      .select("stripe_customer_id")
+      .eq("id", user.id)
+      .single()
+
+    if (!userData?.stripe_customer_id) {
       return NextResponse.json(
-        { 
-          error: "Stripe not configured",
-          message: "Billing portal is being set up. Please check back soon.",
-          url: null 
-        },
-        { status: 200 }
+        { error: "No billing account found. Please subscribe to Pro first." },
+        { status: 400 }
       )
     }
 
-    // TODO: VS Code will implement actual Stripe portal session creation
-    // For now, return a placeholder indicating setup is pending
-    return NextResponse.json({
-      error: "Portal session creation pending backend implementation",
-      message: "Billing portal will be available soon.",
-      url: null
+    // Get return URL
+    const origin = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+
+    // Create portal session
+    const session = await stripe.billingPortal.sessions.create({
+      customer: userData.stripe_customer_id,
+      return_url: `${origin}/billing`,
     })
+
+    return NextResponse.json({ url: session.url })
 
   } catch (error) {
     console.error("Portal error:", error)

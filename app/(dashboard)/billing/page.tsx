@@ -144,7 +144,25 @@ export default function BillingPage() {
                   }
                 </CardDescription>
               </div>
-              {/* Manage Billing button hidden until Stripe portal is connected */}
+              {isPro && (
+                <Button 
+                  variant="outline" 
+                  onClick={handleManageBilling}
+                  disabled={isManaging}
+                >
+                  {isManaging ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Manage Billing
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           </CardHeader>
           

@@ -53,6 +53,7 @@ import { TEMPLATE_CONFIGS } from "@/lib/resume-templates/config/resumeTemplates.
 import type { TemplateId } from "@/lib/resume-templates/types/ResumeProps"
 import { detectGaps, type GapAnalysisResult, type DetectedGap } from "@/lib/gap-detection"
 import { GapClarificationModal, type GapClarification } from "@/components/gap-clarification-modal"
+import { CoachGatedGeneration } from "@/components/coach-gated-generation"
 
 // Available status transitions
 const STATUS_OPTIONS: JobStatus[] = [
@@ -317,6 +318,7 @@ export function JobDetail({ job }: JobDetailProps) {
   const [selectedGapForCoach, setSelectedGapForCoach] = useState<DetectedGap | null>(null)
   const [showGapClarification, setShowGapClarification] = useState(false)
   const [pendingClarifications, setPendingClarifications] = useState<GapClarification[]>([])
+  const [showCoachGated, setShowCoachGated] = useState(false)
 
   // Sync local status when job prop updates (e.g. after router.refresh())
   useEffect(() => {
@@ -413,8 +415,12 @@ export function JobDetail({ job }: JobDetailProps) {
       result.job_id = job.id
       setGapAnalysis(result)
       
-      // Show review if there are critical gaps, otherwise allow direct generation
-      if (result.critical_gaps.length > 0 || result.gaps.length > 2) {
+      // Show Coach-gated flow for critical gaps, review for moderate gaps, direct for minimal
+      if (result.critical_gaps.length > 0) {
+        // Critical gaps: must go through Coach first
+        setShowCoachGated(true)
+      } else if (result.gaps.length > 2) {
+        // Moderate gaps: show review with option to engage Coach
         setShowGapReview(true)
       } else {
         // Few/no gaps - proceed directly to generation
@@ -1426,6 +1432,23 @@ export function JobDetail({ job }: JobDetailProps) {
           onComplete={(clarifications) => {
             setPendingClarifications(clarifications)
             // After clarification, trigger generation with the new context
+            handleGenerateMaterials()
+          }}
+        />
+      )}
+
+      {/* Coach-Gated Generation Modal - for critical gaps */}
+      {gapAnalysis && (
+        <CoachGatedGeneration
+          open={showCoachGated}
+          onClose={() => setShowCoachGated(false)}
+          gapAnalysis={gapAnalysis}
+          jobId={job.id}
+          jobTitle={job.title}
+          company={job.company}
+          score={job.score}
+          onGenerateUnlocked={() => {
+            setShowCoachGated(false)
             handleGenerateMaterials()
           }}
         />

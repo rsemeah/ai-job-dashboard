@@ -162,11 +162,18 @@ export default function OnboardingPage() {
       if (parsedResume?.experience?.length) {
         const evidenceToSave = parsedResume.experience.map((exp, i) => ({
           user_id: user.id,
-          title: `${exp.title} at ${exp.company}`,
-          description: exp.description || exp.bullets?.join(" ") || "",
-          category: "work_experience",
+          source_type: "resume",
+          source_title: `${exp.title} at ${exp.company}`,
+          role_name: exp.title || null,
+          company_name: exp.company || null,
+          date_range: exp.dates || null,
+          responsibilities: exp.bullets || [],
+          outcomes: [],
+          proof_snippet: exp.description || exp.bullets?.join(" ") || null,
           is_active: true,
           priority_rank: i,
+          confidence_level: "high",
+          is_user_approved: false,
         }))
 
         await supabase.from("evidence_library").insert(evidenceToSave)

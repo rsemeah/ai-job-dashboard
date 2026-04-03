@@ -82,6 +82,25 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // If user is logged in and accessing protected routes, check onboarding status
+  const isOnboardingRoute = pathname === '/onboarding' || pathname.startsWith('/onboarding/')
+  const isApiRoute = pathname.startsWith('/api/')
+  
+  if (user && !isPublicRoute && !isOnboardingRoute && !isApiRoute) {
+    const { data: profile } = await supabase
+      .from('user_profile')
+      .select('onboarding_complete')
+      .eq('user_id', user.id)
+      .single()
+
+    // No profile or onboarding not complete - redirect to onboarding
+    if (!profile?.onboarding_complete) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/onboarding'
+      return NextResponse.redirect(url)
+    }
+  }
+
   // IMPORTANT: Return the supabaseResponse object as-is to maintain session cookies
   return supabaseResponse
 }

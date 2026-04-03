@@ -331,11 +331,14 @@ export function JobDetail({ job }: JobDetailProps) {
       try {
         const { createClient } = await import("@/lib/supabase/client")
         const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        
         const { data } = await supabase
           .from("user_profile")
           .select("full_name")
-          .limit(1)
-          .maybeSingle()
+          .eq("user_id", user.id)
+          .single()
         
         if (data?.full_name) {
           setCandidateName(data.full_name)

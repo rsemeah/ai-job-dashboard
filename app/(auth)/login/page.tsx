@@ -93,14 +93,14 @@ function LoginForm() {
       
       // Check if user has completed onboarding
       if (authData.user) {
-        const { data: userData } = await supabase
-          .from("users")
+        const { data: profileData } = await supabase
+          .from("user_profile")
           .select("onboarding_complete")
-          .eq("id", authData.user.id)
+          .eq("user_id", authData.user.id)
           .maybeSingle()
         
-        // Redirect to onboarding if not complete
-        if (!userData?.onboarding_complete) {
+        // Redirect to onboarding if no profile or not complete
+        if (!profileData?.onboarding_complete) {
           router.push("/onboarding")
           router.refresh()
           return

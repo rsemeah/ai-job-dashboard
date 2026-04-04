@@ -5,17 +5,11 @@ import { NextResponse, type NextRequest } from 'next/server'
 const PUBLIC_ROUTES = [
   '/login',
   '/signup',
-  '/onboarding',
   '/auth/callback',
   '/auth/error',
   '/landing',
   '/terms',
   '/privacy',
-]
-
-// Route prefixes that don't require authentication
-const PUBLIC_PREFIXES = [
-  '/api', // All API routes handle their own auth
 ]
 
 // Routes that should redirect to dashboard if already authenticated
@@ -59,10 +53,18 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
+  // Check if current route is public or an API route
+  const isApiRoute = pathname.startsWith('/api')
+  
+  // Skip all middleware checks for API routes - they handle their own auth
+  if (isApiRoute) {
+    return supabaseResponse
+  }
+
   // Check if current route is public
   const isPublicRoute = PUBLIC_ROUTES.some(route => 
     pathname === route || pathname.startsWith(route + '/')
-  ) || PUBLIC_PREFIXES.some(prefix => pathname.startsWith(prefix))
+  )
 
   // Check if current route is an auth route (login/signup)
   const isAuthRoute = AUTH_ROUTES.some(route => 
@@ -88,9 +90,8 @@ export async function updateSession(request: NextRequest) {
 
   // If user is logged in and accessing protected routes, check onboarding status
   const isOnboardingRoute = pathname === '/onboarding' || pathname.startsWith('/onboarding/')
-  const isApiRoute = pathname.startsWith('/api/')
   
-  if (user && !isPublicRoute && !isOnboardingRoute && !isApiRoute) {
+  if (user && !isPublicRoute && !isOnboardingRoute) {
     const { data: profile } = await supabase
       .from('user_profile')
       .select('onboarding_complete')

@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       .from("evidence_library")
       .delete()
       .eq("user_id", user.id)
-      .eq("metadata->>source", "resume_upload");
+      .eq("source_type", "resume");
 
     if (deleteError) {
       console.error("[api/evidence/from-resume] delete existing failed", deleteError);

@@ -1,4 +1,4 @@
-import type { ParsedResumeData, ParsedResumeExperience } from "@/types/resume";
+import type { ParsedResumeData, ParsedResumeExperience, ParsedResumeEducation } from "@/types/resume";
 
 type AnyObject = Record<string, unknown>;
 
@@ -61,5 +61,4 @@ export function normalizeParsedResume(input: AnyObject): ParsedResumeData {
   };
 }
 
-// Re-export for type imports
-import type { ParsedResumeEducation } from "@/types/resume";
+

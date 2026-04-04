@@ -1,5 +1,5 @@
 // HireWire Dashboard - Premium Editorial Design
-import Link from "next/link"
+import { redirect } from "next/navigation"
 import { getJobStats, getJobs } from "@/lib/actions/jobs"
 import { ErrorState } from "@/components/error-state"
 import { DashboardContent } from "@/components/dashboard-content"
@@ -9,6 +9,11 @@ export const revalidate = 0
 
 export default async function DashboardPage() {
   const [statsResult, jobsResult] = await Promise.all([getJobStats(), getJobs()])
+
+  // If not authenticated, redirect to login
+  if (!statsResult.success && statsResult.error === "Not authenticated") {
+    redirect("/login")
+  }
 
   if (!statsResult.success) {
     return (

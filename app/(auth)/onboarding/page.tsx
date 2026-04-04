@@ -74,6 +74,7 @@ export default function OnboardingPage() {
       const response = await fetch("/api/resume/upload", {
         method: "POST",
         body: formData,
+        credentials: "include",
       })
 
       const result = await response.json()

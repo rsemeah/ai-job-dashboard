@@ -40,6 +40,33 @@ import {
 } from "@/lib/resume-templates"
 import { sanitizeInput } from "@/lib/safety"
 
+// Helper for retry with exponential backoff (handles 429 rate limits)
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  baseDelayMs = 2000
+): Promise<T> {
+  let lastError: Error | null = null
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error: unknown) {
+      lastError = error as Error
+      const errorMessage = lastError?.message || ""
+      const isRateLimited = errorMessage.includes("429") || errorMessage.includes("rate limit")
+      
+      if (isRateLimited && attempt < maxRetries) {
+        const delay = baseDelayMs * Math.pow(2, attempt) // 2s, 4s, 8s
+        console.log(`[v0] Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+      throw error
+    }
+  }
+  throw lastError
+}
+
 // Schema for evidence mapping
 const EvidenceMapSchema = z.object({
   matched_skills: z.array(z.string()).describe("Skills from profile that match job requirements"),
@@ -487,8 +514,8 @@ Candidate's response: ${c.answer}
 NOTE: The candidate provided this additional context to address gaps. Use this information when crafting the resume and cover letter, but DO NOT fabricate or exaggerate beyond what they stated.` : ""}
 `
 
-    // Step 1: Create evidence map and determine strategy
-    const { object: evidenceMap } = await generateObject({
+    // Step 1: Create evidence map and determine strategy (with retry for rate limits)
+    const { object: evidenceMap } = await withRetry(() => generateObject({
       model: groq(MODELS.VERSATILE),
       schema: EvidenceMapSchema,
       prompt: `Analyze the match between this candidate and job opportunity.
@@ -507,7 +534,7 @@ Create an evidence map that:
 5. Calculate what percentage of REQUIRED qualifications are covered
 
 Be conservative - only include matches that are clearly supported by the evidence. Do not exaggerate or invent connections.`,
-    })
+    }))
 
     // Determine generation strategy based on fit
     const evidenceQuality = resumeEvidence.filter((e: { confidence_level: string }) => e.confidence_level === "high").length / (resumeEvidence.length || 1) * 100
@@ -553,9 +580,9 @@ Be conservative - only include matches that are clearly supported by the evidenc
     const templateConfig = RESUME_TEMPLATES[selectedTemplate]
     const templateGuidance = getTemplateGuidance(selectedTemplate)
 
-    // Step 2: Generate resume with bullet-level provenance
+    // Step 2: Generate resume with bullet-level provenance (with retry for rate limits)
     // SIMPLIFIED: Reduced prompt verbosity to produce more natural, human-sounding output
-    const { object: resumeWithProvenance } = await generateObject({
+    const { object: resumeWithProvenance } = await withRetry(() => generateObject({
       model: groq(MODELS.VERSATILE),
       schema: ResumeWithProvenanceSchema,
       prompt: `Write resume content for this job application. Sound like a sharp professional, not a bot.
@@ -606,7 +633,7 @@ KEEP IT SPECIFIC:
 - Preserve industry: "B2B fintech" not "software"
 
 Write 5-8 achievement bullets that the candidate could confidently discuss in an interview. Every metric must be traceable to evidence.`,
-    })
+    }))
 
     // Step 2.5: PRE-GENERATION ENHANCEMENT PASS
     // Strengthen bullets with known profile data before final formatting
@@ -648,9 +675,9 @@ Write 5-8 achievement bullets that the candidate could confidently discuss in an
     const knownProducts = extractKnownProducts(allEvidence)
     const projectsSection = generateProjectsSection(knownProducts, 3)
 
-    // Step 3: Generate cover letter with paragraph provenance
+    // Step 3: Generate cover letter with paragraph provenance (with retry for rate limits)
     // SIMPLIFIED: More direct prompt for natural, human-sounding cover letters
-    const { object: coverLetterWithProvenance } = await generateObject({
+    const { object: coverLetterWithProvenance } = await withRetry(() => generateObject({
       model: groq(MODELS.VERSATILE),
       schema: CoverLetterWithProvenanceSchema,
       prompt: `Write a cover letter for this role. Sound confident and human, not like a template.
@@ -675,7 +702,7 @@ TONE: Write like a sharp professional sending a letter to someone they respect.
 - Close briefly - no groveling or excessive enthusiasm
 - Never say "I am excited to apply" or "I would be thrilled"
 - 3-4 paragraphs total`,
-    })
+    }))
 
     // Build final formatted documents - Premium Clean Minimalist format
     const effectiveEmail = profile?.email || sourceResumeData?.email || ""
@@ -772,7 +799,7 @@ ${signatureBlock}`
     // Wrapped in try-catch since smaller models can sometimes fail schema compliance
     let qualityCheck: z.infer<typeof QualityCheckSchema>
     try {
-      const result = await generateObject({
+      const result = await withRetry(() => generateObject({
         model: groq(MODELS.FAST),
         schema: QualityCheckSchema,
         prompt: `You are a resume quality reviewer. Analyze the generated documents and return a JSON object with your findings.
@@ -793,7 +820,7 @@ Return a JSON object with these exact fields:
 - improvement_suggestions: array of strings (suggestions to improve)
 
 If no issues found, return empty arrays and overall_passed: true.`,
-      })
+      }))
       qualityCheck = result.object
     } catch (qualityCheckError) {
       console.error("Quality check failed, using defaults:", qualityCheckError)

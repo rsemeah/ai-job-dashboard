@@ -12,6 +12,10 @@ const ParsedResumeSchema = z.object({
   phone: z.string().optional(),
   location: z.string().optional(),
   summary: z.string().optional(),
+  // Links - important for profile building
+  linkedin_url: z.string().optional().describe("LinkedIn profile URL if present"),
+  github_url: z.string().optional().describe("GitHub profile URL if present"),
+  website_url: z.string().optional().describe("Personal website or portfolio URL if present"),
   experience: z.array(z.object({
     title: z.string(),
     company: z.string(),
@@ -122,13 +126,17 @@ ${rawText.slice(0, 15000)}
 
 Extract:
 1. Contact info (name, email, phone, location)
-2. Professional summary if present
-3. ALL work experience entries with company names, titles, dates, and bullet points
-4. ALL education entries
-5. ALL skills mentioned
-6. Any certifications
+2. ALL LINKS - LinkedIn URL, GitHub URL, personal website/portfolio URL (look for URLs containing linkedin.com, github.com, or personal domains)
+3. Professional summary if present
+4. ALL work experience entries with company names, titles, dates, and bullet points - DO NOT SKIP ANY
+5. ALL education entries with degree, school name, and graduation year
+6. ALL skills mentioned (technical and soft skills)
+7. Any certifications
 
-Be precise with company names and job titles - copy them exactly as written.`,
+IMPORTANT:
+- Be precise with company names and job titles - copy them exactly as written
+- For experience entries, extract the FULL description and ALL bullet points
+- Look carefully for LinkedIn, GitHub, and personal website URLs in the header/contact section`,
       })
       parsedData = object
     } catch (parseError) {
@@ -185,7 +193,7 @@ Be precise with company names and job titles - copy them exactly as written.`,
     // Also update profile with parsed data if profile fields are empty
     const { data: profile } = await supabase
       .from("user_profile")
-      .select("full_name, location, summary, experience, skills, education")
+      .select("full_name, location, summary, experience, skills, education, links, email, phone")
       .eq("user_id", user.id)
       .single()
 
@@ -210,6 +218,28 @@ Be precise with company names and job titles - copy them exactly as written.`,
       }
       if ((!profile.education || profile.education.length === 0) && parsedData.education.length > 0) {
         updates.education = parsedData.education
+      }
+      // Update email and phone if empty
+      if (!profile.email && parsedData.email) {
+        updates.email = parsedData.email
+      }
+      if (!profile.phone && parsedData.phone) {
+        updates.phone = parsedData.phone
+      }
+      // Update links (LinkedIn, GitHub, website)
+      const currentLinks = (profile.links as Record<string, string>) || {}
+      const newLinks = { ...currentLinks }
+      if (!currentLinks.linkedin && parsedData.linkedin_url) {
+        newLinks.linkedin = parsedData.linkedin_url
+      }
+      if (!currentLinks.github && parsedData.github_url) {
+        newLinks.github = parsedData.github_url
+      }
+      if (!currentLinks.website && parsedData.website_url) {
+        newLinks.website = parsedData.website_url
+      }
+      if (Object.keys(newLinks).length > Object.keys(currentLinks).length) {
+        updates.links = newLinks
       }
 
       if (Object.keys(updates).length > 0) {

@@ -28,6 +28,12 @@ export interface ParsedResumeData {
   phone?: string | null;
   location?: string | null;
   summary?: string | null;
+  // Links
+  linkedinUrl?: string | null;
+  githubUrl?: string | null;
+  websiteUrl?: string | null;
+  portfolioUrl?: string | null;
+  // Main content
   experience: ParsedResumeExperience[];
   education?: ParsedResumeEducation[];
   skills?: ParsedResumeSkill[];

@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
         execute: async () => {
           const { data, error } = await supabase
             .from("user_profile")
-            .select("name, title, email, location, summary, skills, tools, domains, certifications, linkedin_url, github_url, website_url, experience, education")
+            .select("full_name, title, email, location, summary, skills, tools, domains, certifications, linkedin_url, github_url, website_url, experience, education")
             .eq("user_id", user.id)
             .single()
           if (error) return { error: "Could not load profile" }

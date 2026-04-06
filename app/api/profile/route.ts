@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       .from("user_profile")
       .update({
         full_name: body.full_name,
+        title: body.title ?? null,
         email: body.email,
         phone: body.phone,
         location: body.location,
@@ -71,6 +72,7 @@ export async function POST(request: Request) {
       .insert({
         user_id: user.id,
         full_name: body.full_name,
+        title: body.title ?? null,
         email: body.email,
         phone: body.phone,
         location: body.location,

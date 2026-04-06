@@ -45,6 +45,7 @@ interface Education {
 interface UserProfile {
   id?: string
   full_name: string
+  title: string
   email: string
   phone: string
   location: string
@@ -60,6 +61,7 @@ interface UserProfile {
 
 const emptyProfile: UserProfile = {
   full_name: "",
+  title: "",
   email: "",
   phone: "",
   location: "",
@@ -118,6 +120,7 @@ export default function ProfilePage() {
             ...emptyProfile,
             id: data.id,
             full_name: data.full_name || "",
+            title: data.title || "",
             email: data.email || "",
             phone: data.phone || "",
             location: data.location || "",
@@ -428,6 +431,15 @@ export default function ProfilePage() {
                   value={profile.full_name}
                   onChange={(e) => updateField("full_name", e.target.value)}
                   placeholder="John Doe"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="title">Professional Title</Label>
+                <Input
+                  id="title"
+                  value={profile.title}
+                  onChange={(e) => updateField("title", e.target.value)}
+                  placeholder="Senior Product Manager"
                 />
               </div>
               <div className="space-y-2">

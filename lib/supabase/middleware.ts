@@ -11,7 +11,6 @@ const PUBLIC_ROUTES = [
   '/landing',
   '/terms',
   '/privacy',
-  '/api/health',
 ]
 
 // Routes that should redirect to dashboard if already authenticated
@@ -55,6 +54,14 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
+  // Check if current route is public or an API route
+  const isApiRoute = pathname.startsWith('/api')
+  
+  // Skip all middleware checks for API routes - they handle their own auth
+  if (isApiRoute) {
+    return supabaseResponse
+  }
+
   // Check if current route is public
   const isPublicRoute = PUBLIC_ROUTES.some(route => 
     pathname === route || pathname.startsWith(route + '/')
@@ -80,6 +87,24 @@ export async function updateSession(request: NextRequest) {
     url.pathname = '/login'
     url.search = `?redirect=${redirectTo}`
     return NextResponse.redirect(url)
+  }
+
+  // If user is logged in and accessing protected routes, check onboarding status
+  const isOnboardingRoute = pathname === '/onboarding' || pathname.startsWith('/onboarding/')
+  
+  if (user && !isPublicRoute && !isOnboardingRoute) {
+    const { data: profile } = await supabase
+      .from('user_profile')
+      .select('onboarding_complete')
+      .eq('user_id', user.id)
+      .single()
+
+    // No profile or onboarding not complete - redirect to onboarding
+    if (!profile?.onboarding_complete) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/onboarding'
+      return NextResponse.redirect(url)
+    }
   }
 
   // IMPORTANT: Return the supabaseResponse object as-is to maintain session cookies

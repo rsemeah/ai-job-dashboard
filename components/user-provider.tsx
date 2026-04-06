@@ -145,25 +145,17 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }, [fetchProfile])
 
   const signOut = async () => {
-    console.log("[v0] signOut called")
     const supabase = createClient()
     
     // Clear local state first
     setUser(null)
     setProfile(null)
     
-    try {
-      // Sign out from Supabase with scope: 'local' to only clear this browser
-      const { error } = await supabase.auth.signOut({ scope: 'local' })
-      console.log("[v0] signOut result:", error ? error.message : "success")
-    } catch (err) {
-      console.error("[v0] signOut error:", err)
-    }
+    // Sign out from Supabase - don't await, just fire and redirect
+    supabase.auth.signOut().catch(() => {})
     
-    // Always redirect regardless of success/failure
-    // Use replace to prevent back button returning to authenticated page
-    console.log("[v0] Redirecting to login")
-    window.location.replace("/login")
+    // Redirect immediately
+    window.location.href = "/login"
   }
 
   return (

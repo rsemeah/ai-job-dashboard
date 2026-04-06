@@ -181,6 +181,11 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
       if (data.job_id) {
         if (data.duplicate) {
           toast.info("Already in your pipeline", { description: data.message })
+        } else if (data.limited_content) {
+          toast.warning("Limited content extracted", { 
+            description: "This job site uses JavaScript rendering. Some details may need manual entry.",
+            duration: 5000
+          })
         }
         router.push(`/jobs/${data.job_id}`)
       }

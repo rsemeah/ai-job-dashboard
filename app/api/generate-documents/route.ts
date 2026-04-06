@@ -41,6 +41,33 @@ import {
 } from "@/lib/resume-templates"
 import { sanitizeInput } from "@/lib/safety"
 
+// Helper for retry with exponential backoff (handles 429 rate limits)
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  baseDelayMs = 2000
+): Promise<T> {
+  let lastError: Error | null = null
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error: unknown) {
+      lastError = error as Error
+      const errorMessage = lastError?.message || ""
+      const isRateLimited = errorMessage.includes("429") || errorMessage.includes("rate limit")
+      
+      if (isRateLimited && attempt < maxRetries) {
+        const delay = baseDelayMs * Math.pow(2, attempt) // 2s, 4s, 8s
+        console.log(`[v0] Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+      throw error
+    }
+  }
+  throw lastError
+}
+
 // Schema for evidence mapping
 const EvidenceMapSchema = z.object({
   matched_skills: z.array(z.string()).describe("Skills from profile that match job requirements"),
@@ -199,14 +226,17 @@ async function loadSourceResume(supabase: Awaited<ReturnType<typeof createClient
 /**
  * Build strategy-aware generation prompt based on fit
  */
-function buildStrategyPrompt(strategy: GenerationStrategy): string {
+function buildStrategyPrompt(strategy: GenerationStrategy, hasUnresolvedGaps: boolean = false): string {
+  const gapWarning = hasUnresolvedGaps ? `
+WARNING: Some gaps remain unresolved. Be conservative - avoid overconfident claims in areas where evidence is thin.` : ""
+
   switch (strategy) {
     case "direct_match":
       return `
 GENERATION STRATEGY: DIRECT MATCH
 You may be assertive about qualifications since evidence strongly supports the match.
 Use confident language and highlight achievements directly relevant to the role.
-Still avoid any invention - stick to facts from evidence.`
+Still avoid any invention - stick to facts from evidence.${gapWarning}`
 
     case "adjacent_transition":
       return `
@@ -214,7 +244,7 @@ GENERATION STRATEGY: ADJACENT TRANSITION
 Lean on transferable skills and related experience.
 Do NOT claim direct experience you don't have.
 Frame adjacent work as relevant without pretending direct ownership.
-Be honest about the transition narrative.`
+Be honest about the transition narrative.${gapWarning}`
 
     case "stretch_honest":
       return `
@@ -222,7 +252,7 @@ GENERATION STRATEGY: STRETCH BUT HONEST
 This is a stretch role - be careful not to overclaim.
 Emphasize learning ability and adaptability.
 Acknowledge gaps indirectly through what you bring, not what you lack.
-Do NOT exaggerate or invent qualifications.`
+Do NOT exaggerate or invent qualifications.${gapWarning}`
 
     case "do_not_generate":
       return `
@@ -303,6 +333,28 @@ export async function POST(request: NextRequest) {
       loadSourceResume(supabase, user.id),
     ])
 
+    // HARD FAIL: Evidence is required for document generation
+    if (!allEvidence || allEvidence.length === 0) {
+      await supabase
+        .from("jobs")
+        .update({
+          status: "needs_review",
+          generation_status: "failed",
+          generation_error: "evidence_required",
+        })
+        .eq("id", job_id)
+        .eq("user_id", user.id)
+      
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: "evidence_required",
+          user_message: "No evidence found in your library. Please upload a resume or add evidence manually before generating materials."
+        },
+        { status: 400 }
+      )
+    }
+
     // If no profile exists, create a minimal one or use source resume data
     if (!profile && !sourceResume?.parsed_data) {
       // Update job status to indicate why generation failed
@@ -337,6 +389,13 @@ export async function POST(request: NextRequest) {
     }
 
     const jobAnalysis = jobData.job_analyses?.[0]
+    
+    // Load gap clarifications for this job (job-specific context)
+    const gapClarifications = (jobData.gap_clarifications as Array<{
+      gap_requirement: string
+      answer: string
+      routing: string
+    }>) || []
 
     // TRUTH-LOCK: Filter evidence based on usage rules
     // If user selected specific evidence, use that; otherwise filter automatically
@@ -377,12 +436,12 @@ export async function POST(request: NextRequest) {
     } | null
 
     // Merge profile with source resume data (profile takes precedence)
-    const effectiveName = profile.full_name || sourceResumeData?.full_name || "Not provided"
-    const effectiveLocation = profile.location || sourceResumeData?.location || "Not provided"
-    const effectiveSummary = profile.summary || sourceResumeData?.summary || "Not provided"
-    const effectiveSkills = (profile.skills?.length > 0 ? profile.skills : sourceResumeData?.skills) || []
-    const effectiveExperience = (profile.experience?.length > 0 ? profile.experience : sourceResumeData?.experience) || []
-    const effectiveEducation = (profile.education?.length > 0 ? profile.education : sourceResumeData?.education) || []
+    const effectiveName = profile?.full_name || sourceResumeData?.full_name || "Not provided"
+    const effectiveLocation = profile?.location || sourceResumeData?.location || "Not provided"
+    const effectiveSummary = profile?.summary || sourceResumeData?.summary || "Not provided"
+    const effectiveSkills = (profile?.skills?.length > 0 ? profile.skills : sourceResumeData?.skills) || []
+    const effectiveExperience = (profile?.experience?.length > 0 ? profile.experience : sourceResumeData?.experience) || []
+    const effectiveEducation = (profile?.education?.length > 0 ? profile.education : sourceResumeData?.education) || []
 
     const profileContext = `
 CANDIDATE PROFILE:
@@ -483,10 +542,18 @@ ${jobAnalysis?.ats_phrases?.length ? `ATS Phrases to Include: ${jobAnalysis.ats_
 ${!jobAnalysis && jobData.raw_description ? `
 Full Job Description (manually entered — extract responsibilities and keywords from this):
 ${(jobData.raw_description as string).slice(0, 3000)}` : ""}
+${gapClarifications.length > 0 ? `
+
+ADDITIONAL CONTEXT FROM CANDIDATE (use this to address identified gaps):
+${gapClarifications.map(c => `
+Gap: ${c.gap_requirement}
+Candidate's response: ${c.answer}
+`).join("\n")}
+NOTE: The candidate provided this additional context to address gaps. Use this information when crafting the resume and cover letter, but DO NOT fabricate or exaggerate beyond what they stated.` : ""}
 `
 
-    // Step 1: Create evidence map and determine strategy
-    const { object: evidenceMap } = await generateObject({
+    // Step 1: Create evidence map and determine strategy (with retry for rate limits)
+    const { object: evidenceMap } = await withRetry(() => generateObject({
       model: groq(MODELS.VERSATILE),
       schema: EvidenceMapSchema,
       prompt: `Analyze the match between this candidate and job opportunity.
@@ -505,7 +572,7 @@ Create an evidence map that:
 5. Calculate what percentage of REQUIRED qualifications are covered
 
 Be conservative - only include matches that are clearly supported by the evidence. Do not exaggerate or invent connections.`,
-    })
+    }))
 
     // Determine generation strategy based on fit
     const evidenceQuality = resumeEvidence.filter((e: { confidence_level: string }) => e.confidence_level === "high").length / (resumeEvidence.length || 1) * 100
@@ -537,7 +604,9 @@ Be conservative - only include matches that are clearly supported by the evidenc
       }, { status: 400 })
     }
 
-    const strategyPrompt = buildStrategyPrompt(strategy)
+    // Determine if there are unresolved gaps (gaps detected but not clarified)
+    const hasUnresolvedGaps = evidenceMap.gaps.length > 0 && gapClarifications.length === 0
+    const strategyPrompt = buildStrategyPrompt(strategy, hasUnresolvedGaps)
 
     // Auto-select optimal resume template based on job analysis
     const selectedTemplate = suggestTemplate({
@@ -549,9 +618,9 @@ Be conservative - only include matches that are clearly supported by the evidenc
     const templateConfig = RESUME_TEMPLATES[selectedTemplate]
     const templateGuidance = getTemplateGuidance(selectedTemplate)
 
-    // Step 2: Generate resume with bullet-level provenance
+    // Step 2: Generate resume with bullet-level provenance (with retry for rate limits)
     // SIMPLIFIED: Reduced prompt verbosity to produce more natural, human-sounding output
-    const { object: resumeWithProvenance } = await generateObject({
+    const { object: resumeWithProvenance } = await withRetry(() => generateObject({
       model: groq(MODELS.VERSATILE),
       schema: ResumeWithProvenanceSchema,
       prompt: `Write resume content for this job application. Sound like a sharp professional, not a bot.
@@ -602,7 +671,7 @@ KEEP IT SPECIFIC:
 - Preserve industry: "B2B fintech" not "software"
 
 Write 5-8 achievement bullets that the candidate could confidently discuss in an interview. Every metric must be traceable to evidence.`,
-    })
+    }))
 
     // Step 2.5: PRE-GENERATION ENHANCEMENT PASS
     // Strengthen bullets with known profile data before final formatting
@@ -623,14 +692,14 @@ Write 5-8 achievement bullets that the candidate could confidently discuss in an
         keywords_used: b.keywords_used,
       })),
       {
-        full_name: profile.full_name,
-        email: profile.email,
-        phone: profile.phone,
-        location: profile.location,
-        summary: profile.summary,
-        skills: profile.skills,
-        links: profile.links as { portfolio?: string; linkedin?: string; github?: string } | undefined,
-        experience: (profile.experience || []).map((exp: { title?: string; company?: string; description?: string }) => ({
+        full_name: effectiveName,
+        email: profile?.email || sourceResumeData?.email || "",
+        phone: profile?.phone || sourceResumeData?.phone || "",
+        location: effectiveLocation,
+        summary: effectiveSummary,
+        skills: effectiveSkills,
+        links: profile?.links as { portfolio?: string; linkedin?: string; github?: string } | undefined,
+        experience: effectiveExperience.map((exp: { title?: string; company?: string; description?: string }) => ({
           title: exp.title || "",
           company: exp.company || "",
           description: exp.description,
@@ -644,9 +713,9 @@ Write 5-8 achievement bullets that the candidate could confidently discuss in an
     const knownProducts = extractKnownProducts(allEvidence)
     const projectsSection = generateProjectsSection(knownProducts, 3)
 
-    // Step 3: Generate cover letter with paragraph provenance
+    // Step 3: Generate cover letter with paragraph provenance (with retry for rate limits)
     // SIMPLIFIED: More direct prompt for natural, human-sounding cover letters
-    const { object: coverLetterWithProvenance } = await generateObject({
+    const { object: coverLetterWithProvenance } = await withRetry(() => generateObject({
       model: groq(MODELS.VERSATILE),
       schema: CoverLetterWithProvenanceSchema,
       prompt: `Write a cover letter for this role. Sound confident and human, not like a template.
@@ -671,24 +740,31 @@ TONE: Write like a sharp professional sending a letter to someone they respect.
 - Close briefly - no groveling or excessive enthusiasm
 - Never say "I am excited to apply" or "I would be thrilled"
 - 3-4 paragraphs total`,
-    })
+    }))
 
     // Build final formatted documents - Premium Clean Minimalist format
-    const contactInfo = [
-      profile.location,
-      profile.email,
-      profile.phone
-    ].filter(Boolean).join(" | ")
-    
-    // Use ENHANCED bullets (with product names, metrics, context injected)
-    const experienceBullets = enhancedBullets
-      .map(b => `• ${b.bullet_text}`)
-      .join("\n")
-    
-    // Build ATS-safe formatted resume (no unicode dividers, clean structure)
-    // CHANGED: Removed unicode box-drawing characters that break ATS parsing
-    const formattedResume = `${(profile.full_name || "CANDIDATE NAME").toUpperCase()}
-${contactInfo}
+  const effectiveEmail = profile?.email || sourceResumeData?.email || ""
+  const effectivePhone = profile?.phone || sourceResumeData?.phone || ""
+  const contactInfo = [
+  effectiveLocation,
+  effectiveEmail,
+  effectivePhone
+  ].filter(Boolean).join(" | ")
+  
+  // TARGET ROLE: Use the job title being applied to for resume alignment
+  const targetJobTitle = jobData?.title || jobData?.role_title || jobAnalysis?.title || "Professional"
+  
+  // Use ENHANCED bullets (with product names, metrics, context injected)
+  const experienceBullets = enhancedBullets
+  .map(b => `• ${b.bullet_text}`)
+  .join("\n")
+  
+  // Build ATS-safe formatted resume (no unicode dividers, clean structure)
+  // CHANGED: Removed unicode box-drawing characters that break ATS parsing
+  // CHANGED: Added job title as professional headline for alignment
+  const formattedResume = `${(effectiveName || "CANDIDATE NAME").toUpperCase()}
+  ${targetJobTitle}
+  ${contactInfo}
 
 PROFESSIONAL SUMMARY
 ${resumeWithProvenance.summary}
@@ -702,7 +778,7 @@ CORE COMPETENCIES
 ${resumeWithProvenance.skills_section.join(", ")}
 
 EDUCATION
-${(profile.education || []).map((edu: { degree: string; school: string; year?: string }) => 
+${effectiveEducation.map((edu: { degree: string; school: string; year?: string }) => 
   `${edu.degree}, ${edu.school}${edu.year ? ` (${edu.year})` : ""}`
 ).join("\n")}`
 
@@ -715,9 +791,9 @@ ${(profile.education || []).map((edu: { degree: string; school: string; year?: s
     
     // Build professional signature block with phone number
     const signatureBlock = [
-      profile.full_name || "Candidate",
-      profile.phone ? `Direct: ${profile.phone}` : null,
-      profile.email || null,
+      effectiveName || "Candidate",
+      effectivePhone ? `Direct: ${effectivePhone}` : null,
+      effectiveEmail || null,
     ].filter(Boolean).join("\n")
     
     const formattedCoverLetter = `${today}
@@ -766,7 +842,7 @@ ${signatureBlock}`
     // Wrapped in try-catch since smaller models can sometimes fail schema compliance
     let qualityCheck: z.infer<typeof QualityCheckSchema>
     try {
-      const result = await generateObject({
+      const result = await withRetry(() => generateObject({
         model: groq(MODELS.FAST),
         schema: QualityCheckSchema,
         prompt: `You are a resume quality reviewer. Analyze the generated documents and return a JSON object with your findings.
@@ -787,7 +863,7 @@ Return a JSON object with these exact fields:
 - improvement_suggestions: array of strings (suggestions to improve)
 
 If no issues found, return empty arrays and overall_passed: true.`,
-      })
+      }))
       qualityCheck = result.object
     } catch (qualityCheckError) {
       console.error("Quality check failed, using defaults:", qualityCheckError)

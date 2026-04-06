@@ -132,15 +132,10 @@ export function ResumeTemplatePicker({
               <Loader2 className="h-4 w-4 animate-spin" />
               Generating...
             </>
-          ) : hasExistingResume ? (
-            <>
-              <RefreshCw className="h-4 w-4" />
-              Regenerate with {currentConfig.label}
-            </>
           ) : (
             <>
               <FileText className="h-4 w-4" />
-              Generate with {currentConfig.label}
+              Generate New Resume & Cover Letter
             </>
           )}
         </Button>

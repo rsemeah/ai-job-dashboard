@@ -37,12 +37,12 @@ const ROLE_FAMILIES = [
 
 // Schema for job analysis extraction - made flexible to handle LLM variations
 const JobAnalysisSchema = z.object({
-  title: z.string().describe("Job title as stated"),
-  company: z.string().describe("Company name"),
+  title: z.string().nullable().describe("Job title as stated, or null if not found"),
+  company: z.string().nullable().describe("Company name, or null if not found"),
   location: z.string().nullable().describe("Job location or Remote"),
   employment_type: z.string().nullable().describe("Full-time, Part-time, Contract, etc."),
   salary_text: z.string().nullable().describe("Salary range if mentioned"),
-  description_summary: z.string().describe("Brief 2-3 sentence summary of the role"),
+  description_summary: z.string().nullable().describe("Brief 2-3 sentence summary of the role, or null if content not available"),
   responsibilities: z.array(z.string()).describe("List of key responsibilities"),
   qualifications_required: z.array(z.string()).describe("Required qualifications"),
   qualifications_preferred: z.array(z.string()).describe("Preferred/nice-to-have qualifications"),
@@ -300,11 +300,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (pageContent.length < 100) {
-      return NextResponse.json(
-        { success: false, error: "Job page content too short - may be blocked or invalid" },
-        { status: 400 }
-      )
+    // Handle limited content gracefully - allow analysis to proceed with warning
+    const isLimitedContent = pageContent.length < 100
+    if (isLimitedContent) {
+      // For JS-heavy sites (Workday, etc.), add context for the LLM
+      pageContent = `[LIMITED CONTENT WARNING]
+This job page returned minimal content, likely due to JavaScript rendering requirements.
+URL: ${job_url}
+Source: ${source}
+
+Available content:
+${pageContent}
+
+Instructions: Extract whatever information is available. For any fields that cannot be determined from this limited content, use null or empty arrays as appropriate. The user will be prompted to add missing details manually.`
     }
 
     // Analyze with Groq
@@ -334,15 +342,23 @@ ${pageContent}
 Extract the job details following the schema. Be accurate with the role_family categorization based on the actual role requirements.`,
     })
 
+    // Validate required fields - provide fallbacks if LLM returned nulls
+    const validatedAnalysis = {
+      ...analysis,
+      title: analysis.title || "Unknown Position",
+      company: analysis.company || "Unknown Company",
+      description_summary: analysis.description_summary || "No description available",
+    }
+
     // Normalize seniority level
-    const normalizedSeniority = normalizeSeniority(analysis.seniority_level)
+    const normalizedSeniority = normalizeSeniority(validatedAnalysis.seniority_level)
     
     // Check for duplicate based on company + role (more thorough than URL-only check)
     const duplicateCheck = await checkForDuplicate(
       supabase,
       user.id,
-      analysis.company,
-      analysis.title,
+      validatedAnalysis.company,
+      validatedAnalysis.title,
       job_url
     )
     
@@ -366,20 +382,20 @@ Extract the job details following the schema. Be accurate with the role_family c
             source_url: duplicateCheck.existingJob.source_url,
           },
           analysis: {
-            title: analysis.title,
-            company: analysis.company,
-            location: analysis.location,
-            employment_type: analysis.employment_type,
-            salary_text: analysis.salary_text,
-            responsibilities: analysis.responsibilities,
-            qualifications_required: analysis.qualifications_required,
-            qualifications_preferred: analysis.qualifications_preferred,
-            keywords: analysis.keywords,
-            ats_phrases: analysis.ats_phrases,
-            tech_stack: analysis.tech_stack,
+            title: validatedAnalysis.title,
+            company: validatedAnalysis.company,
+            location: validatedAnalysis.location,
+            employment_type: validatedAnalysis.employment_type,
+            salary_text: validatedAnalysis.salary_text,
+            responsibilities: validatedAnalysis.responsibilities,
+            qualifications_required: validatedAnalysis.qualifications_required,
+            qualifications_preferred: validatedAnalysis.qualifications_preferred,
+            keywords: validatedAnalysis.keywords,
+            ats_phrases: validatedAnalysis.ats_phrases,
+            tech_stack: validatedAnalysis.tech_stack,
             seniority_level: normalizedSeniority,
-            role_family: analysis.role_family,
-            industry_guess: analysis.industry_guess,
+            role_family: validatedAnalysis.role_family,
+            industry_guess: validatedAnalysis.industry_guess,
           },
         })
       }
@@ -420,27 +436,27 @@ Extract the job details following the schema. Be accurate with the role_family c
     }
     
     // Calculate dimension scores based on actual evidence
-    const techStackMatch = analysis.tech_stack.filter(tech => 
+    const techStackMatch = validatedAnalysis.tech_stack.filter(tech => 
       canonicalEvidence.some(e => 
         e.skills.some(s => s.toLowerCase().includes(tech.toLowerCase())) ||
         e.text.toLowerCase().includes(tech.toLowerCase())
       )
     )
     
-    const keywordMatches = analysis.keywords.filter(kw =>
+    const keywordMatches = validatedAnalysis.keywords.filter(kw =>
       canonicalEvidence.some(e => e.text.toLowerCase().includes(kw.toLowerCase()))
     )
     
     const dimensionScores = {
       experience: canonicalEvidence.filter(e => e.evidence_type === "work_experience").length > 0 ? 70 : 40,
       evidence: Math.min(100, (canonicalEvidence.filter(e => e.confidence === "high").length / Math.max(canonicalEvidence.length, 1)) * 100),
-      skills: techStackMatch.length > 0 ? Math.min(100, (techStackMatch.length / Math.max(analysis.tech_stack.length, 1)) * 100) : 40,
+      skills: techStackMatch.length > 0 ? Math.min(100, (techStackMatch.length / Math.max(validatedAnalysis.tech_stack.length, 1)) * 100) : 40,
       seniority: normalizedSeniority === "Senior" || normalizedSeniority === "Lead" ? 70 : 50,
-      ats: keywordMatches.length > 0 ? Math.min(100, (keywordMatches.length / Math.max(analysis.keywords.length, 1)) * 100) : 40,
+      ats: keywordMatches.length > 0 ? Math.min(100, (keywordMatches.length / Math.max(validatedAnalysis.keywords.length, 1)) * 100) : 40,
     }
     
     // Get role-aware weights
-    const inferredRole = inferRoleFromJobTitle(analysis.title)
+    const inferredRole = inferRoleFromJobTitle(validatedAnalysis.title)
     const weights = getWeightsForRole(inferredRole)
     
     // Map short keys to full keys expected by calculateWeightedScore
@@ -456,8 +472,8 @@ Extract the job details following the schema. Be accurate with the role_family c
     // Calculate explainable fit using canonical evidence
     const explainableFit: ExplainableFitScore = calculateExplainableFit(
       canonicalEvidence,
-      analysis.qualifications_required,
-      analysis.qualifications_preferred,
+      validatedAnalysis.qualifications_required,
+      validatedAnalysis.qualifications_preferred,
       dimensionScores
     )
     
@@ -494,8 +510,8 @@ Extract the job details following the schema. Be accurate with the role_family c
       .from("jobs")
       .insert({
         user_id: user.id,
-        role_title: analysis.title,
-        company_name: analysis.company,
+        role_title: validatedAnalysis.title,
+        company_name: validatedAnalysis.company,
         source: source,
         job_url: job_url,
         job_description: pageContent.slice(0, 10000),
@@ -514,8 +530,8 @@ Extract the job details following the schema. Be accurate with the role_family c
       supabase,
       user.id,
       job.id,
-      analysis.company,
-      { industry: analysis.industry_guess || undefined }
+      validatedAnalysis.company,
+      { industry: validatedAnalysis.industry_guess || undefined }
     )
     if ("error" in companyResult) {
       console.error("Company link error:", companyResult.error)
@@ -528,17 +544,17 @@ Extract the job details following the schema. Be accurate with the role_family c
       .insert({
         user_id: user.id,
         job_id: job.id,
-        title: analysis.title,
-        company: analysis.company,
-        location: analysis.location,
-        employment_type: analysis.employment_type,
-        salary_text: analysis.salary_text,
+        title: validatedAnalysis.title,
+        company: validatedAnalysis.company,
+        location: validatedAnalysis.location,
+        employment_type: validatedAnalysis.employment_type,
+        salary_text: validatedAnalysis.salary_text,
         description_raw: pageContent.slice(0, 10000),
-        responsibilities: analysis.responsibilities,
-        qualifications_required: analysis.qualifications_required,
-        qualifications_preferred: analysis.qualifications_preferred,
-        keywords: analysis.keywords,
-        ats_phrases: analysis.keywords,
+        responsibilities: validatedAnalysis.responsibilities,
+        qualifications_required: validatedAnalysis.qualifications_required,
+        qualifications_preferred: validatedAnalysis.qualifications_preferred,
+        keywords: validatedAnalysis.keywords,
+        ats_phrases: validatedAnalysis.keywords,
         matched_skills: fitResult.reasoning.filter((r: string) => !r.includes("gap")),
         known_gaps: fitResult.reasoning.filter((r: string) => r.includes("gap")),
         analysis_version: "3.0-explainable",
@@ -550,12 +566,16 @@ Extract the job details following the schema. Be accurate with the role_family c
     }
 
     // Insert job scores into job_scores table
+    // Convert confidence string to numeric value
+    const confidenceMap: Record<string, number> = { "HIGH": 0.9, "MEDIUM": 0.7, "LOW": 0.5 }
+    const confidenceScore = confidenceMap[explainableFit.confidence] || 0.7
+    
     const { error: scoresError } = await supabase
       .from("job_scores")
       .insert({
         job_id: job.id,
         overall_score: fitResult.score,
-        confidence_score: explainableFit.confidence,
+        confidence_score: confidenceScore,
         skills_match: dimensionScores.skills,
         experience_relevance: dimensionScores.experience,
         evidence_quality: dimensionScores.evidence,
@@ -589,22 +609,26 @@ Extract the job details following the schema. Be accurate with the role_family c
       success: true,
       job_id: job.id,
       duplicate: false,
+      limited_content: isLimitedContent,
+      limited_content_message: isLimitedContent 
+        ? "This job page returned limited content. Some details may need to be added manually." 
+        : null,
       analysis: {
-        title: analysis.title,
-        company: analysis.company,
-        location: analysis.location,
-        employment_type: analysis.employment_type,
-        salary_text: analysis.salary_text,
-        responsibilities: analysis.responsibilities,
-        qualifications_required: analysis.qualifications_required,
-        qualifications_preferred: analysis.qualifications_preferred,
-        keywords: analysis.keywords,
-        ats_phrases: analysis.ats_phrases,
-        tech_stack: analysis.tech_stack,
+        title: validatedAnalysis.title,
+        company: validatedAnalysis.company,
+        location: validatedAnalysis.location,
+        employment_type: validatedAnalysis.employment_type,
+        salary_text: validatedAnalysis.salary_text,
+        responsibilities: validatedAnalysis.responsibilities,
+        qualifications_required: validatedAnalysis.qualifications_required,
+        qualifications_preferred: validatedAnalysis.qualifications_preferred,
+        keywords: validatedAnalysis.keywords,
+        ats_phrases: validatedAnalysis.ats_phrases,
+        tech_stack: validatedAnalysis.tech_stack,
         seniority_level: normalizedSeniority,
-        role_family: analysis.role_family,
-        industry_guess: analysis.industry_guess || "Unknown",
-        fit_signals: analysis.fit_signals,
+        role_family: validatedAnalysis.role_family,
+        industry_guess: validatedAnalysis.industry_guess || "Unknown",
+        fit_signals: validatedAnalysis.fit_signals,
       },
     initial_fit: fitResult,
     // Explainable fit with full transparency

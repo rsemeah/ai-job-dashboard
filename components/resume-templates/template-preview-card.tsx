@@ -80,8 +80,8 @@ function LayoutPreview({
 }) {
   const baseClasses = "rounded-sm"
   const accentStyle = { backgroundColor: accentColor }
-  const grayStyle = { backgroundColor: "#e5e5e5" }
-  const lightGrayStyle = { backgroundColor: "#f5f5f5" }
+  const grayStyle = { backgroundColor: "#c0c0c0" }
+  const lightGrayStyle = { backgroundColor: "#d8d8d8" }
   
   switch (layout) {
     case "single-with-sidebar":
@@ -210,9 +210,10 @@ export function TemplatePreviewCard({
       {/* Layout preview */}
       <div 
         className={cn(
-          "w-full rounded bg-white border border-border/50 p-2",
+          "w-full rounded border border-border p-2 shadow-sm",
           previewHeights[size]
         )}
+        style={{ backgroundColor: "#fafafa" }}
       >
         <LayoutPreview layout={config.layout} accentColor={config.accentColor} />
       </div>

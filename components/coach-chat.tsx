@@ -127,8 +127,8 @@ export function CoachChat({ className, conversationId, compact = false, onClose,
         {messages.length === 0 && (
           <div className={cn("space-y-4", compact ? "py-2" : "py-6")}>
             <div className="flex items-start gap-3">
-              <Avatar className="h-8 w-8 bg-hirewire-red/10">
-                <AvatarFallback className="bg-hirewire-red text-white">
+              <Avatar className="h-8 w-8 bg-primary/10">
+                <AvatarFallback className="bg-primary text-white">
                   <Sparkles className="h-4 w-4" />
                 </AvatarFallback>
               </Avatar>
@@ -167,7 +167,7 @@ export function CoachChat({ className, conversationId, compact = false, onClose,
                   onClick={() => handleQuickAction(action.prompt)}
                   disabled={isLoading}
                 >
-                  <action.icon className="h-4 w-4 text-hirewire-red shrink-0" />
+                  <action.icon className="h-4 w-4 text-primary shrink-0" />
                   <span className="text-xs">{action.label}</span>
                 </Button>
               ))}
@@ -193,10 +193,10 @@ export function CoachChat({ className, conversationId, compact = false, onClose,
               >
                 <Avatar className={cn(
                   "h-8 w-8",
-                  isUser ? "bg-muted" : "bg-hirewire-red/10"
+                  isUser ? "bg-muted" : "bg-primary/10"
                 )}>
                   <AvatarFallback className={cn(
-                    isUser ? "bg-muted text-muted-foreground" : "bg-hirewire-red text-white"
+                    isUser ? "bg-muted text-muted-foreground" : "bg-primary text-white"
                   )}>
                     {isUser ? <User className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
                   </AvatarFallback>
@@ -240,13 +240,13 @@ export function CoachChat({ className, conversationId, compact = false, onClose,
           {/* Loading indicator */}
           {isLoading && (
             <div className="flex items-start gap-3">
-              <Avatar className="h-8 w-8 bg-hirewire-red/10">
-                <AvatarFallback className="bg-hirewire-red text-white">
+              <Avatar className="h-8 w-8 bg-primary/10">
+                <AvatarFallback className="bg-primary text-white">
                   <Sparkles className="h-4 w-4" />
                 </AvatarFallback>
               </Avatar>
               <div className="flex items-center gap-2 py-2">
-                <Loader2 className="h-4 w-4 animate-spin text-hirewire-red" />
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
                 <span className="text-sm text-muted-foreground">Thinking...</span>
               </div>
             </div>
@@ -277,7 +277,7 @@ export function CoachChat({ className, conversationId, compact = false, onClose,
             type="submit" 
             size="icon"
             disabled={!input.trim() || isLoading}
-            className="shrink-0 bg-hirewire-red hover:bg-hirewire-red/90"
+            className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />

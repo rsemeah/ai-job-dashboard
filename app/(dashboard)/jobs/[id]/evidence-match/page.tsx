@@ -66,16 +66,35 @@ export default function EvidenceMatchPage() {
         return
       }
       
-      // Fetch job - filtered by user_id for security
+      // Fetch job with analysis data (qualifications are in job_analyses)
       const { data: jobData } = await supabase
         .from("jobs")
-        .select("*")
+        .select(`
+          *,
+          job_analyses (
+            qualifications_required,
+            qualifications_preferred,
+            keywords,
+            ats_phrases,
+            responsibilities
+          )
+        `)
         .eq("id", jobId)
         .eq("user_id", user.id)
         .single()
       
       if (jobData) {
-        setJob(jobData as Job)
+        // Merge job_analyses qualifications into job object for easier access
+        const analysis = jobData.job_analyses?.[0]
+        const mergedJob = {
+          ...jobData,
+          qualifications_required: analysis?.qualifications_required || [],
+          qualifications_preferred: analysis?.qualifications_preferred || [],
+          keywords: analysis?.keywords || [],
+          ats_phrases: analysis?.ats_phrases || [],
+          responsibilities: analysis?.responsibilities || [],
+        }
+        setJob(mergedJob as Job)
       }
       
       // Fetch all evidence - filtered by user_id for security
@@ -294,6 +313,48 @@ export default function EvidenceMatchPage() {
     return (
       <div className="p-6">
         <p className="text-muted-foreground">Job not found</p>
+      </div>
+    )
+  }
+
+  // Show empty state if user has no evidence
+  if (evidence.length === 0) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center gap-4">
+          <Link href={`/jobs/${jobId}`}>
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl font-semibold">Evidence Match Console</h1>
+            <p className="text-muted-foreground">{job.role_title || job.title} at {job.company_name || job.company}</p>
+          </div>
+        </div>
+        
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="h-12 w-12 text-amber-600 mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-amber-900 mb-2">No Evidence Found</h2>
+            <p className="text-amber-700 mb-4">
+              You need evidence items in your library to match against job requirements. 
+              Evidence is automatically created when you upload your resume during onboarding.
+            </p>
+            <div className="flex justify-center gap-3">
+              <Link href="/evidence">
+                <Button variant="outline">
+                  Manage Evidence Library
+                </Button>
+              </Link>
+              <Link href="/onboarding">
+                <Button>
+                  Upload Resume
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }

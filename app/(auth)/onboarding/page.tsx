@@ -14,10 +14,8 @@ import Image from "next/image"
 type OnboardingStep = "welcome" | "profile" | "resume" | "path"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { 
   Loader2, 
-  Briefcase, 
   FileText, 
   Target, 
   Upload, 
@@ -25,30 +23,14 @@ import {
   CheckCircle2,
   X,
   ChevronRight,
-  MessageSquare
+  ArrowRight
 } from "lucide-react"
 import { HireWireLogo } from "@/components/hirewire-logo"
-import { CoachChat } from "@/components/coach-chat"
 import { toast } from "sonner"
+import { normalizeParsedResume } from "@/lib/resume/normalizeParsedResume"
+import type { ParsedResumeData } from "@/types/resume"
 
-type OnboardingStep = "welcome" | "profile" | "evidence" | "path"
-
-interface ParsedResumeData {
-  name: string | null
-  email: string | null
-  phone: string | null
-  location: string | null
-  headline: string | null
-  summary: string | null
-  skills: string[]
-  extractedEvidence: Array<{
-    title: string
-    description: string
-    category: string
-    metrics: string | null
-    tags: string[]
-  }>
-}
+type OnboardingStep = "welcome" | "resume" | "profile" | "complete"
 
 export default function OnboardingPage() {
   const [step, setStep] = useState<OnboardingStep>("welcome")
@@ -56,7 +38,7 @@ export default function OnboardingPage() {
   const [isParsingResume, setIsParsingResume] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [parsedResume, setParsedResume] = useState<ParsedResumeData | null>(null)
-  const [savedEvidenceCount, setSavedEvidenceCount] = useState(0)
+  const [hasResume, setHasResume] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
@@ -67,10 +49,7 @@ export default function OnboardingPage() {
   const [summary, setSummary] = useState("")
   const [skills, setSkills] = useState<string[]>([])
 
-  // Evidence builder state
-  const [useAIBuilder, setUseAIBuilder] = useState(false)
-
-  // Handle resume file upload - uses the new upload API that stores and parses
+  // Handle resume file upload with proper evidence creation
   const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -79,106 +58,68 @@ export default function OnboardingPage() {
     setError(null)
 
     try {
+      // Step 1: Upload and parse resume
       const formData = new FormData()
       formData.append("file", file)
       formData.append("replaceExisting", "true")
 
-      const response = await fetch("/api/resume/upload", {
+      const uploadRes = await fetch("/api/resume/upload", {
         method: "POST",
         body: formData,
+        credentials: "include",
       })
 
-      const result = await response.json()
+      const uploadJson = await uploadRes.json()
 
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to parse resume")
+      if (!uploadRes.ok) {
+        throw new Error(uploadJson.error || "Failed to upload resume")
       }
 
-      // Map from the new API format to our expected format
-      const parsed = result.resume?.parsed_data
-      if (parsed) {
-        const data: ParsedResumeData = {
-          name: parsed.full_name || null,
-          email: parsed.email || null,
-          phone: parsed.phone || null,
-          location: parsed.location || null,
-          headline: null,
-          summary: parsed.summary || null,
-          skills: parsed.skills || [],
-          extractedEvidence: (parsed.experience || []).map((exp: { title: string; company: string; description?: string; bullets?: string[] }, i: number) => ({
-            title: `${exp.title} at ${exp.company}`,
-            description: exp.description || exp.bullets?.join(" ") || "",
-            category: "achievement",
-            metrics: null,
-            tags: [],
-          })),
-        }
+      // Step 2: Normalize the parsed resume data
+      const rawParsed = uploadJson.resume?.parsed_data || uploadJson.parsedResume || {}
+      const normalized = normalizeParsedResume(rawParsed)
 
-        // Pre-fill form fields
-        if (data.name) setFullName(data.name)
-        if (data.location) setLocation(data.location)
-        if (data.headline) setHeadline(data.headline)
-        if (data.summary) setSummary(data.summary)
-        if (data.skills?.length) setSkills(data.skills.slice(0, 10))
+      // Step 3: Create evidence from normalized resume - DO NOT advance until this succeeds
+      const evidenceRes = await fetch("/api/evidence/from-resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parsedResume: normalized }),
+        credentials: "include",
+      })
 
-        setParsedResume(data)
+      const evidenceJson = await evidenceRes.json()
+
+      if (!evidenceRes.ok) {
+        throw new Error(evidenceJson.error || "Failed to create evidence from resume")
+      }
+
+      if (!evidenceJson.createdCount || evidenceJson.createdCount === 0) {
+        throw new Error("No evidence could be extracted from your resume. Please ensure it contains work experience, education, or skills.")
+      }
+
+      // Step 4: Pre-fill form fields from normalized data
+      if (normalized.fullName) setFullName(normalized.fullName)
+      if (normalized.location) setLocation(normalized.location)
+      if (normalized.summary) setSummary(normalized.summary)
+      if (normalized.skills?.length) {
+        setSkills(normalized.skills.slice(0, 10).map(s => s.name))
       }
       
-      toast.success("Resume uploaded and parsed successfully!")
+      setParsedResume(normalized)
+      setHasResume(true)
+      
+      toast.success(`Resume uploaded! ${evidenceJson.createdCount} evidence items created.`)
+      setStep("profile")
     } catch (err) {
-      console.error("Resume parse error:", err)
-      setError(err instanceof Error ? err.message : "Failed to parse resume")
-      toast.error("Failed to parse resume")
+      console.error("[onboarding] resume upload flow failed:", err)
+      setError(err instanceof Error ? err.message : "Failed to process resume")
+      toast.error(err instanceof Error ? err.message : "Failed to process resume")
     } finally {
       setIsParsingResume(false)
     }
   }
 
-  // Handle paste resume text
-  const handlePasteResume = async () => {
-    try {
-      const text = await navigator.clipboard.readText()
-      if (!text || text.length < 50) {
-        toast.error("Please copy your resume text first")
-        return
-      }
-
-      setIsParsingResume(true)
-      setError(null)
-
-      const formData = new FormData()
-      formData.append("text", text)
-
-      const response = await fetch("/api/parse-resume", {
-        method: "POST",
-        body: formData,
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to parse resume")
-      }
-
-      const data = result.data as ParsedResumeData
-
-      // Pre-fill form fields
-      if (data.name) setFullName(data.name)
-      if (data.location) setLocation(data.location)
-      if (data.headline) setHeadline(data.headline)
-      if (data.summary) setSummary(data.summary)
-      if (data.skills?.length) setSkills(data.skills.slice(0, 10))
-
-      setParsedResume(data)
-      toast.success("Resume parsed successfully!")
-    } catch (err) {
-      console.error("Resume parse error:", err)
-      setError(err instanceof Error ? err.message : "Failed to parse resume")
-    } finally {
-      setIsParsingResume(false)
-    }
-  }
-
+  // Save profile and complete onboarding
   // Resume upload state
   const [resumeText, setResumeText] = useState("")
   const [resumeFile, setResumeFile] = useState<File | null>(null)
@@ -203,9 +144,21 @@ export default function OnboardingPage() {
     }
 
     try {
-      // Save profile
-      const { error: upsertError } = await supabase
+      // Check if profile exists first
+      const { data: existingProfile } = await supabase
         .from("user_profile")
+        .select("id")
+        .eq("user_id", user.id)
+        .single()
+
+      const profileData = {
+        user_id: user.id,
+        full_name: fullName.trim(),
+        email: user.email,
+        location: location.trim() || null,
+        headline: headline.trim() || null,
+        summary: summary.trim() || null,
+        skills: skills.length > 0 ? skills : null,
         .upsert({
           user_id: user.id,
           full_name: fullName.trim(),
@@ -243,7 +196,26 @@ export default function OnboardingPage() {
         }
       }
 
-      setStep("evidence")
+      let profileError
+      if (existingProfile) {
+        const { error } = await supabase
+          .from("user_profile")
+          .update(profileData)
+          .eq("user_id", user.id)
+        profileError = error
+      } else {
+        const { error } = await supabase
+          .from("user_profile")
+          .insert(profileData)
+        profileError = error
+      }
+      
+      if (profileError) throw profileError
+
+      // Evidence is already created in handleResumeUpload via /api/evidence/from-resume
+      // No need to create it again here
+
+      setStep("complete")
     } catch (err) {
       console.error("Error creating profile:", err)
       setError(err instanceof Error ? err.message : "Failed to save profile")
@@ -252,6 +224,17 @@ export default function OnboardingPage() {
     }
   }
 
+  // Complete onboarding and go to dashboard
+  const handleGoToDashboard = async () => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (user) {
+      // Mark onboarding as complete in user_profile
+      await supabase
+        .from("user_profile")
+        .update({ onboarding_complete: true })
+        .eq("user_id", user.id)
   const handleResumeUpload = async () => {
     setIsLoading(true)
     setError(null)
@@ -306,6 +289,8 @@ export default function OnboardingPage() {
         router.push("/")
         break
     }
+    
+    router.push("/")
     router.refresh()
   }
 
@@ -325,18 +310,18 @@ export default function OnboardingPage() {
     }
   }
 
-  // Progress calculation
+  // Progress calculation - 3 steps: welcome (0), resume (33), profile (66), complete (100)
   const getProgress = () => {
     switch (step) {
       case "welcome": return 0
-      case "profile": return 33
-      case "evidence": return 66
-      case "path": return 100
+      case "resume": return 33
+      case "profile": return 66
+      case "complete": return 100
       default: return 0
     }
   }
 
-  // WELCOME STEP
+  // STEP 1: WELCOME
   if (step === "welcome") {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-background">
@@ -355,7 +340,7 @@ export default function OnboardingPage() {
           <CardContent className="space-y-6">
             <div className="grid gap-4">
               <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
-                <Target className="h-5 w-5 mt-0.5 text-hirewire-red" />
+                <Target className="h-5 w-5 mt-0.5 text-primary" />
                 <div>
                   <div className="font-medium">Know Before You Apply</div>
                   <div className="text-sm text-muted-foreground">
@@ -364,7 +349,7 @@ export default function OnboardingPage() {
                 </div>
               </div>
               <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
-                <FileText className="h-5 w-5 mt-0.5 text-hirewire-red" />
+                <FileText className="h-5 w-5 mt-0.5 text-primary" />
                 <div>
                   <div className="font-medium">Evidence-Backed Materials</div>
                   <div className="text-sm text-muted-foreground">
@@ -373,18 +358,18 @@ export default function OnboardingPage() {
                 </div>
               </div>
               <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
-                <Sparkles className="h-5 w-5 mt-0.5 text-hirewire-red" />
+                <Sparkles className="h-5 w-5 mt-0.5 text-primary" />
                 <div>
                   <div className="font-medium">AI Career Coach</div>
                   <div className="text-sm text-muted-foreground">
-                    Personal guidance for strategy, prep, and document improvement
+                    Personal guidance to strengthen your evidence before generation
                   </div>
                 </div>
               </div>
             </div>
             <Button 
-              className="w-full h-11 bg-hirewire-red hover:bg-hirewire-red/90" 
-              onClick={() => setStep("profile")}
+              className="w-full h-11 bg-primary text-primary-foreground hover:bg-primary/90" 
+              onClick={() => setStep("resume")}
             >
               Get Started
               <ChevronRight className="ml-2 h-4 w-4" />
@@ -395,76 +380,123 @@ export default function OnboardingPage() {
     )
   }
 
-  // PROFILE STEP
+  // STEP 2: RESUME UPLOAD (optional)
+  if (step === "resume") {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+        <Card className="w-full max-w-lg border-0 shadow-none lg:border lg:shadow-lg">
+          <CardHeader className="text-center">
+            <Progress value={getProgress()} className="mb-4 h-2" />
+            <CardTitle className="text-2xl font-serif">Import Your Resume</CardTitle>
+            <CardDescription>
+              Upload your resume to pre-fill your profile and build your evidence library
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Resume Upload Area */}
+            <div className="p-6 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/30">
+              <div className="text-center space-y-4">
+                <div className="flex justify-center">
+                  <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Upload className="h-8 w-8 text-primary" />
+                  </div>
+                </div>
+                <div>
+                  <p className="font-medium text-lg">Drop your resume here</p>
+                  <p className="text-sm text-muted-foreground">
+                    PDF, DOC, DOCX, or TXT (max 5MB)
+                  </p>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.txt"
+                  className="hidden"
+                  onChange={handleResumeUpload}
+                />
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isParsingResume}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  {isParsingResume ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Parsing Resume...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Choose File
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {error && (
+              <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+                {error}
+              </p>
+            )}
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">or</span>
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setStep("profile")}
+              disabled={isParsingResume}
+            >
+              Skip - I&apos;ll enter details manually
+            </Button>
+
+            <Button
+              variant="ghost"
+              className="w-full text-muted-foreground"
+              onClick={() => setStep("welcome")}
+              disabled={isParsingResume}
+            >
+              Back
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // STEP 3: PROFILE BASICS
   if (step === "profile") {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-background">
         <Card className="w-full max-w-xl border-0 shadow-none lg:border lg:shadow-lg">
           <CardHeader className="text-center">
             <Progress value={getProgress()} className="mb-4 h-2" />
-            <CardTitle className="text-2xl font-serif">Build Your Profile</CardTitle>
+            <CardTitle className="text-2xl font-serif">
+              {hasResume ? "Confirm Your Profile" : "Create Your Profile"}
+            </CardTitle>
             <CardDescription>
-              Import from your resume or enter details manually
+              {hasResume 
+                ? "We&apos;ve pre-filled your details from your resume. Make any changes below."
+                : "Tell us a bit about yourself to get started"
+              }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Resume Import Section */}
-            <div className="p-4 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/30">
-              <div className="text-center space-y-3">
-                <div className="flex justify-center">
-                  <div className="h-12 w-12 rounded-full bg-hirewire-red/10 flex items-center justify-center">
-                    <Upload className="h-6 w-6 text-hirewire-red" />
-                  </div>
-                </div>
-                <div>
-                  <p className="font-medium">Import from Resume</p>
-                  <p className="text-sm text-muted-foreground">
-                    We&apos;ll extract your info and key achievements automatically
-                  </p>
-                </div>
-                <div className="flex gap-2 justify-center">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf,.doc,.docx,.txt"
-                    className="hidden"
-                    onChange={handleResumeUpload}
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isParsingResume}
-                  >
-                    {isParsingResume ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Parsing...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="mr-2 h-4 w-4" />
-                        Upload File
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handlePasteResume}
-                    disabled={isParsingResume}
-                  >
-                    Paste Text
-                  </Button>
-                </div>
-                {parsedResume && (
-                  <div className="flex items-center justify-center gap-2 text-sm text-green-600">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Resume imported - {parsedResume.extractedEvidence?.length || 0} achievements found
-                  </div>
-                )}
+            {hasResume && (
+              <div className="flex items-center gap-2 text-sm text-green-600 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg">
+                <CheckCircle2 className="h-4 w-4" />
+                Resume imported - {parsedResume?.experience?.length || 0} experiences found
               </div>
-            </div>
+            )}
 
-            {/* Manual Entry Form */}
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Your name *</Label>
@@ -520,7 +552,7 @@ export default function OnboardingPage() {
                     {skills.map((skill) => (
                       <Badge key={skill} variant="secondary" className="gap-1">
                         {skill}
-                        <button onClick={() => removeSkill(skill)}>
+                        <button onClick={() => removeSkill(skill)} aria-label={`Remove ${skill}`}>
                           <X className="h-3 w-3" />
                         </button>
                       </Badge>
@@ -540,13 +572,13 @@ export default function OnboardingPage() {
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => setStep("welcome")}
+                onClick={() => setStep("resume")}
                 disabled={isLoading}
               >
                 Back
               </Button>
               <Button
-                className="flex-1 bg-hirewire-red hover:bg-hirewire-red/90"
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={handleCreateProfile}
                 disabled={isLoading}
               >
@@ -569,6 +601,7 @@ export default function OnboardingPage() {
     )
   }
 
+  // STEP 4: COMPLETE - GO TO DASHBOARD
   if (step === "resume") {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-background">
@@ -793,78 +826,40 @@ export default function OnboardingPage() {
             </div>
           </div>
           <CardTitle className="text-2xl font-serif">You&apos;re all set!</CardTitle>
-          <CardDescription>
-            What would you like to do first?
+          <CardDescription className="text-base">
+            Your profile is ready. Now let&apos;s analyze a job and see how HireWire works.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <button
-            onClick={() => handleSelectPath("job")}
-            className="w-full p-4 rounded-lg border-2 border-transparent bg-muted/50 hover:border-hirewire-red hover:bg-muted transition-colors text-left group"
-          >
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-hirewire-red/10 flex items-center justify-center group-hover:bg-hirewire-red/20 transition-colors">
-                <Target className="h-5 w-5 text-hirewire-red" />
-              </div>
-              <div>
-                <div className="font-medium">Analyze a job posting</div>
-                <div className="text-sm text-muted-foreground">
-                  Paste a job description to get a fit score and tailored materials
-                </div>
-              </div>
-            </div>
-          </button>
+        <CardContent className="space-y-6">
+          <div className="p-4 rounded-lg bg-muted/50 border">
+            <h3 className="font-medium mb-2">What happens next?</h3>
+            <ol className="text-sm text-muted-foreground space-y-2">
+              <li className="flex gap-2">
+                <span className="font-medium text-foreground">1.</span>
+                Paste a job URL or description to analyze
+              </li>
+              <li className="flex gap-2">
+                <span className="font-medium text-foreground">2.</span>
+                See your fit score and identify gaps
+              </li>
+              <li className="flex gap-2">
+                <span className="font-medium text-foreground">3.</span>
+                Chat with Coach to strengthen your evidence for that role
+              </li>
+              <li className="flex gap-2">
+                <span className="font-medium text-foreground">4.</span>
+                Generate tailored resume and cover letter
+              </li>
+            </ol>
+          </div>
 
-          <button
-            onClick={() => handleSelectPath("coach")}
-            className="w-full p-4 rounded-lg border-2 border-transparent bg-muted/50 hover:border-hirewire-red hover:bg-muted transition-colors text-left group"
+          <Button
+            className="w-full h-12 bg-primary text-primary-foreground hover:bg-primary/90"
+            onClick={handleGoToDashboard}
           >
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-hirewire-red/10 flex items-center justify-center group-hover:bg-hirewire-red/20 transition-colors">
-                <Sparkles className="h-5 w-5 text-hirewire-red" />
-              </div>
-              <div>
-                <div className="font-medium">Chat with AI Coach</div>
-                <div className="text-sm text-muted-foreground">
-                  Get personalized career advice and job search strategy
-                </div>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleSelectPath("evidence")}
-            className="w-full p-4 rounded-lg border-2 border-transparent bg-muted/50 hover:border-hirewire-red hover:bg-muted transition-colors text-left group"
-          >
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-hirewire-red/10 flex items-center justify-center group-hover:bg-hirewire-red/20 transition-colors">
-                <FileText className="h-5 w-5 text-hirewire-red" />
-              </div>
-              <div>
-                <div className="font-medium">Build more evidence</div>
-                <div className="text-sm text-muted-foreground">
-                  Add more experiences, projects, and achievements
-                </div>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => handleSelectPath("explore")}
-            className="w-full p-4 rounded-lg border-2 border-transparent bg-muted/50 hover:border-hirewire-red hover:bg-muted transition-colors text-left group"
-          >
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-hirewire-red/10 flex items-center justify-center group-hover:bg-hirewire-red/20 transition-colors">
-                <Briefcase className="h-5 w-5 text-hirewire-red" />
-              </div>
-              <div>
-                <div className="font-medium">Explore the dashboard</div>
-                <div className="text-sm text-muted-foreground">
-                  Take a look around and decide where to begin
-                </div>
-              </div>
-            </div>
-          </button>
+            Go to Dashboard
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
         </CardContent>
       </Card>
     </div>

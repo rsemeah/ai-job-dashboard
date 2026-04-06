@@ -133,7 +133,7 @@ export default function CoachPage() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-hirewire-red" />
+              <Sparkles className="h-5 w-5 text-primary" />
               <CardTitle className="text-lg">Coach</CardTitle>
             </div>
             <Button 
@@ -166,7 +166,7 @@ export default function CoachPage() {
                 <p className="text-sm text-muted-foreground">No conversations yet</p>
                 <Button 
                   variant="link" 
-                  className="text-hirewire-red mt-2"
+                  className="text-primary mt-2"
                   onClick={createConversation}
                 >
                   Start a conversation
@@ -183,7 +183,7 @@ export default function CoachPage() {
                   )}
                   onClick={() => setActiveConversationId(null)}
                 >
-                  <Plus className="h-4 w-4 text-hirewire-red" />
+                  <Plus className="h-4 w-4 text-primary" />
                   <span className="text-sm">New chat</span>
                 </Button>
 
@@ -227,8 +227,8 @@ export default function CoachPage() {
       <Card className="flex-1 flex flex-col">
         <CardHeader className="pb-3 border-b">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-hirewire-red/10 flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-hirewire-red" />
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <Sparkles className="h-5 w-5 text-primary" />
             </div>
             <div>
               <CardTitle>HireWire Coach</CardTitle>

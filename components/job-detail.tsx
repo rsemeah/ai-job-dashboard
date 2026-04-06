@@ -52,6 +52,8 @@ import { PreGenerationReview } from "@/components/pre-generation-review"
 import { TEMPLATE_CONFIGS } from "@/lib/resume-templates/config/resumeTemplates.config"
 import type { TemplateId } from "@/lib/resume-templates/types/ResumeProps"
 import { detectGaps, type GapAnalysisResult, type DetectedGap } from "@/lib/gap-detection"
+import { GapClarificationModal, type GapClarification } from "@/components/gap-clarification-modal"
+import { CoachGatedGeneration } from "@/components/coach-gated-generation"
 
 // Available status transitions
 const STATUS_OPTIONS: JobStatus[] = [
@@ -314,7 +316,9 @@ export function JobDetail({ job }: JobDetailProps) {
   const [gapAnalysis, setGapAnalysis] = useState<GapAnalysisResult | null>(null)
   const [isLoadingGaps, setIsLoadingGaps] = useState(false)
   const [selectedGapForCoach, setSelectedGapForCoach] = useState<DetectedGap | null>(null)
-  const [showCoachForGaps, setShowCoachForGaps] = useState(false)
+  const [showGapClarification, setShowGapClarification] = useState(false)
+  const [pendingClarifications, setPendingClarifications] = useState<GapClarification[]>([])
+  const [showCoachGated, setShowCoachGated] = useState(false)
 
   // Sync local status when job prop updates (e.g. after router.refresh())
   useEffect(() => {
@@ -327,11 +331,14 @@ export function JobDetail({ job }: JobDetailProps) {
       try {
         const { createClient } = await import("@/lib/supabase/client")
         const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        
         const { data } = await supabase
           .from("user_profile")
           .select("full_name")
-          .limit(1)
-          .maybeSingle()
+          .eq("user_id", user.id)
+          .single()
         
         if (data?.full_name) {
           setCandidateName(data.full_name)
@@ -411,8 +418,12 @@ export function JobDetail({ job }: JobDetailProps) {
       result.job_id = job.id
       setGapAnalysis(result)
       
-      // Show review if there are critical gaps, otherwise allow direct generation
-      if (result.critical_gaps.length > 0 || result.gaps.length > 2) {
+      // Show Coach-gated flow for critical gaps, review for moderate gaps, direct for minimal
+      if (result.critical_gaps.length > 0) {
+        // Critical gaps: must go through Coach first
+        setShowCoachGated(true)
+      } else if (result.gaps.length > 2) {
+        // Moderate gaps: show review with option to engage Coach
         setShowGapReview(true)
       } else {
         // Few/no gaps - proceed directly to generation
@@ -798,7 +809,7 @@ export function JobDetail({ job }: JobDetailProps) {
               }}
               onOpenCoach={(gap) => {
                 setSelectedGapForCoach(gap || null)
-                setShowCoachForGaps(true)
+                setShowGapClarification(true)
                 setShowGapReview(false)
               }}
               onDismiss={() => setShowGapReview(false)}
@@ -814,7 +825,7 @@ export function JobDetail({ job }: JobDetailProps) {
               <Button 
                 onClick={() => runGapDetection()} 
                 disabled={isGenerating || isLoadingGaps}
-                className="bg-primary hover:bg-primary/90"
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 {isGenerating ? (
                   <>
@@ -829,7 +840,7 @@ export function JobDetail({ job }: JobDetailProps) {
                 ) : (
                   <>
                     <RefreshCw className="mr-2 h-4 w-4" />
-                    Generate with {TEMPLATE_CONFIGS[selectedTemplateId]?.label || "Template"}
+                    Generate New Resume & Cover Letter
                   </>
                 )}
               </Button>
@@ -841,7 +852,7 @@ export function JobDetail({ job }: JobDetailProps) {
                 </Button>
               </Link>
             ) : (
-<Button onClick={handleApplyNow} className="bg-primary hover:bg-primary/90">
+<Button onClick={handleApplyNow} className="bg-primary text-primary-foreground hover:bg-primary/90">
                 <Send className="mr-2 h-4 w-4" />
                 Apply Now
               </Button>
@@ -1411,6 +1422,40 @@ export function JobDetail({ job }: JobDetailProps) {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Gap Clarification Modal */}
+      {gapAnalysis && (
+        <GapClarificationModal
+          open={showGapClarification}
+          onClose={() => setShowGapClarification(false)}
+          gapAnalysis={gapAnalysis}
+          jobId={job.id}
+          jobTitle={job.title}
+          company={job.company}
+          onComplete={(clarifications) => {
+            setPendingClarifications(clarifications)
+            // After clarification, trigger generation with the new context
+            handleGenerateMaterials()
+          }}
+        />
+      )}
+
+      {/* Coach-Gated Generation Modal - for critical gaps */}
+      {gapAnalysis && (
+        <CoachGatedGeneration
+          open={showCoachGated}
+          onClose={() => setShowCoachGated(false)}
+          gapAnalysis={gapAnalysis}
+          jobId={job.id}
+          jobTitle={job.title}
+          company={job.company}
+          score={job.score}
+          onGenerateUnlocked={() => {
+            setShowCoachGated(false)
+            handleGenerateMaterials()
+          }}
+        />
+      )}
     </div>
   )
 }

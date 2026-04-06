@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { ChevronLeft, ChevronRight, Grid3X3 } from "lucide-react"
@@ -164,52 +164,10 @@ export function TemplateCarousel({
   showAllButton = true,
   className,
 }: TemplateCarouselProps) {
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [canScrollLeft, setCanScrollLeft] = useState(false)
-  const [canScrollRight, setCanScrollRight] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   
   // Get current template index
   const currentIndex = ALL_TEMPLATE_IDS.indexOf(selectedTemplateId)
-  
-  // Check scroll position
-  const checkScroll = () => {
-    if (scrollRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current
-      setCanScrollLeft(scrollLeft > 0)
-      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10)
-    }
-  }
-  
-  useEffect(() => {
-    checkScroll()
-    const ref = scrollRef.current
-    if (ref) {
-      ref.addEventListener("scroll", checkScroll)
-      return () => ref.removeEventListener("scroll", checkScroll)
-    }
-  }, [])
-  
-  // Scroll to selected template on mount
-  useEffect(() => {
-    if (scrollRef.current && currentIndex >= 0) {
-      const cardWidth = 160 + 12 // card width + gap
-      scrollRef.current.scrollTo({
-        left: Math.max(0, currentIndex * cardWidth - 100),
-        behavior: "smooth",
-      })
-    }
-  }, [])
-  
-  const scroll = (direction: "left" | "right") => {
-    if (scrollRef.current) {
-      const scrollAmount = 320 // Scroll by ~2 cards
-      scrollRef.current.scrollBy({
-        left: direction === "left" ? -scrollAmount : scrollAmount,
-        behavior: "smooth",
-      })
-    }
-  }
   
   const navigateTemplate = (direction: "prev" | "next") => {
     const newIndex = direction === "prev" 
@@ -217,15 +175,6 @@ export function TemplateCarousel({
       : Math.min(ALL_TEMPLATE_IDS.length - 1, currentIndex + 1)
     
     onSelect(ALL_TEMPLATE_IDS[newIndex])
-    
-    // Scroll to keep selected template in view
-    if (scrollRef.current) {
-      const cardWidth = 160 + 12
-      scrollRef.current.scrollTo({
-        left: Math.max(0, newIndex * cardWidth - 100),
-        behavior: "smooth",
-      })
-    }
   }
   
   const currentConfig = TEMPLATE_CONFIGS[selectedTemplateId]
@@ -322,51 +271,42 @@ export function TemplateCarousel({
         </div>
       </div>
       
-      {/* Horizontal scrollable carousel */}
-      <div className="relative">
-        {/* Left scroll button */}
-        {canScrollLeft && (
-          <Button
-            variant="secondary"
-            size="icon"
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full shadow-md"
-            onClick={() => scroll("left")}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-        )}
-        
-        {/* Carousel container */}
-        <div
-          ref={scrollRef}
-          className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 px-1"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      {/* Single template preview with navigation */}
+      <div className="flex items-center gap-4">
+        {/* Left navigation */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          onClick={() => navigateTemplate("prev")}
+          disabled={currentIndex === 0}
         >
-          {ALL_TEMPLATE_IDS.map((id) => (
-            <TemplatePreviewCard
-              key={id}
-              templateId={id}
-              isSelected={selectedTemplateId === id}
-              isRecommended={recommendedTemplateId === id}
-              onClick={() => onSelect(id)}
-              previewData={previewData}
-              size="sm"
-              showDetails={false}
-            />
-          ))}
+          <ChevronLeft className="h-5 w-5" />
+        </Button>
+        
+        {/* Current template preview */}
+        <div className="flex-1 flex justify-center">
+          <TemplatePreviewCard
+            templateId={selectedTemplateId}
+            isSelected={true}
+            isRecommended={recommendedTemplateId === selectedTemplateId}
+            onClick={() => {}}
+            previewData={previewData}
+            size="lg"
+            showDetails={true}
+          />
         </div>
         
-        {/* Right scroll button */}
-        {canScrollRight && (
-          <Button
-            variant="secondary"
-            size="icon"
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 rounded-full shadow-md"
-            onClick={() => scroll("right")}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        )}
+        {/* Right navigation */}
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          onClick={() => navigateTemplate("next")}
+          disabled={currentIndex === ALL_TEMPLATE_IDS.length - 1}
+        >
+          <ChevronRight className="h-5 w-5" />
+        </Button>
       </div>
     </div>
   )

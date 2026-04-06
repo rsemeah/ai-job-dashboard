@@ -31,15 +31,15 @@ export async function GET(request: Request) {
     const { data: { user } } = await supabase.auth.getUser()
     
     if (user) {
-      // Check if user profile exists
+      // Check if user profile exists and onboarding is complete
       const { data: profile } = await supabase
         .from("user_profile")
-        .select("id, full_name")
+        .select("id, full_name, onboarding_complete")
         .eq("user_id", user.id)
         .single()
       
-      // If no profile or no name, redirect to onboarding
-      if (!profile || !profile.full_name) {
+      // If no profile or onboarding not complete, redirect to onboarding
+      if (!profile || !profile.onboarding_complete) {
         return NextResponse.redirect(`${origin}/onboarding`)
       }
     }

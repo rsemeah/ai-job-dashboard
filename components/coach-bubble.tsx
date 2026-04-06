@@ -128,7 +128,7 @@ export function CoachBubble() {
         <Button
           onClick={() => setIsOpen(true)}
           className={cn(
-            "h-14 w-14 rounded-full shadow-lg bg-hirewire-red hover:bg-hirewire-red/90",
+            "h-14 w-14 rounded-full shadow-lg bg-primary text-primary-foreground hover:bg-primary/90",
             "hover:scale-110 transition-transform duration-200",
             "flex items-center justify-center"
           )}
@@ -160,8 +160,8 @@ export function CoachBubble() {
             
             {/* Title */}
             <div className="flex items-center gap-2 flex-1">
-              <div className="h-8 w-8 rounded-full bg-hirewire-red/10 flex items-center justify-center">
-                <Sparkles className="h-4 w-4 text-hirewire-red" />
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <Sparkles className="h-4 w-4 text-primary" />
               </div>
               <div>
                 <p className="text-sm font-medium">HireWire Coach</p>

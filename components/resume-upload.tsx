@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Upload, FileText, Check, AlertCircle, Trash2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { normalizeParsedResume } from "@/lib/resume/normalizeParsedResume"
 
 interface SourceResume {
   id: string
@@ -74,7 +75,7 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
       })
 
       clearInterval(progressInterval)
-      setUploadProgress(100)
+      setUploadProgress(80)
 
       const data = await response.json()
 
@@ -82,7 +83,26 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
         throw new Error(data.error || "Upload failed")
       }
 
-      toast.success("Resume uploaded and parsed successfully")
+      // Create evidence from the parsed resume
+      const rawParsed = data.resume?.parsed_data || data.parsedResume || {}
+      const normalized = normalizeParsedResume(rawParsed)
+
+      const evidenceRes = await fetch("/api/evidence/from-resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parsedResume: normalized }),
+      })
+
+      setUploadProgress(100)
+
+      const evidenceJson = await evidenceRes.json()
+      if (!evidenceRes.ok) {
+        // Warn but don't fail - resume is still uploaded
+        console.warn("Evidence creation failed:", evidenceJson.error)
+        toast.warning("Resume uploaded but evidence creation had issues. Check your evidence library.")
+      } else {
+        toast.success(`Resume uploaded! ${evidenceJson.createdCount || 0} evidence items created.`)
+      }
       
       // Refresh resumes list
       const listResponse = await fetch("/api/resume/upload")

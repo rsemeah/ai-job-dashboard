@@ -8,10 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Loader2, Briefcase, FileText, Target } from "lucide-react"
+import { Loader2, Briefcase, FileText, Target, Upload, CheckCircle2, SkipForward } from "lucide-react"
 import Image from "next/image"
 
-type OnboardingStep = "welcome" | "profile" | "path"
+type OnboardingStep = "welcome" | "profile" | "resume" | "path"
 
 export default function OnboardingPage() {
   const [step, setStep] = useState<OnboardingStep>("welcome")
@@ -23,6 +23,11 @@ export default function OnboardingPage() {
   const [fullName, setFullName] = useState("")
   const [location, setLocation] = useState("")
   const [summary, setSummary] = useState("")
+
+  // Resume upload state
+  const [resumeText, setResumeText] = useState("")
+  const [resumeFile, setResumeFile] = useState<File | null>(null)
+  const [resumeResult, setResumeResult] = useState<{ inserted: number; skipped: number } | null>(null)
 
   const handleCreateProfile = async () => {
     if (!fullName.trim()) {
@@ -56,10 +61,48 @@ export default function OnboardingPage() {
         })
 
       if (upsertError) throw upsertError
-      setStep("path")
+      setStep("resume")
     } catch (err) {
       console.error("Error creating profile:", err)
       setError(err instanceof Error ? err.message : "Failed to save profile")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleResumeUpload = async () => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      let body: BodyInit
+      let headers: Record<string, string> = {}
+
+      if (resumeFile) {
+        const form = new FormData()
+        form.append("file", resumeFile)
+        body = form
+        // Let browser set multipart content-type with boundary
+      } else if (resumeText.trim()) {
+        body = JSON.stringify({ text: resumeText.trim() })
+        headers["Content-Type"] = "application/json"
+      } else {
+        setError("Paste your resume text or select a .txt file")
+        setIsLoading(false)
+        return
+      }
+
+      const res = await fetch("/api/resume/upload", { method: "POST", headers, body })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error || "Upload failed")
+        return
+      }
+
+      setResumeResult({ inserted: data.inserted ?? 0, skipped: data.skipped ?? 0 })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed")
     } finally {
       setIsLoading(false)
     }
@@ -215,6 +258,125 @@ export default function OnboardingPage() {
                 )}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (step === "resume") {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+        <Card className="w-full max-w-lg border-0 shadow-none lg:border lg:shadow-lg">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-serif">Add your resume</CardTitle>
+            <CardDescription>
+              Paste your resume text or upload a .txt file. HireWire will extract your experience, education, and skills into your evidence library automatically.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {resumeResult ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 p-4 rounded-lg bg-green-50 border border-green-200">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium text-green-800">Resume processed</p>
+                    <p className="text-sm text-green-700 mt-1">
+                      {resumeResult.inserted} evidence {resumeResult.inserted === 1 ? "entry" : "entries"} added
+                      {resumeResult.skipped > 0 ? `, ${resumeResult.skipped} already existed` : ""}.
+                    </p>
+                  </div>
+                </div>
+                <Button className="w-full h-11" onClick={() => setStep("path")}>
+                  Continue
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="resume-text">Paste resume text</Label>
+                  <Textarea
+                    id="resume-text"
+                    placeholder="Paste the full text of your resume here..."
+                    value={resumeText}
+                    onChange={(e) => { setResumeText(e.target.value); setResumeFile(null) }}
+                    disabled={isLoading}
+                    rows={8}
+                  />
+                </div>
+
+                <div className="relative flex items-center gap-3">
+                  <div className="flex-1 border-t border-border" />
+                  <span className="text-xs text-muted-foreground">or</span>
+                  <div className="flex-1 border-t border-border" />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="resume-file">Upload .txt file</Label>
+                  <div className="flex items-center gap-3">
+                    <label
+                      htmlFor="resume-file"
+                      className="flex items-center gap-2 px-4 py-2 border rounded-md text-sm cursor-pointer hover:bg-muted transition-colors"
+                    >
+                      <Upload className="h-4 w-4" />
+                      {resumeFile ? resumeFile.name : "Choose file"}
+                    </label>
+                    {resumeFile && (
+                      <button
+                        onClick={() => setResumeFile(null)}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Remove
+                      </button>
+                    )}
+                    <input
+                      id="resume-file"
+                      type="file"
+                      accept=".txt,text/plain"
+                      className="hidden"
+                      onChange={(e) => { setResumeFile(e.target.files?.[0] ?? null); setResumeText("") }}
+                      disabled={isLoading}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">PDF upload coming soon. For now, paste text or upload .txt.</p>
+                </div>
+
+                {error && (
+                  <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+                    {error}
+                  </p>
+                )}
+
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    className="flex-1 gap-2"
+                    onClick={() => setStep("path")}
+                    disabled={isLoading}
+                  >
+                    <SkipForward className="h-4 w-4" />
+                    Skip for now
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    onClick={handleResumeUpload}
+                    disabled={isLoading || (!resumeText.trim() && !resumeFile)}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload Resume
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

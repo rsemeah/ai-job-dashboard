@@ -8,18 +8,19 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { 
-  User, 
-  Briefcase, 
-  GraduationCap, 
-  Save, 
-  Plus, 
-  X, 
+import {
+  User,
+  Briefcase,
+  GraduationCap,
+  Save,
+  Plus,
+  X,
   Loader2,
   CheckCircle,
   AlertCircle,
   Camera,
-  Upload
+  Upload,
+  Link2
 } from "lucide-react"
 import Image from "next/image"
 import { createClient } from "@/lib/supabase/client"
@@ -52,6 +53,9 @@ interface UserProfile {
   education: Education[]
   skills: string[]
   avatar_url: string
+  linkedin_url: string
+  github_url: string
+  website_url: string
 }
 
 const emptyProfile: UserProfile = {
@@ -64,6 +68,9 @@ const emptyProfile: UserProfile = {
   education: [],
   skills: [],
   avatar_url: "",
+  linkedin_url: "",
+  github_url: "",
+  website_url: "",
 }
 
 function getInitials(name: string): string {
@@ -119,6 +126,9 @@ export default function ProfilePage() {
             education: data.education || [],
             skills: data.skills || [],
             avatar_url: data.avatar_url || "",
+            linkedin_url: data.linkedin_url || "",
+            github_url: data.github_url || "",
+            website_url: data.website_url || "",
           })
         }
       }
@@ -649,6 +659,50 @@ export default function ProfilePage() {
                 </div>
               ))
             )}
+          </CardContent>
+        </Card>
+        {/* External Links */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Link2 className="h-5 w-5 text-muted-foreground" />
+              <CardTitle>External Links</CardTitle>
+            </div>
+            <CardDescription>
+              Used by AI Coach and generation to enrich your profile context.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="linkedin_url">LinkedIn</Label>
+              <Input
+                id="linkedin_url"
+                type="url"
+                value={profile.linkedin_url}
+                onChange={(e) => updateField("linkedin_url", e.target.value)}
+                placeholder="https://linkedin.com/in/yourname"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="github_url">GitHub</Label>
+              <Input
+                id="github_url"
+                type="url"
+                value={profile.github_url}
+                onChange={(e) => updateField("github_url", e.target.value)}
+                placeholder="https://github.com/yourname"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="website_url">Website / Portfolio</Label>
+              <Input
+                id="website_url"
+                type="url"
+                value={profile.website_url}
+                onChange={(e) => updateField("website_url", e.target.value)}
+                placeholder="https://yoursite.com"
+              />
+            </div>
           </CardContent>
         </Card>
       </div>

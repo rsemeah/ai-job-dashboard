@@ -159,15 +159,11 @@ export default function OnboardingPage() {
         headline: headline.trim() || null,
         summary: summary.trim() || null,
         skills: skills.length > 0 ? skills : null,
-        .upsert({
-          user_id: user.id,
-          full_name: fullName.trim(),
-          email: user.email,
-          location: location.trim() || null,
-          headline: headline.trim() || null,
-          summary: summary.trim() || null,
-          skills: skills.length > 0 ? skills : null,
-        }, {
+      }
+
+      const { error: upsertError } = await supabase
+        .from("user_profile")
+        .upsert(profileData, {
           onConflict: "user_id"
         })
 
@@ -711,6 +707,16 @@ export default function OnboardingPage() {
                         Upload Resume
                       </>
                     )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   // EVIDENCE BUILDER STEP
   if (step === "evidence") {
     return (

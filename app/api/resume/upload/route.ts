@@ -124,67 +124,94 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 6. Deduplicate against existing evidence ──────────────────────────────
-  // Fetch existing evidence rows for this user to compare dedupe keys.
+  // Fetch existing evidence rows for this user with IDs so skills can be updated.
   const { data: existing } = await supabase
     .from("evidence_library")
-    .select("source_type, source_title, role_name, company_name, date_range")
+    .select("id, source_type, source_title, role_name, company_name, date_range")
     .eq("user_id", user.id)
 
-  const existingKeys = new Set<string>(
-    (existing ?? []).map((row) =>
-      [
-        row.source_type ?? "",
-        (row.source_title ?? "").toLowerCase().trim(),
-        (row.role_name ?? "").toLowerCase().trim(),
-        (row.company_name ?? "").toLowerCase().trim(),
-        (row.date_range ?? "").toLowerCase().trim(),
-      ].join("|")
-    )
-  )
-
-  const newRows = candidateRows.filter(
-    (row) => !existingKeys.has(dedupeKey(row))
-  )
-  const skippedCount = candidateRows.length - newRows.length
-
-  if (newRows.length === 0) {
-    return NextResponse.json({
-      message: "All evidence rows already exist. No new rows inserted.",
-      source_resume_id: sourceResumeId,
-      inserted: 0,
-      skipped: skippedCount,
-    })
+  const existingMap = new Map<string, string>() // dedupeKey → row id
+  for (const row of existing ?? []) {
+    const key = [
+      row.source_type ?? "",
+      (row.source_title ?? "").toLowerCase().trim(),
+      (row.role_name ?? "").toLowerCase().trim(),
+      (row.company_name ?? "").toLowerCase().trim(),
+      (row.date_range ?? "").toLowerCase().trim(),
+    ].join("|")
+    existingMap.set(key, row.id)
   }
 
-  // ── 7. Insert new evidence rows ───────────────────────────────────────────
-  const rowsToInsert = newRows.map((row) => ({
-    ...row,
-    user_id: user.id,
-    source_resume_id: sourceResumeId,
-  }))
+  // Split candidates: skills rows that already exist get updated, not skipped.
+  // All other duplicate rows are skipped (standard dedupe).
+  const rowsToInsert: typeof candidateRows = []
+  const skillsToUpdate: Array<{ id: string; tools_used: string[] | null; source_resume_id: string }> = []
+  let skippedCount = 0
 
-  const { data: inserted, error: evidenceError } = await supabase
-    .from("evidence_library")
-    .insert(rowsToInsert)
-    .select("id, source_type, source_title")
+  for (const row of candidateRows) {
+    const key = dedupeKey(row)
+    const existingId = existingMap.get(key)
 
-  if (evidenceError) {
-    console.error("evidence_library insert error:", evidenceError)
-    return NextResponse.json(
-      {
-        error: "Failed to insert evidence rows",
-        detail: evidenceError.message,
-      },
-      { status: 500 }
-    )
+    if (!existingId) {
+      rowsToInsert.push(row)
+    } else if (row.source_type === "skill") {
+      // Update existing skills row with latest tools_used from this resume.
+      skillsToUpdate.push({
+        id: existingId,
+        tools_used: row.tools_used,
+        source_resume_id: sourceResumeId,
+      })
+    } else {
+      skippedCount++
+    }
+  }
+
+  // ── 7a. Update existing skills rows ──────────────────────────────────────
+  for (const update of skillsToUpdate) {
+    await supabase
+      .from("evidence_library")
+      .update({
+        tools_used: update.tools_used,
+        source_resume_id: update.source_resume_id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", update.id)
+      .eq("user_id", user.id)
+  }
+
+  // ── 7b. Insert new evidence rows ──────────────────────────────────────────
+  let inserted: Array<{ id: string; source_type: string; source_title: string }> = []
+
+  if (rowsToInsert.length > 0) {
+    const { data: insertedData, error: evidenceError } = await supabase
+      .from("evidence_library")
+      .insert(
+        rowsToInsert.map((row) => ({
+          ...row,
+          user_id: user.id,
+          source_resume_id: sourceResumeId,
+        }))
+      )
+      .select("id, source_type, source_title")
+
+    if (evidenceError) {
+      console.error("evidence_library insert error:", evidenceError)
+      return NextResponse.json(
+        { error: "Failed to insert evidence rows", detail: evidenceError.message },
+        { status: 500 }
+      )
+    }
+
+    inserted = insertedData ?? []
   }
 
   // ── 8. Return summary ─────────────────────────────────────────────────────
   return NextResponse.json({
     message: "Resume processed successfully",
     source_resume_id: sourceResumeId,
-    inserted: inserted?.length ?? 0,
+    inserted: inserted.length,
+    updated: skillsToUpdate.length,
     skipped: skippedCount,
-    evidence: inserted?.map((e) => ({ id: e.id, type: e.source_type, title: e.source_title })) ?? [],
+    evidence: inserted.map((e) => ({ id: e.id, type: e.source_type, title: e.source_title })),
   })
 }

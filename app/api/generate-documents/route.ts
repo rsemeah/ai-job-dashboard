@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createGroq } from "@ai-sdk/groq"
 import { generateObject, generateText } from "ai"
 import { z } from "zod"
-import { createAdminClient } from "@/lib/supabase/server"
+import { createAdminClient, createClient } from "@/lib/supabase/server"
 import {
   BANNED_PHRASES,
   detectBannedPhrases,
@@ -92,11 +92,11 @@ const QualityCheckSchema = z.object({
   improvement_suggestions: z.array(z.string()).describe("Specific suggestions to improve weak sections"),
 })
 
-async function loadUserProfile(supabase: ReturnType<typeof createAdminClient>) {
+async function loadUserProfile(supabase: ReturnType<typeof createAdminClient>, userId: string) {
   const { data: profile, error } = await supabase
     .from("user_profile")
     .select("*")
-    .limit(1)
+    .eq("user_id", userId)
     .maybeSingle()
 
   if (error || !profile) {
@@ -106,10 +106,11 @@ async function loadUserProfile(supabase: ReturnType<typeof createAdminClient>) {
   return profile
 }
 
-async function loadEvidenceLibrary(supabase: ReturnType<typeof createAdminClient>) {
+async function loadEvidenceLibrary(supabase: ReturnType<typeof createAdminClient>, userId: string) {
   const { data: evidence, error } = await supabase
     .from("evidence_library")
     .select("*")
+    .eq("user_id", userId)
     .eq("is_active", true)
     .order("priority_rank", { ascending: false })
 
@@ -120,7 +121,7 @@ async function loadEvidenceLibrary(supabase: ReturnType<typeof createAdminClient
   return evidence || []
 }
 
-async function loadJobAnalysis(supabase: ReturnType<typeof createAdminClient>, jobId: string) {
+async function loadJobAnalysis(supabase: ReturnType<typeof createAdminClient>, jobId: string, userId: string) {
   const { data: job, error } = await supabase
     .from("jobs")
     .select(`
@@ -128,6 +129,7 @@ async function loadJobAnalysis(supabase: ReturnType<typeof createAdminClient>, j
       job_analyses (*)
     `)
     .eq("id", jobId)
+    .eq("user_id", userId)
     .single()
 
   if (error || !job) {
@@ -194,24 +196,36 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Authenticate the requesting user — admin client is used for writes,
+    // but all reads are scoped to user_id so cross-tenant reads are impossible.
+    const userClient = await createClient()
+    const { data: { user }, error: authError } = await userClient.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      )
+    }
+
     const supabase = createAdminClient()
 
     // Set status to 'generating' immediately
     await supabase
       .from("jobs")
-      .update({ 
+      .update({
         generation_status: "generating",
         generation_error: null,
         generation_attempts: _retry_count + 1,
         last_generation_at: new Date().toISOString()
       })
       .eq("id", job_id)
+      .eq("user_id", user.id)
 
-    // Load all required data in parallel
+    // Load all required data in parallel — all queries scoped to user_id
     const [profile, allEvidence, jobData] = await Promise.all([
-      loadUserProfile(supabase),
-      loadEvidenceLibrary(supabase),
-      loadJobAnalysis(supabase, job_id),
+      loadUserProfile(supabase, user.id),
+      loadEvidenceLibrary(supabase, user.id),
+      loadJobAnalysis(supabase, job_id, user.id),
     ])
 
     if (!profile) {

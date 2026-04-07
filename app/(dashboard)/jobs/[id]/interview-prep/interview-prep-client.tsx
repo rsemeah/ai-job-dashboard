@@ -696,8 +696,8 @@ ${qs.thirty_second_close}
             {/* Gaps Tab */}
             <TabsContent value="gaps" className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
-                {interviewPrep.gap_handling.map((gap) => (
-                  <GapCard key={gap.id} gap={gap} />
+                {interviewPrep.gap_handling.map((gap, idx) => (
+                  <GapCard key={`prep-${idx}-${gap.id}`} gap={gap} />
                 ))}
               </div>
 

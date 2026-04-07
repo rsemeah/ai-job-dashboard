@@ -9,8 +9,8 @@ import { Upload, FileText, Check, AlertCircle, Trash2, Loader2 } from "lucide-re
 import { toast } from "sonner"
 interface SourceResume {
   id: string
-  filename: string
-  content_text?: string
+  file_name: string
+  parsed_text?: string
   created_at: string
   parsed_data: {
     full_name?: string
@@ -162,7 +162,7 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
             <div className="flex items-center gap-3">
               <FileText className="h-5 w-5 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">{primaryResume.filename}</p>
+                <p className="text-sm font-medium">{primaryResume.file_name}</p>
                 <p className="text-xs text-muted-foreground">
                   {primaryResume.parsed_data?.work_experience?.length || 0} positions extracted
                 </p>
@@ -284,7 +284,7 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
                   <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium">{resume.filename}</p>
+                      <p className="font-medium">{resume.file_name}</p>
                     </div>
                     <p className="text-sm text-muted-foreground">
                       Uploaded {new Date(resume.created_at).toLocaleDateString()}

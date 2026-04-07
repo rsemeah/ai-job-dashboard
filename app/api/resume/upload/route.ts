@@ -304,7 +304,7 @@ export async function GET() {
 
     const { data: resumes, error } = await supabase
       .from("source_resumes")
-      .select("id, filename, content_text, parsed_data, created_at")
+      .select("id, file_name, parsed_text, parsed_data, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
 

@@ -104,7 +104,9 @@ export default function OnboardingPage() {
       setParsedResume(normalized)
       setHasResume(true)
       
-      toast.success(`Resume uploaded! ${evidenceJson.createdCount} evidence items created.`)
+      if (evidenceJson.createdCount > 0) {
+        toast.success(`Resume uploaded! ${evidenceJson.createdCount} evidence items created.`)
+      }
       setStep("profile")
     } catch (err) {
       console.error("[onboarding] resume upload flow failed:", err)

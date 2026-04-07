@@ -1,220 +1,3 @@
-/**
- * POST /api/resume/upload
- *
- * Accepts a resume as multipart/form-data.
- * Supported: text/plain files, or a `text` field with pasted content.
- * PDF support requires adding pdf-parse as a dependency (deferred).
- *
- * Flow:
- *   1. Extract text from request
- *   2. Store raw record in source_resumes
- *   3. Parse via Groq → ParsedResume
- *   4. Update source_resumes.parsed_data
- *   5. Map to evidence rows via mapResumeToEvidence
- *   6. Deduplicate against existing evidence for this user
- *   7. Insert new rows with source_resume_id attached
- *   8. Return summary
- */
-
-import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { parseResumeText } from "@/lib/resumeParser"
-import { mapResumeToEvidence, dedupeKey } from "@/lib/mapResumeToEvidence"
-
-export async function POST(request: NextRequest) {
-  const supabase = await createClient()
-
-  // Auth check
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  // ── 1. Extract text from the request ──────────────────────────────────────
-  let resumeText = ""
-  let filename = "resume.txt"
-
-  const contentType = request.headers.get("content-type") ?? ""
-
-  if (contentType.includes("multipart/form-data")) {
-    const formData = await request.formData()
-    const file = formData.get("file") as File | null
-    const textField = formData.get("text") as string | null
-
-    if (file) {
-      filename = file.name
-      const fileType = file.type
-
-      if (fileType === "application/pdf") {
-        // PDF parsing requires pdf-parse (not yet installed).
-        // Instruct the client to send text content instead.
-        return NextResponse.json(
-          {
-            error: "PDF upload is not yet supported. Please paste your resume text into the text field, or upload a .txt file.",
-          },
-          { status: 415 }
-        )
-      }
-
-      resumeText = await file.text()
-    } else if (textField) {
-      resumeText = textField
-    }
-  } else if (contentType.includes("application/json")) {
-    const body = await request.json()
-    resumeText = body.text ?? ""
-    filename = body.filename ?? "resume.txt"
-  }
-
-  if (!resumeText.trim()) {
-    return NextResponse.json({ error: "No resume text received" }, { status: 400 })
-  }
-
-  // ── 2. Store raw record in source_resumes ─────────────────────────────────
-  const { data: sourceResume, error: insertResumeError } = await supabase
-    .from("source_resumes")
-    .insert({
-      user_id: user.id,
-      filename,
-      content_text: resumeText,
-    })
-    .select("id")
-    .single()
-
-  if (insertResumeError || !sourceResume) {
-    console.error("source_resumes insert error:", insertResumeError)
-    return NextResponse.json(
-      { error: "Failed to store resume record" },
-      { status: 500 }
-    )
-  }
-
-  const sourceResumeId = sourceResume.id
-
-  // ── 3. Parse via Groq ─────────────────────────────────────────────────────
-  let parsed
-  try {
-    parsed = await parseResumeText(resumeText)
-  } catch (parseError) {
-    console.error("Resume parse error:", parseError)
-    // Clean up the orphaned source_resumes row
-    await supabase.from("source_resumes").delete().eq("id", sourceResumeId)
-    return NextResponse.json(
-      { error: "Failed to parse resume. Check GROQ_API_KEY is configured." },
-      { status: 500 }
-    )
-  }
-
-  // ── 4. Update source_resumes with parsed_data ─────────────────────────────
-  await supabase
-    .from("source_resumes")
-    .update({ parsed_data: parsed })
-    .eq("id", sourceResumeId)
-
-  // ── 5. Map to evidence rows ───────────────────────────────────────────────
-  const candidateRows = mapResumeToEvidence(parsed)
-
-  if (candidateRows.length === 0) {
-    return NextResponse.json({
-      message: "Resume stored but no evidence rows could be extracted.",
-      source_resume_id: sourceResumeId,
-      inserted: 0,
-      skipped: 0,
-    })
-  }
-
-  // ── 6. Deduplicate against existing evidence ──────────────────────────────
-  // Fetch existing evidence rows for this user with IDs so skills can be updated.
-  const { data: existing } = await supabase
-    .from("evidence_library")
-    .select("id, source_type, source_title, role_name, company_name, date_range")
-    .eq("user_id", user.id)
-
-  const existingMap = new Map<string, string>() // dedupeKey → row id
-  for (const row of existing ?? []) {
-    const key = [
-      row.source_type ?? "",
-      (row.source_title ?? "").toLowerCase().trim(),
-      (row.role_name ?? "").toLowerCase().trim(),
-      (row.company_name ?? "").toLowerCase().trim(),
-      (row.date_range ?? "").toLowerCase().trim(),
-    ].join("|")
-    existingMap.set(key, row.id)
-  }
-
-  // Split candidates: skills rows that already exist get updated, not skipped.
-  // All other duplicate rows are skipped (standard dedupe).
-  const rowsToInsert: typeof candidateRows = []
-  const skillsToUpdate: Array<{ id: string; tools_used: string[] | null; source_resume_id: string }> = []
-  let skippedCount = 0
-
-  for (const row of candidateRows) {
-    const key = dedupeKey(row)
-    const existingId = existingMap.get(key)
-
-    if (!existingId) {
-      rowsToInsert.push(row)
-    } else if (row.source_type === "skill") {
-      // Update existing skills row with latest tools_used from this resume.
-      skillsToUpdate.push({
-        id: existingId,
-        tools_used: row.tools_used,
-        source_resume_id: sourceResumeId,
-      })
-    } else {
-      skippedCount++
-    }
-  }
-
-  // ── 7a. Update existing skills rows ──────────────────────────────────────
-  for (const update of skillsToUpdate) {
-    await supabase
-      .from("evidence_library")
-      .update({
-        tools_used: update.tools_used,
-        source_resume_id: update.source_resume_id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", update.id)
-      .eq("user_id", user.id)
-  }
-
-  // ── 7b. Insert new evidence rows ──────────────────────────────────────────
-  let inserted: Array<{ id: string; source_type: string; source_title: string }> = []
-
-  if (rowsToInsert.length > 0) {
-    const { data: insertedData, error: evidenceError } = await supabase
-      .from("evidence_library")
-      .insert(
-        rowsToInsert.map((row) => ({
-          ...row,
-          user_id: user.id,
-          source_resume_id: sourceResumeId,
-        }))
-      )
-      .select("id, source_type, source_title")
-
-    if (evidenceError) {
-      console.error("evidence_library insert error:", evidenceError)
-      return NextResponse.json(
-        { error: "Failed to insert evidence rows", detail: evidenceError.message },
-        { status: 500 }
-      )
-    }
-
-    inserted = insertedData ?? []
-  }
-
-  // ── 8. Return summary ─────────────────────────────────────────────────────
-  return NextResponse.json({
-    message: "Resume processed successfully",
-    source_resume_id: sourceResumeId,
-    inserted: inserted.length,
-    updated: skillsToUpdate.length,
-    skipped: skippedCount,
-    evidence: inserted.map((e) => ({ id: e.id, type: e.source_type, title: e.source_title })),
-  })
-import { put } from "@vercel/blob"
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { generateObject } from "ai"
@@ -267,44 +50,34 @@ async function extractTextFromDOCX(buffer: Buffer): Promise<string> {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
-    // Auth check
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+
+    // Auth check with getSession() fallback for deprecated middleware environments
+    // (e.g. v0 sandbox, Next.js proxy convention) where getUser() returns null
+    let userId: string | undefined
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      userId = user.id
+    } else {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) userId = session.user.id
+    }
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const formData = await request.formData()
     const file = formData.get("file") as File
-    const replaceExisting = formData.get("replaceExisting") === "true"
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
     }
 
-    // Validate file type
-    const allowedTypes = [
-      "application/pdf",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/msword",
-    ]
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ 
-        error: "Invalid file type. Please upload a PDF or Word document." 
-      }, { status: 400 })
-    }
-
     // Validate file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ 
-        error: "File too large. Maximum size is 10MB." 
+      return NextResponse.json({
+        error: "File too large. Maximum size is 10MB."
       }, { status: 400 })
     }
-
-    // Upload to Vercel Blob (private storage)
-    const blob = await put(`resumes/${user.id}/${Date.now()}-${file.name}`, file, {
-      access: "private",
-    })
 
     // Extract text content from the file
     const buffer = Buffer.from(await file.arrayBuffer())
@@ -313,13 +86,19 @@ export async function POST(request: NextRequest) {
     try {
       if (file.type === "application/pdf") {
         rawText = await extractTextFromPDF(buffer)
-      } else {
+      } else if (
+        file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        file.type === "application/msword"
+      ) {
         rawText = await extractTextFromDOCX(buffer)
+      } else {
+        // text/plain and other text types
+        rawText = await file.text()
       }
     } catch (extractError) {
       console.error("Text extraction error:", extractError)
-      return NextResponse.json({ 
-        error: "Failed to extract text from file. Please ensure the file is not corrupted." 
+      return NextResponse.json({
+        error: "Failed to extract text from file. Please ensure the file is not corrupted."
       }, { status: 400 })
     }
 
@@ -365,31 +144,16 @@ IMPORTANT:
       }
     }
 
-    // If replacing existing, mark old resumes as inactive
-    if (replaceExisting) {
-      await supabase
-        .from("source_resumes")
-        .update({ is_primary: false })
-        .eq("user_id", user.id)
-    }
-
-    // Store in database
+    // Store in database using the actual source_resumes schema
     const { data: resume, error: dbError } = await supabase
       .from("source_resumes")
       .insert({
-        user_id: user.id,
-        file_name: file.name,
-        file_type: file.type,
-        file_size: file.size,
-        file_url: blob.url,
-        file_pathname: blob.pathname,
-        parsed_text: rawText,
+        user_id: userId,
+        filename: file.name,
+        content_text: rawText,
         parsed_data: parsedData,
-        is_primary: true,
-        parse_status: "complete",
-        parsed_at: new Date().toISOString(),
       })
-      .select()
+      .select("id")
       .single()
 
     if (dbError) {
@@ -397,20 +161,11 @@ IMPORTANT:
       return NextResponse.json({ error: "Failed to save resume" }, { status: 500 })
     }
 
-    // Update user profile with the source resume reference
-    await supabase
-      .from("user_profile")
-      .update({ 
-        source_resume_id: resume.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", user.id)
-
-    // Also update profile with parsed data if profile fields are empty
+    // Update profile with parsed data if profile fields are empty
     const { data: profile } = await supabase
       .from("user_profile")
       .select("full_name, location, summary, experience, skills, education, links, email, phone")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single()
 
     if (profile) {
@@ -463,7 +218,7 @@ IMPORTANT:
         await supabase
           .from("user_profile")
           .update(updates)
-          .eq("user_id", user.id)
+          .eq("user_id", userId)
       }
     }
 
@@ -471,7 +226,7 @@ IMPORTANT:
       success: true,
       resume: {
         id: resume.id,
-        file_name: resume.file_name,
+        file_name: file.name,
         parsed_data: parsedData,
       },
       message: "Resume uploaded and parsed successfully",
@@ -487,16 +242,19 @@ IMPORTANT:
 export async function GET() {
   try {
     const supabase = await createClient()
-    
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    let userId: string | undefined
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) { userId = user.id } else {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) userId = session.user.id
     }
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     const { data: resumes, error } = await supabase
       .from("source_resumes")
-      .select("id, file_name, file_type, file_size, is_primary, created_at, parsed_data")
-      .eq("user_id", user.id)
+      .select("id, filename, content_text, parsed_data, created_at")
+      .eq("user_id", userId)
       .order("created_at", { ascending: false })
 
     if (error) {
@@ -514,11 +272,14 @@ export async function GET() {
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    let userId: string | undefined
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) { userId = user.id } else {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) userId = session.user.id
     }
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     const { searchParams } = new URL(request.url)
     const resumeId = searchParams.get("id")
@@ -531,7 +292,7 @@ export async function DELETE(request: NextRequest) {
       .from("source_resumes")
       .delete()
       .eq("id", resumeId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
 
     if (error) {
       return NextResponse.json({ error: "Failed to delete resume" }, { status: 500 })

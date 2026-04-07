@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { generateText, generateObject } from "ai"
 import { z } from "zod"
 import { createAdminClient, createClient } from "@/lib/supabase/server"
-import { createClient } from "@/lib/supabase/server"
 import { groq, isGroqConfigured, MODELS } from "@/lib/adapters/groq"
 import { GenerateDocumentsInputSchema } from "@/lib/schemas/job-intake"
 import {

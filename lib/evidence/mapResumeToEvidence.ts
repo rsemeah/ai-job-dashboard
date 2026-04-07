@@ -29,7 +29,7 @@ export function mapResumeToEvidence(
 
     return {
       user_id: userId,
-      source_type: "resume",
+      source_type: "work_experience",
       source_title: `${exp.title || "Role"} at ${exp.company || "Company"}`,
       role_name: exp.title || null,
       company_name: exp.company || null,

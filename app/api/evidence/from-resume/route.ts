@@ -16,29 +16,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
+    let userId: string | undefined;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      userId = user.id;
+    } else {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) userId = session.user.id;
+    }
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Delete existing resume-sourced evidence before inserting new ones
-    // This prevents duplicate evidence on re-upload
-    const { error: deleteError } = await supabase
+    // Delete existing work_experience/education evidence before re-inserting
+    // (source_type "resume" is not valid — delete by the types we actually insert)
+    await supabase
       .from("evidence_library")
       .delete()
-      .eq("user_id", user.id)
-      .eq("source_type", "resume");
+      .eq("user_id", userId)
+      .in("source_type", ["work_experience", "education"]);
 
-    if (deleteError) {
-      console.error("[api/evidence/from-resume] delete existing failed", deleteError);
-      // Continue anyway - insert may still work
-    }
-
-    const evidenceRows = mapResumeToEvidence(parsedResume, user.id);
+    const evidenceRows = mapResumeToEvidence(parsedResume, userId);
 
     if (evidenceRows.length === 0) {
       return NextResponse.json(

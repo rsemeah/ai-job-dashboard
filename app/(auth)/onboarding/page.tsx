@@ -8,56 +8,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Loader2, Briefcase, FileText, Target, Upload, CheckCircle2, SkipForward } from "lucide-react"
-import Image from "next/image"
-
-type OnboardingStep = "welcome" | "profile" | "resume" | "path"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { 
-  Loader2, 
-  Briefcase, 
-  FileText, 
-  Target, 
-  Upload, 
+import {
+  Loader2,
+  Briefcase,
+  FileText,
+  Target,
+  Upload,
   Sparkles,
   CheckCircle2,
   X,
   ChevronRight,
-  MessageSquare
+  MessageSquare,
+  SkipForward,
 } from "lucide-react"
 import { HireWireLogo } from "@/components/hirewire-logo"
 import { CoachChat } from "@/components/coach-chat"
 import { toast } from "sonner"
 
-type OnboardingStep = "welcome" | "profile" | "evidence" | "path"
-
-interface ParsedResumeData {
-  name: string | null
-  email: string | null
-  phone: string | null
-  location: string | null
-  headline: string | null
-  summary: string | null
-  skills: string[]
-  extractedEvidence: Array<{
-    title: string
-    description: string
-    category: string
-    metrics: string | null
-    tags: string[]
-  }>
-}
+type OnboardingStep = "welcome" | "profile" | "resume" | "evidence" | "path"
 
 export default function OnboardingPage() {
   const [step, setStep] = useState<OnboardingStep>("welcome")
   const [isLoading, setIsLoading] = useState(false)
-  const [isParsingResume, setIsParsingResume] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [parsedResume, setParsedResume] = useState<ParsedResumeData | null>(null)
   const [savedEvidenceCount, setSavedEvidenceCount] = useState(0)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
   // Profile form state
@@ -67,122 +43,40 @@ export default function OnboardingPage() {
   const [summary, setSummary] = useState("")
   const [skills, setSkills] = useState<string[]>([])
 
-  // Evidence builder state
-  const [useAIBuilder, setUseAIBuilder] = useState(false)
-
-  // Handle resume file upload - uses the new upload API that stores and parses
-  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    setIsParsingResume(true)
-    setError(null)
-
-    try {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("replaceExisting", "true")
-
-      const response = await fetch("/api/resume/upload", {
-        method: "POST",
-        body: formData,
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to parse resume")
-      }
-
-      // Map from the new API format to our expected format
-      const parsed = result.resume?.parsed_data
-      if (parsed) {
-        const data: ParsedResumeData = {
-          name: parsed.full_name || null,
-          email: parsed.email || null,
-          phone: parsed.phone || null,
-          location: parsed.location || null,
-          headline: null,
-          summary: parsed.summary || null,
-          skills: parsed.skills || [],
-          extractedEvidence: (parsed.experience || []).map((exp: { title: string; company: string; description?: string; bullets?: string[] }, i: number) => ({
-            title: `${exp.title} at ${exp.company}`,
-            description: exp.description || exp.bullets?.join(" ") || "",
-            category: "achievement",
-            metrics: null,
-            tags: [],
-          })),
-        }
-
-        // Pre-fill form fields
-        if (data.name) setFullName(data.name)
-        if (data.location) setLocation(data.location)
-        if (data.headline) setHeadline(data.headline)
-        if (data.summary) setSummary(data.summary)
-        if (data.skills?.length) setSkills(data.skills.slice(0, 10))
-
-        setParsedResume(data)
-      }
-      
-      toast.success("Resume uploaded and parsed successfully!")
-    } catch (err) {
-      console.error("Resume parse error:", err)
-      setError(err instanceof Error ? err.message : "Failed to parse resume")
-      toast.error("Failed to parse resume")
-    } finally {
-      setIsParsingResume(false)
-    }
-  }
-
-  // Handle paste resume text
-  const handlePasteResume = async () => {
-    try {
-      const text = await navigator.clipboard.readText()
-      if (!text || text.length < 50) {
-        toast.error("Please copy your resume text first")
-        return
-      }
-
-      setIsParsingResume(true)
-      setError(null)
-
-      const formData = new FormData()
-      formData.append("text", text)
-
-      const response = await fetch("/api/parse-resume", {
-        method: "POST",
-        body: formData,
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to parse resume")
-      }
-
-      const data = result.data as ParsedResumeData
-
-      // Pre-fill form fields
-      if (data.name) setFullName(data.name)
-      if (data.location) setLocation(data.location)
-      if (data.headline) setHeadline(data.headline)
-      if (data.summary) setSummary(data.summary)
-      if (data.skills?.length) setSkills(data.skills.slice(0, 10))
-
-      setParsedResume(data)
-      toast.success("Resume parsed successfully!")
-    } catch (err) {
-      console.error("Resume parse error:", err)
-      setError(err instanceof Error ? err.message : "Failed to parse resume")
-    } finally {
-      setIsParsingResume(false)
-    }
-  }
-
   // Resume upload state
   const [resumeText, setResumeText] = useState("")
   const [resumeFile, setResumeFile] = useState<File | null>(null)
-  const [resumeResult, setResumeResult] = useState<{ inserted: number; skipped: number } | null>(null)
+  const [resumeResult, setResumeResult] = useState<{ inserted: number; updated: number; skipped: number } | null>(null)
+
+  // Evidence builder state
+  const [useAIBuilder, setUseAIBuilder] = useState(false)
+
+  const getProgress = () => {
+    switch (step) {
+      case "welcome": return 0
+      case "profile": return 25
+      case "resume": return 50
+      case "evidence": return 75
+      case "path": return 100
+      default: return 0
+    }
+  }
+
+  const removeSkill = (skillToRemove: string) => {
+    setSkills(skills.filter((s) => s !== skillToRemove))
+  }
+
+  const addSkill = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault()
+      const input = e.currentTarget
+      const skill = input.value.trim()
+      if (skill && !skills.includes(skill)) {
+        setSkills([...skills, skill])
+        input.value = ""
+      }
+    }
+  }
 
   const handleCreateProfile = async () => {
     if (!fullName.trim()) {
@@ -203,47 +97,23 @@ export default function OnboardingPage() {
     }
 
     try {
-      // Save profile
       const { error: upsertError } = await supabase
         .from("user_profile")
-        .upsert({
-          user_id: user.id,
-          full_name: fullName.trim(),
-          email: user.email,
-          location: location.trim() || null,
-          headline: headline.trim() || null,
-          summary: summary.trim() || null,
-          skills: skills.length > 0 ? skills : null,
-        }, {
-          onConflict: "user_id"
-        })
+        .upsert(
+          {
+            user_id: user.id,
+            full_name: fullName.trim(),
+            email: user.email,
+            location: location.trim() || null,
+            headline: headline.trim() || null,
+            summary: summary.trim() || null,
+            skills: skills.length > 0 ? skills : null,
+          },
+          { onConflict: "user_id" }
+        )
 
       if (upsertError) throw upsertError
       setStep("resume")
-
-      // If we have extracted evidence from resume, save it
-      if (parsedResume?.extractedEvidence?.length) {
-        const evidenceToSave = parsedResume.extractedEvidence.map((e, i) => ({
-          user_id: user.id,
-          title: e.title,
-          description: e.description,
-          category: e.category,
-          metrics: e.metrics,
-          tags: e.tags,
-          is_active: true,
-          priority_rank: i,
-        }))
-
-        const { error: evidenceError } = await supabase
-          .from("evidence_library")
-          .insert(evidenceToSave)
-
-        if (!evidenceError) {
-          setSavedEvidenceCount(evidenceToSave.length)
-        }
-      }
-
-      setStep("evidence")
     } catch (err) {
       console.error("Error creating profile:", err)
       setError(err instanceof Error ? err.message : "Failed to save profile")
@@ -258,7 +128,7 @@ export default function OnboardingPage() {
 
     try {
       let body: BodyInit
-      let headers: Record<string, string> = {}
+      const headers: Record<string, string> = {}
 
       if (resumeFile) {
         const form = new FormData()
@@ -282,7 +152,14 @@ export default function OnboardingPage() {
         return
       }
 
-      setResumeResult({ inserted: data.inserted ?? 0, skipped: data.skipped ?? 0 })
+      const result = {
+        inserted: data.inserted ?? 0,
+        updated: data.updated ?? 0,
+        skipped: data.skipped ?? 0,
+      }
+      setResumeResult(result)
+      setSavedEvidenceCount(result.inserted)
+      toast.success(`Resume processed — ${result.inserted} evidence entries created`)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed")
     } finally {
@@ -290,7 +167,6 @@ export default function OnboardingPage() {
     }
   }
 
-  const handleSelectPath = (path: "job" | "evidence" | "explore") => {
   const handleSelectPath = (path: "job" | "evidence" | "explore" | "coach") => {
     switch (path) {
       case "job":
@@ -309,34 +185,8 @@ export default function OnboardingPage() {
     router.refresh()
   }
 
-  const removeSkill = (skillToRemove: string) => {
-    setSkills(skills.filter(s => s !== skillToRemove))
-  }
+  // ── WELCOME ──────────────────────────────────────────────────────────────
 
-  const addSkill = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault()
-      const input = e.currentTarget
-      const skill = input.value.trim()
-      if (skill && !skills.includes(skill)) {
-        setSkills([...skills, skill])
-        input.value = ""
-      }
-    }
-  }
-
-  // Progress calculation
-  const getProgress = () => {
-    switch (step) {
-      case "welcome": return 0
-      case "profile": return 33
-      case "evidence": return 66
-      case "path": return 100
-      default: return 0
-    }
-  }
-
-  // WELCOME STEP
   if (step === "welcome") {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-background">
@@ -382,8 +232,8 @@ export default function OnboardingPage() {
                 </div>
               </div>
             </div>
-            <Button 
-              className="w-full h-11 bg-hirewire-red hover:bg-hirewire-red/90" 
+            <Button
+              className="w-full h-11 bg-hirewire-red hover:bg-hirewire-red/90"
               onClick={() => setStep("profile")}
             >
               Get Started
@@ -395,7 +245,8 @@ export default function OnboardingPage() {
     )
   }
 
-  // PROFILE STEP
+  // ── PROFILE ───────────────────────────────────────────────────────────────
+
   if (step === "profile") {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-background">
@@ -404,67 +255,10 @@ export default function OnboardingPage() {
             <Progress value={getProgress()} className="mb-4 h-2" />
             <CardTitle className="text-2xl font-serif">Build Your Profile</CardTitle>
             <CardDescription>
-              Import from your resume or enter details manually
+              Enter your details — or upload your resume on the next step to auto-populate your evidence library.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Resume Import Section */}
-            <div className="p-4 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/30">
-              <div className="text-center space-y-3">
-                <div className="flex justify-center">
-                  <div className="h-12 w-12 rounded-full bg-hirewire-red/10 flex items-center justify-center">
-                    <Upload className="h-6 w-6 text-hirewire-red" />
-                  </div>
-                </div>
-                <div>
-                  <p className="font-medium">Import from Resume</p>
-                  <p className="text-sm text-muted-foreground">
-                    We&apos;ll extract your info and key achievements automatically
-                  </p>
-                </div>
-                <div className="flex gap-2 justify-center">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".pdf,.doc,.docx,.txt"
-                    className="hidden"
-                    onChange={handleResumeUpload}
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isParsingResume}
-                  >
-                    {isParsingResume ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Parsing...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="mr-2 h-4 w-4" />
-                        Upload File
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handlePasteResume}
-                    disabled={isParsingResume}
-                  >
-                    Paste Text
-                  </Button>
-                </div>
-                {parsedResume && (
-                  <div className="flex items-center justify-center gap-2 text-sm text-green-600">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Resume imported - {parsedResume.extractedEvidence?.length || 0} achievements found
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Manual Entry Form */}
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Your name *</Label>
@@ -500,7 +294,7 @@ export default function OnboardingPage() {
                 <Label htmlFor="summary">Professional summary</Label>
                 <Textarea
                   id="summary"
-                  placeholder="Brief overview of your experience and what you're looking for..."
+                  placeholder="Brief overview of your experience and what you&apos;re looking for..."
                   value={summary}
                   onChange={(e) => setSummary(e.target.value)}
                   disabled={isLoading}
@@ -569,14 +363,18 @@ export default function OnboardingPage() {
     )
   }
 
+  // ── RESUME ────────────────────────────────────────────────────────────────
+
   if (step === "resume") {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-background">
         <Card className="w-full max-w-lg border-0 shadow-none lg:border lg:shadow-lg">
           <CardHeader className="text-center">
+            <Progress value={getProgress()} className="mb-4 h-2" />
             <CardTitle className="text-2xl font-serif">Add your resume</CardTitle>
             <CardDescription>
-              Paste your resume text or upload a .txt file. HireWire will extract your experience, education, and skills into your evidence library automatically.
+              Paste your resume text or upload a .txt file. HireWire will extract
+              your experience, education, and skills into your evidence library.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -587,13 +385,19 @@ export default function OnboardingPage() {
                   <div>
                     <p className="font-medium text-green-800">Resume processed</p>
                     <p className="text-sm text-green-700 mt-1">
-                      {resumeResult.inserted} evidence {resumeResult.inserted === 1 ? "entry" : "entries"} added
+                      {resumeResult.inserted} evidence{" "}
+                      {resumeResult.inserted === 1 ? "entry" : "entries"} added
+                      {resumeResult.updated > 0 ? `, ${resumeResult.updated} updated` : ""}
                       {resumeResult.skipped > 0 ? `, ${resumeResult.skipped} already existed` : ""}.
                     </p>
                   </div>
                 </div>
-                <Button className="w-full h-11" onClick={() => setStep("path")}>
+                <Button
+                  className="w-full h-11 bg-hirewire-red hover:bg-hirewire-red/90"
+                  onClick={() => setStep("evidence")}
+                >
                   Continue
+                  <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </div>
             ) : (
@@ -604,7 +408,10 @@ export default function OnboardingPage() {
                     id="resume-text"
                     placeholder="Paste the full text of your resume here..."
                     value={resumeText}
-                    onChange={(e) => { setResumeText(e.target.value); setResumeFile(null) }}
+                    onChange={(e) => {
+                      setResumeText(e.target.value)
+                      setResumeFile(null)
+                    }}
                     disabled={isLoading}
                     rows={8}
                   />
@@ -639,11 +446,16 @@ export default function OnboardingPage() {
                       type="file"
                       accept=".txt,text/plain"
                       className="hidden"
-                      onChange={(e) => { setResumeFile(e.target.files?.[0] ?? null); setResumeText("") }}
+                      onChange={(e) => {
+                        setResumeFile(e.target.files?.[0] ?? null)
+                        setResumeText("")
+                      }}
                       disabled={isLoading}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">PDF upload coming soon. For now, paste text or upload .txt.</p>
+                  <p className="text-xs text-muted-foreground">
+                    PDF upload coming soon. For now, paste text or upload .txt.
+                  </p>
                 </div>
 
                 {error && (
@@ -656,14 +468,14 @@ export default function OnboardingPage() {
                   <Button
                     variant="outline"
                     className="flex-1 gap-2"
-                    onClick={() => setStep("path")}
+                    onClick={() => setStep("evidence")}
                     disabled={isLoading}
                   >
                     <SkipForward className="h-4 w-4" />
                     Skip for now
                   </Button>
                   <Button
-                    className="flex-1"
+                    className="flex-1 bg-hirewire-red hover:bg-hirewire-red/90"
                     onClick={handleResumeUpload}
                     disabled={isLoading || (!resumeText.trim() && !resumeFile)}
                   >
@@ -678,7 +490,18 @@ export default function OnboardingPage() {
                         Upload Resume
                       </>
                     )}
-  // EVIDENCE BUILDER STEP
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // ── EVIDENCE ──────────────────────────────────────────────────────────────
+
   if (step === "evidence") {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-background">
@@ -687,14 +510,12 @@ export default function OnboardingPage() {
             <Progress value={getProgress()} className="mb-4 h-2" />
             <CardTitle className="text-2xl font-serif">Build Your Evidence Library</CardTitle>
             <CardDescription>
-              {savedEvidenceCount > 0 
+              {savedEvidenceCount > 0
                 ? `Great! We imported ${savedEvidenceCount} achievements from your resume.`
-                : "Your evidence library powers everything - resumes, cover letters, and interview prep."
-              }
+                : "Your evidence library powers everything — resumes, cover letters, and interview prep."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Evidence Status */}
             {savedEvidenceCount > 0 && (
               <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900">
                 <div className="flex items-center gap-3">
@@ -711,7 +532,6 @@ export default function OnboardingPage() {
               </div>
             )}
 
-            {/* AI Builder Option */}
             {!useAIBuilder ? (
               <div className="space-y-4">
                 <button
@@ -728,7 +548,7 @@ export default function OnboardingPage() {
                         <Badge variant="secondary" className="text-xs">Recommended</Badge>
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Have a conversation about your experience - I&apos;ll help extract and document your achievements
+                        Have a conversation about your experience — I&apos;ll help extract and document your achievements
                       </div>
                     </div>
                     <Sparkles className="h-5 w-5 text-hirewire-red" />
@@ -749,7 +569,7 @@ export default function OnboardingPage() {
                   className="w-full"
                   onClick={() => setStep("path")}
                 >
-                  Skip for now - I&apos;ll add evidence later
+                  Skip for now — I&apos;ll add evidence later
                 </Button>
               </div>
             ) : (
@@ -758,10 +578,7 @@ export default function OnboardingPage() {
                   <CoachChat compact />
                 </div>
                 <div className="flex gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => setUseAIBuilder(false)}
-                  >
+                  <Button variant="outline" onClick={() => setUseAIBuilder(false)}>
                     Back
                   </Button>
                   <Button
@@ -780,8 +597,8 @@ export default function OnboardingPage() {
     )
   }
 
-  // Path selection step
-  // PATH SELECTION STEP
+  // ── PATH SELECTION ────────────────────────────────────────────────────────
+
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background">
       <Card className="w-full max-w-lg border-0 shadow-none lg:border lg:shadow-lg">
@@ -793,9 +610,7 @@ export default function OnboardingPage() {
             </div>
           </div>
           <CardTitle className="text-2xl font-serif">You&apos;re all set!</CardTitle>
-          <CardDescription>
-            What would you like to do first?
-          </CardDescription>
+          <CardDescription>What would you like to do first?</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <button

@@ -135,7 +135,12 @@ export default function DocumentsPage() {
           .or("generated_resume.not.is.null,generation_status.not.is.null")
           .order("generation_timestamp", { ascending: false, nullsFirst: false })
         
-        if (error) throw error
+        if (error) {
+          console.log("[v0] Documents query error:", error)
+          throw error
+        }
+        
+        console.log("[v0] Documents loaded:", jobsData?.length || 0, "jobs with documents")
         
         // Load candidate name
         const { data: profileData } = await supabase
@@ -151,8 +156,9 @@ export default function DocumentsPage() {
         setJobs(jobsData || [])
         setFilteredJobs(jobsData || [])
       } catch (error) {
-        console.error("Error loading documents:", error)
+        console.log("[v0] Error loading documents:", error)
       } finally {
+        console.log("[v0] Documents page loading complete")
         setLoading(false)
       }
     }

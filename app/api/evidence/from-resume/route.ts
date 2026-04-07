@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { mapResumeToEvidence } from "@/lib/evidence/mapResumeToEvidence";
-import type { ParsedResumeData } from "@/types/resume";
+import { mapResumeToEvidence, dedupeKey, type ParsedResume, type MappedEvidenceRow } from "@/lib/mapResumeToEvidence";
 
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
     const body = await req.json();
-    const parsedResume = body?.parsedResume as ParsedResumeData | undefined;
+    const parsedResume = body?.parsedResume as ParsedResume | undefined;
 
     if (!parsedResume) {
       return NextResponse.json(
@@ -28,15 +27,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Delete existing work_experience/education evidence before re-inserting
-    // (source_type "resume" is not valid — delete by the types we actually insert)
+    // Delete existing resume-derived evidence before re-inserting
+    // (includes work_experience, education, skill, certification, project)
     await supabase
       .from("evidence_library")
       .delete()
       .eq("user_id", userId)
-      .in("source_type", ["work_experience", "education"]);
+      .in("source_type", ["work_experience", "education", "skill", "certification", "project"]);
 
-    const evidenceRows = mapResumeToEvidence(parsedResume, userId);
+    // Map resume to evidence rows (this now includes certifications, skills, projects)
+    const mappedRows = mapResumeToEvidence(parsedResume);
+    
+    // Add user_id to each row for insert
+    const evidenceRows = mappedRows.map(row => ({
+      ...row,
+      user_id: userId,
+    }));
 
     if (evidenceRows.length === 0) {
       return NextResponse.json(

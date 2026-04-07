@@ -130,9 +130,9 @@ export function PreGenerationReview({
             </div>
 
             <div className="space-y-2">
-              {topGaps.map((gap) => (
+              {topGaps.map((gap, idx) => (
                 <GapItem
-                  key={gap.id}
+                  key={`${idx}-${gap.id}`}
                   gap={gap}
                   isExpanded={expandedGap === gap.id}
                   onToggle={() => setExpandedGap(expandedGap === gap.id ? null : gap.id)}

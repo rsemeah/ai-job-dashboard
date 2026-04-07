@@ -282,14 +282,14 @@ export function CoachGatedGeneration({
         {/* Gaps list */}
         <ScrollArea className="max-h-[300px]">
           <div className="space-y-3">
-            {gapsWithStatus.map((gap) => {
+            {gapsWithStatus.map((gap, idx) => {
               const config = severityConfig[gap.severity]
               const statusCfg = statusConfig[gap.status]
               const StatusIcon = statusCfg.icon
 
               return (
                 <Card 
-                  key={gap.id} 
+                  key={`${idx}-${gap.id}`} 
                   className={cn(
                     "border transition-colors",
                     gap.status === "addressed" && "opacity-60",

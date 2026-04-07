@@ -226,10 +226,20 @@ function collectEvidenceText(
   const texts: string[] = []
   
   for (const e of evidence) {
-    if (e.achievement) texts.push(e.achievement)
-    if (e.title) texts.push(e.title)
-    if (e.skills_demonstrated) texts.push(...e.skills_demonstrated)
-    if (e.outcomes) texts.push(...e.outcomes)
+    // Core fields from evidence_library
+    if (e.source_title) texts.push(e.source_title)
+    if (e.role_name) texts.push(e.role_name)
+    if (e.company_name) texts.push(e.company_name)
+    if (e.source_type) texts.push(e.source_type) // e.g. "education", "certification"
+    
+    // Content arrays
+    if (e.responsibilities?.length) texts.push(...e.responsibilities)
+    if (e.tools_used?.length) texts.push(...e.tools_used)
+    if (e.outcomes?.length) texts.push(...e.outcomes)
+    if (e.proof_snippet) texts.push(e.proof_snippet)
+    
+    // Additional fields that may contain useful keywords
+    if (e.industries?.length) texts.push(...e.industries)
   }
 
   if (profile?.experience) {
@@ -248,8 +258,21 @@ function collectSkills(
   const skills: string[] = []
   
   for (const e of evidence) {
-    if (e.skills_demonstrated) skills.push(...e.skills_demonstrated)
-    if (e.tools_used) skills.push(...e.tools_used)
+    // Tools/tech from evidence_library
+    if (e.tools_used?.length) skills.push(...e.tools_used)
+    
+    // Education degrees count as skills for matching purposes
+    if (e.source_type === "education" && e.role_name) {
+      skills.push(e.role_name) // e.g. "Master of Science in Information Systems"
+    }
+    
+    // Certifications also count as skills
+    if (e.source_type === "certification" && e.source_title) {
+      skills.push(e.source_title) // e.g. "SAFe", "Scrum"
+    }
+    
+    // Role names contain relevant experience keywords
+    if (e.role_name) skills.push(e.role_name)
   }
 
   if (profile?.skills) {

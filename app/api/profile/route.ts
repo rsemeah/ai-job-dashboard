@@ -3,13 +3,13 @@ import { NextResponse } from "next/server"
 
 export async function GET() {
   const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { data: profile, error } = await supabase
+  const { data, error } = await supabase
     .from("user_profile")
     .select("*")
     .eq("user_id", user.id)
@@ -19,16 +19,13 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({
-    ...profile,
-    email: user.email,
-  })
+  return NextResponse.json(data || null)
 }
 
 export async function POST(request: Request) {
   const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
@@ -41,44 +38,47 @@ export async function POST(request: Request) {
     .eq("user_id", user.id)
     .maybeSingle()
 
-  if (existing) {
-    const { error } = await supabase
-      .from("user_profile")
-      .update({
-        full_name: body.full_name,
-        headline: body.headline,
-        location: body.location,
-        summary: body.summary,
-        years_experience: body.years_experience,
-        skills: body.skills,
-        linkedin_url: body.linkedin_url,
-        portfolio_url: body.portfolio_url,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", user.id)
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-  } else {
-    const { error } = await supabase
-      .from("user_profile")
-      .insert({
-        user_id: user.id,
-        full_name: body.full_name,
-        headline: body.headline,
-        location: body.location,
-        summary: body.summary,
-        years_experience: body.years_experience,
-        skills: body.skills,
-        linkedin_url: body.linkedin_url,
-        portfolio_url: body.portfolio_url,
-      })
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
+  const profileFields = {
+    full_name: body.full_name,
+    title: body.title ?? null,
+    email: body.email || user.email,
+    phone: body.phone,
+    location: body.location,
+    summary: body.summary,
+    experience: body.experience,
+    education: body.education,
+    skills: body.skills,
+    avatar_url: body.avatar_url,
+    linkedin_url: body.linkedin_url ?? null,
+    github_url: body.github_url ?? null,
+    website_url: body.website_url ?? null,
   }
 
-  return NextResponse.json({ success: true })
+  if (existing) {
+    const { data, error } = await supabase
+      .from("user_profile")
+      .update({ ...profileFields, updated_at: new Date().toISOString() })
+      .eq("id", existing.id)
+      .eq("user_id", user.id)
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json(data)
+  } else {
+    const { data, error } = await supabase
+      .from("user_profile")
+      .insert({ user_id: user.id, ...profileFields })
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json(data)
+  }
 }

@@ -8,22 +8,11 @@ export async function GET() {
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
-
-  if (userError || !user) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
-  }
   
   const { data, error } = await supabase
     .from("user_profile")
     .select("*")
     .eq("user_id", user.id)
-    .single()
-
     .maybeSingle()
   
   if (error && error.code !== "PGRST116") {
@@ -39,13 +28,6 @@ export async function POST(request: Request) {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
-
-  if (userError || !user) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
   }
 
   const body = await request.json()
@@ -54,8 +36,6 @@ export async function POST(request: Request) {
     .from("user_profile")
     .select("id")
     .eq("user_id", user.id)
-    .single()
-
     .maybeSingle()
   
   if (existing) {
@@ -64,7 +44,6 @@ export async function POST(request: Request) {
       .update({
         full_name: body.full_name,
         title: body.title ?? null,
-        email: body.email,
         email: body.email || user.email,
         phone: body.phone,
         location: body.location,
@@ -95,7 +74,6 @@ export async function POST(request: Request) {
         user_id: user.id,
         full_name: body.full_name,
         title: body.title ?? null,
-        email: body.email,
         email: body.email || user.email,
         phone: body.phone,
         location: body.location,

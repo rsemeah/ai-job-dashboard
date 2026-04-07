@@ -57,6 +57,15 @@ const ParsedResumeSchema = z.object({
   domains: z.array(z.string()).describe("Industry domains, subject areas"),
   certifications: z.array(CertificationSchema).default([]),
   projects: z.array(ProjectSchema).default([]),
+  // Contact info
+  full_name: z.string().optional().describe("Candidate full name"),
+  email: z.string().optional().describe("Email address"),
+  phone: z.string().optional().describe("Phone number"),
+  location: z.string().optional().describe("City, state or country"),
+  summary: z.string().optional().describe("Professional summary or objective"),
+  linkedin_url: z.string().optional().describe("LinkedIn profile URL if present"),
+  github_url: z.string().optional().describe("GitHub profile URL if present"),
+  website_url: z.string().optional().describe("Personal website or portfolio URL if present"),
 })
 
 /**

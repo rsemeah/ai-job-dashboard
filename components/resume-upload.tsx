@@ -7,21 +7,17 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Upload, FileText, Check, AlertCircle, Trash2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import { normalizeParsedResume } from "@/lib/resume/normalizeParsedResume"
-
 interface SourceResume {
   id: string
-  file_name: string
-  file_type: string
-  file_size: number
-  is_primary: boolean
+  filename: string
+  content_text?: string
   created_at: string
   parsed_data: {
     full_name?: string
-    experience?: Array<{ company: string; title: string }>
+    work_experience?: Array<{ company: string; role: string }>
     skills?: string[]
     education?: Array<{ school: string; degree: string }>
-  }
+  } | null
 }
 
 interface ResumeUploadProps {
@@ -83,25 +79,12 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
         throw new Error(data.error || "Upload failed")
       }
 
-      // Create evidence from the parsed resume
-      const rawParsed = data.resume?.parsed_data || data.parsedResume || {}
-      const normalized = normalizeParsedResume(rawParsed)
-
-      const evidenceRes = await fetch("/api/evidence/from-resume", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parsedResume: normalized }),
-      })
-
       setUploadProgress(100)
 
-      const evidenceJson = await evidenceRes.json()
-      if (!evidenceRes.ok) {
-        // Warn but don't fail - resume is still uploaded
-        console.warn("Evidence creation failed:", evidenceJson.error)
-        toast.warning("Resume uploaded but evidence creation had issues. Check your evidence library.")
+      if (data.inserted > 0) {
+        toast.success(`Resume uploaded! ${data.inserted} evidence items created.`)
       } else {
-        toast.success(`Resume uploaded! ${evidenceJson.createdCount || 0} evidence items created.`)
+        toast.success("Resume uploaded and parsed successfully.")
       }
       
       // Refresh resumes list
@@ -111,7 +94,9 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
         setResumes(listData.resumes)
       }
 
-      onUploadComplete?.(data.resume)
+      if (data.source_resume_id) {
+        onUploadComplete?.({ id: data.source_resume_id, filename, created_at: new Date().toISOString(), parsed_data: null })
+      }
     } catch (error) {
       console.error("Upload error:", error)
       toast.error(error instanceof Error ? error.message : "Failed to upload resume")
@@ -167,7 +152,7 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
-  const primaryResume = resumes.find(r => r.is_primary)
+  const primaryResume = resumes[0] ?? null
 
   if (compact) {
     return (
@@ -177,9 +162,9 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
             <div className="flex items-center gap-3">
               <FileText className="h-5 w-5 text-muted-foreground" />
               <div>
-                <p className="text-sm font-medium">{primaryResume.file_name}</p>
+                <p className="text-sm font-medium">{primaryResume.filename}</p>
                 <p className="text-xs text-muted-foreground">
-                  {primaryResume.parsed_data?.experience?.length || 0} positions extracted
+                  {primaryResume.parsed_data?.work_experience?.length || 0} positions extracted
                 </p>
               </div>
             </div>
@@ -293,30 +278,22 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
             {resumes.map((resume) => (
               <div
                 key={resume.id}
-                className={`flex items-start justify-between p-4 rounded-lg border ${
-                  resume.is_primary ? "bg-primary/5 border-primary/20" : "bg-muted/50"
-                }`}
+                className="flex items-start justify-between p-4 rounded-lg border bg-muted/50"
               >
                 <div className="flex items-start gap-3">
                   <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium">{resume.file_name}</p>
-                      {resume.is_primary && (
-                        <Badge variant="secondary" className="text-xs">
-                          <Check className="h-3 w-3 mr-1" />
-                          Active
-                        </Badge>
-                      )}
+                      <p className="font-medium">{resume.filename}</p>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {formatFileSize(resume.file_size)} • Uploaded {new Date(resume.created_at).toLocaleDateString()}
+                      Uploaded {new Date(resume.created_at).toLocaleDateString()}
                     </p>
                     {resume.parsed_data && (
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {resume.parsed_data.experience && resume.parsed_data.experience.length > 0 && (
+                        {resume.parsed_data.work_experience && resume.parsed_data.work_experience.length > 0 && (
                           <Badge variant="outline" className="text-xs">
-                            {resume.parsed_data.experience.length} positions
+                            {resume.parsed_data.work_experience.length} positions
                           </Badge>
                         )}
                         {resume.parsed_data.skills && resume.parsed_data.skills.length > 0 && (

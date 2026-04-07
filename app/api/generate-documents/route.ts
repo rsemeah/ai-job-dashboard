@@ -207,9 +207,10 @@ async function loadJobAnalysis(supabase: Awaited<ReturnType<typeof createClient>
 async function loadSourceResume(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data: resume, error } = await supabase
     .from("source_resumes")
-    .select("*")
+    .select("id, filename, content_text, parsed_data, created_at")
     .eq("user_id", userId)
-    .eq("is_primary", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle()
 
   if (error || !resume) {
@@ -452,10 +453,10 @@ Education:
 ${effectiveEducation.map((edu: { degree: string; school: string; year?: string }) => `
 - ${edu.degree} from ${edu.school} ${edu.year ? `(${edu.year})` : ""}
 `).join("\n")}
-${sourceResume?.parsed_text ? `
+${sourceResume?.content_text ? `
 ADDITIONAL CONTEXT FROM SOURCE RESUME:
 (Use this for additional details if the structured data above is incomplete)
-${sourceResume.parsed_text.slice(0, 5000)}
+${sourceResume.content_text.slice(0, 5000)}
 ` : ""}
 `
 

@@ -24,6 +24,15 @@ export interface ParsedResume {
   domains: string[]
   certifications: ParsedCertification[]
   projects: ParsedProject[]
+  // Contact info — optional, used for profile pre-fill
+  full_name?: string
+  email?: string
+  phone?: string
+  location?: string
+  summary?: string
+  linkedin_url?: string
+  github_url?: string
+  website_url?: string
 }
 
 export interface ParsedWorkExperience {

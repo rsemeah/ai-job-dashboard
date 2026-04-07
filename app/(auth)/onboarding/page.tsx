@@ -23,8 +23,6 @@ import {
 } from "lucide-react"
 import { HireWireLogo } from "@/components/hirewire-logo"
 import { toast } from "sonner"
-import { normalizeParsedResume } from "@/lib/resume/normalizeParsedResume"
-import type { ParsedResumeData } from "@/types/resume"
 
 type OnboardingStep = "welcome" | "resume" | "profile" | "complete"
 
@@ -33,7 +31,7 @@ export default function OnboardingPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isParsingResume, setIsParsingResume] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [parsedResume, setParsedResume] = useState<ParsedResumeData | null>(null)
+  const [experienceCount, setExperienceCount] = useState(0)
   const [hasResume, setHasResume] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
@@ -54,10 +52,8 @@ export default function OnboardingPage() {
     setError(null)
 
     try {
-      // Step 1: Upload and parse resume
       const formData = new FormData()
       formData.append("file", file)
-      formData.append("replaceExisting", "true")
 
       const uploadRes = await fetch("/api/resume/upload", {
         method: "POST",
@@ -65,47 +61,25 @@ export default function OnboardingPage() {
         credentials: "include",
       })
 
-      const uploadJson = await uploadRes.json()
+      const data = await uploadRes.json()
 
       if (!uploadRes.ok) {
-        throw new Error(uploadJson.error || "Failed to upload resume")
+        throw new Error(data.error || "Failed to upload resume")
       }
 
-      // Step 2: Normalize the parsed resume data
-      const rawParsed = uploadJson.resume?.parsed_data || uploadJson.parsedResume || {}
-      const normalized = normalizeParsedResume(rawParsed)
+      // Pre-fill form fields from canonical response
+      if (data.full_name) setFullName(data.full_name)
+      if (data.location) setLocation(data.location)
+      if (data.summary) setSummary(data.summary)
+      if (data.skills?.length) setSkills(data.skills.slice(0, 10))
 
-      // Step 3: Create evidence from normalized resume - DO NOT advance until this succeeds
-      const evidenceRes = await fetch("/api/evidence/from-resume", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parsedResume: normalized }),
-        credentials: "include",
-      })
-
-      const evidenceJson = await evidenceRes.json()
-
-      if (!evidenceRes.ok) {
-        throw new Error(evidenceJson.error || "Failed to create evidence from resume")
-      }
-
-      if (!evidenceJson.createdCount || evidenceJson.createdCount === 0) {
-        toast.warning("No evidence items were extracted from your resume. You can add evidence manually in the Evidence Library or via the AI Coach.")
-      }
-
-      // Step 4: Pre-fill form fields from normalized data
-      if (normalized.fullName) setFullName(normalized.fullName)
-      if (normalized.location) setLocation(normalized.location)
-      if (normalized.summary) setSummary(normalized.summary)
-      if (normalized.skills?.length) {
-        setSkills(normalized.skills.slice(0, 10).map(s => s.name))
-      }
-      
-      setParsedResume(normalized)
+      setExperienceCount(data.experience_count ?? 0)
       setHasResume(true)
-      
-      if (evidenceJson.createdCount > 0) {
-        toast.success(`Resume uploaded! ${evidenceJson.createdCount} evidence items created.`)
+
+      if (!data.inserted || data.inserted === 0) {
+        toast.warning("Resume saved, but no evidence items were extracted. You can add evidence manually in the Evidence Library.")
+      } else {
+        toast.success(`Resume uploaded! ${data.inserted} evidence items created.`)
       }
       setStep("profile")
     } catch (err) {
@@ -162,7 +136,7 @@ export default function OnboardingPage() {
 
       if (upsertError) throw upsertError
 
-      // Evidence is already created in handleResumeUpload via /api/evidence/from-resume
+      // Evidence is already created in the upload route — no separate call needed
       // No need to create it again here - just proceed to complete step
 
       setStep("complete")
@@ -390,7 +364,7 @@ export default function OnboardingPage() {
             {hasResume && (
               <div className="flex items-center gap-2 text-sm text-green-600 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg">
                 <CheckCircle2 className="h-4 w-4" />
-                Resume imported - {parsedResume?.experience?.length || 0} experiences found
+                Resume imported - {experienceCount} experience{experienceCount !== 1 ? "s" : ""} found
               </div>
             )}
 

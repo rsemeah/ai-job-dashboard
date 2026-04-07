@@ -90,7 +90,7 @@ export default function OnboardingPage() {
       }
 
       if (!evidenceJson.createdCount || evidenceJson.createdCount === 0) {
-        throw new Error("No evidence could be extracted from your resume. Please ensure it contains work experience, education, or skills.")
+        toast.warning("No evidence items were extracted from your resume. You can add evidence manually in the Evidence Library or via the AI Coach.")
       }
 
       // Step 4: Pre-fill form fields from normalized data

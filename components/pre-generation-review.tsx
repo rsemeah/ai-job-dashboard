@@ -40,7 +40,8 @@ export function PreGenerationReview({
   const [expandedGap, setExpandedGap] = useState<string | null>(null)
 
   const { gaps, critical_gaps, coverage_percentage, can_generate, generation_warning, recommended_action } = gapAnalysis
-  const topGaps = gaps.slice(0, 5)
+  // Ensure unique keys by combining index with original ID to prevent React key collisions
+  const topGaps = gaps.slice(0, 5).map((g, i) => ({ ...g, id: `review-gap-${i}-${g.id}` }))
   const hasCriticalGaps = critical_gaps.length > 0
 
   // Determine UI state

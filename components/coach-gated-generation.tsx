@@ -69,11 +69,15 @@ export function CoachGatedGeneration({
   // Initialize gaps with status
   useEffect(() => {
     if (gapAnalysis) {
-      // Take top 5 critical/important gaps
+      // Take top 5 critical/important gaps, ensure unique IDs to prevent React key collisions
       const topGaps = [...gapAnalysis.critical_gaps, ...gapAnalysis.gaps]
         .filter(g => g.severity === "critical" || g.severity === "important")
         .slice(0, 5)
-        .map(g => ({ ...g, status: "unaddressed" as GapStatus }))
+        .map((g, index) => ({ 
+          ...g, 
+          id: `gated-gap-${index}-${g.id}`, // Ensure unique ID by combining index with original
+          status: "unaddressed" as GapStatus 
+        }))
       
       setGapsWithStatus(topGaps)
       

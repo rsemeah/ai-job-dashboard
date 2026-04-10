@@ -1044,6 +1044,32 @@ blocked_evidence: blockedEvidence.map((e: EvidenceRecord) => ({ id: e.id, title:
     if (updateError) {
       console.error("Error updating job:", updateError)
     }
+    
+    // Increment generations_this_month for usage tracking (only on successful generation)
+    // This enforces free tier limits and tracks premium usage
+    if (!updateError) {
+      const now = new Date()
+      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+      
+      // Get current profile to check/reset usage
+      const { data: profile } = await supabase
+        .from("user_profile")
+        .select("generations_this_month, usage_reset_at")
+        .eq("user_id", userId)
+        .maybeSingle()
+      
+      // Reset counter if we're in a new month
+      const needsReset = !profile?.usage_reset_at || 
+        new Date(profile.usage_reset_at) < new Date(firstOfMonth)
+      
+      await supabase
+        .from("user_profile")
+        .update({
+          generations_this_month: needsReset ? 1 : (profile?.generations_this_month || 0) + 1,
+          usage_reset_at: needsReset ? firstOfMonth : profile?.usage_reset_at,
+        })
+        .eq("user_id", userId)
+    }
 
     // Update job analysis with matched evidence
     if (jobAnalysis) {

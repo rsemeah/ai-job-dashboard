@@ -162,40 +162,21 @@ export default function RedTeamReviewPage() {
     const supabase = createClient()
     
     // Get current user for security
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      toast.error("Please log in to approve")
-      return
-    }
+    // Use centralized quality-pass API endpoint
+    const response = await fetch(`/api/jobs/${jobId}/quality-pass`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        issues_acknowledged: activeIssues.map(i => ({ type: i.type, severity: i.severity })),
+        resolved_count: resolvedIssues.size,
+      }),
+    })
     
-    // Update job - filtered by user_id for security
-    const { error } = await supabase
-      .from("jobs")
-      .update({
-        quality_passed: true,
-        status: "ready",
-        generation_quality_issues: activeIssues.map(i => `${i.type}: ${i.original_text.substring(0, 50)}`),
-      })
-      .eq("id", jobId)
-      .eq("user_id", user.id)
+    const result = await response.json()
     
-    if (error) {
-      toast.error("Failed to approve")
+    if (!response.ok || !result.success) {
+      toast.error(result.error || "Failed to approve")
     } else {
-      // Log audit event for quality pass
-      await supabase.from("audit_events").insert({
-        user_id: user.id,
-        job_id: jobId,
-        event_type: "quality_passed",
-        outcome: "approved",
-        reason: `Red Team review passed with ${activeIssues.length} non-critical issues acknowledged`,
-        metadata: {
-          approved_at: new Date().toISOString(),
-          issues_acknowledged: activeIssues.map(i => ({ type: i.type, severity: i.severity })),
-          resolved_count: resolvedIssues.size,
-        },
-      })
-      
       toast.success("Documents approved - Ready to apply!")
       router.push(`/jobs/${jobId}`)
     }

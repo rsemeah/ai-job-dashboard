@@ -3,6 +3,8 @@ import { JobDetail } from "@/components/job-detail"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, AlertCircle } from "lucide-react"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/server"
+import { evaluateJobReadiness, type ReadinessResult } from "@/lib/readiness"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -13,7 +15,16 @@ interface PageProps {
 
 export default async function JobDetailPage({ params }: PageProps) {
   const { id } = await params
-  const job = await getJobById(id)
+  
+  // Get current user for readiness evaluation
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  // Fetch job and readiness in parallel
+  const [job, readiness] = await Promise.all([
+    getJobById(id),
+    user ? evaluateJobReadiness(id, user.id) : Promise.resolve(null),
+  ])
 
   if (!job) {
     return (
@@ -31,5 +42,5 @@ export default async function JobDetailPage({ params }: PageProps) {
     )
   }
 
-  return <JobDetail job={job} />
+  return <JobDetail job={job} readiness={readiness} />
 }

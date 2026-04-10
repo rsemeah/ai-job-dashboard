@@ -68,6 +68,7 @@ import {
   type BulletProvenance,
   type ParagraphProvenance,
 } from "@/components/resume-with-provenance"
+import { type ReadinessResult } from "@/lib/readiness"
 
 // Available status transitions
 const STATUS_OPTIONS: JobStatus[] = [
@@ -88,6 +89,7 @@ const STATUS_OPTIONS: JobStatus[] = [
 
 interface JobDetailProps {
   job: Job
+  readiness?: ReadinessResult | null
 }
 
 // Fit badge component with proper styling and explainable tooltip
@@ -310,7 +312,7 @@ function GenerationStatusBanner({
   )
 }
 
-export function JobDetail({ job }: JobDetailProps) {
+export function JobDetail({ job, readiness }: JobDetailProps) {
   const router = useRouter()
   const [status, setStatus] = useState<JobStatus>(normalizeJobStatus(job.status))
   const [isPending, startTransition] = useTransition()
@@ -364,10 +366,17 @@ export function JobDetail({ job }: JobDetailProps) {
     loadProfile()
   }, [])
 
-  // Semantic workflow state - derived from persisted artifacts
+  // Semantic workflow state - prefer server-computed readiness, fallback to local derivation
   const workflowState = getWorkflowState(job)
-  const currentStage = workflowState.stage
-  const stageIndex = workflowState.stageIndex
+  // Use readiness from server if available (single source of truth)
+  const currentStage = readiness?.stage || workflowState.stage
+  const stageIndex = readiness?.stage_index ?? workflowState.stageIndex
+  
+  // Gate flags from readiness (server-computed) or fallback
+  const canGenerate = readiness?.can_generate ?? workflowState.canGenerate
+  const canInterviewPrep = readiness?.can_interview_prep ?? (!!job.generated_resume && !!job.generated_cover_letter)
+  const canApply = readiness?.can_apply ?? false
+  const reasonsNotReady = readiness?.reasons_not_ready || workflowState.blockers
   
   // State for provenance display
   const [showProvenance, setShowProvenance] = useState(false)
@@ -716,14 +725,14 @@ export function JobDetail({ job }: JobDetailProps) {
           )}
           
           {/* Blockers */}
-          {workflowState.blockers.length > 0 && (
+          {reasonsNotReady.length > 0 && (
             <div className="mt-3 pt-3 border-t">
               <div className="flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
                 <div className="text-sm">
                   <span className="font-medium text-amber-600">Attention needed:</span>
                   <ul className="mt-1 space-y-0.5">
-                    {workflowState.blockers.map((blocker, idx) => (
+                    {reasonsNotReady.map((blocker, idx) => (
                       <li key={idx} className="text-muted-foreground">{blocker}</li>
                     ))}
                   </ul>

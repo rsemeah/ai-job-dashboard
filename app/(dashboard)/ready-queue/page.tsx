@@ -18,11 +18,18 @@ import { Rocket, CheckCircle, FileText, Mail, ArrowRight, ExternalLink } from "l
 import { ReadyJobActions } from "./ready-job-actions"
 import { BackButton } from "@/components/back-button"
 import { normalizeJobStatus } from "@/lib/job-lifecycle"
+import { createClient } from "@/lib/supabase/server"
+import { getReadyJobIds } from "@/lib/readiness"
+import { Shield, AlertCircle as AlertCircleIcon } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
 export default async function ReadyQueuePage() {
+  // Get current user for strict gate checking
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
   const result = await getJobs()
 
   if (!result.success) {
@@ -46,21 +53,38 @@ export default async function ReadyQueuePage() {
     )
   }
 
-  const readyJobs = result.data
-    .filter((job) => {
+  // Use strict semantic gates instead of loose OR filter
+  const { ready: readyJobIds, pending_quality: pendingQualityIds } = user 
+    ? await getReadyJobIds(user.id)
+    : { ready: [], pending_quality: [] }
+  
+  // Filter jobs by gate results
+  const allJobs = result.data
+  const readyJobs = allJobs
+    .filter(job => readyJobIds.includes(job.id))
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+  
+  // Pending quality: has materials but quality_passed = false
+  const pendingQualityJobs = allJobs
+    .filter(job => pendingQualityIds.includes(job.id))
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+  
+  // Needs materials: has analysis but no resume/cover letter  
+  const needsMaterialsJobs = allJobs
+    .filter(job => {
       const status = normalizeJobStatus(job.status)
       return (
-        (status === "ready" || status === "needs_review" || status === "analyzed" ||
-          (job.fit === "HIGH" && job.score !== null && job.score >= 60)) &&
+        (!job.generated_resume || !job.generated_cover_letter) &&
         status !== "applied" &&
-        status !== "archived"
+        status !== "archived" &&
+        status !== "draft"
       )
     })
     .sort((a, b) => (b.score || 0) - (a.score || 0))
-
-  // Jobs with complete materials
-  const completeJobs = readyJobs.filter(job => job.generated_resume && job.generated_cover_letter)
-  const incompleteJobs = readyJobs.filter(job => !job.generated_resume || !job.generated_cover_letter)
+  
+  // Legacy categorization for backward compatibility
+  const completeJobs = readyJobs
+  const incompleteJobs = needsMaterialsJobs
 
   return (
     <div className="space-y-8 max-w-6xl">
@@ -145,6 +169,75 @@ export default async function ReadyQueuePage() {
                           <div className="flex justify-end gap-2">
                             <ReadyJobActions job={job} />
                           </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Pending Quality Review */}
+          {pendingQualityJobs.length > 0 && (
+            <Card className="border-amber-500/30">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-amber-500" />
+                    <div>
+                      <CardTitle>Pending Quality Review</CardTitle>
+                      <CardDescription>
+                        Materials generated - run Red Team review before applying
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="border-amber-500/30 text-amber-600 bg-amber-50">
+                    {pendingQualityJobs.length} Pending
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Job</TableHead>
+                      <TableHead>Company</TableHead>
+                      <TableHead className="text-center">Score</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingQualityJobs.map((job) => (
+                      <TableRow key={job.id}>
+                        <TableCell>
+                          <Link
+                            href={`/jobs/${job.id}`}
+                            className="font-medium hover:underline"
+                          >
+                            {job.title}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{job.company}</TableCell>
+                        <TableCell className="text-center">
+                          <ScoreBadge score={job.score} />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-center">
+                            <Badge variant="outline" className="text-amber-600 border-amber-500/30 bg-amber-50">
+                              <Shield className="mr-1 h-3 w-3" />
+                              Needs Review
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={`/jobs/${job.id}/red-team`}>
+                              Review
+                              <ArrowRight className="ml-1 h-4 w-4" />
+                            </Link>
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}

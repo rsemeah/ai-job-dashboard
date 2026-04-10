@@ -43,6 +43,8 @@ import {
   Wand2,
   Settings2,
   RotateCcw,
+  Save,
+  CheckCircle,
 } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/lib/supabase/client"
@@ -89,6 +91,8 @@ export default function ScoringCenterPage() {
   const [weights, setWeights] = useState<ScoringWeights>(DEFAULT_WEIGHTS)
   const [selectedRole, setSelectedRole] = useState<string>("Other")
   const [isManualMode, setIsManualMode] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [scoreSaved, setScoreSaved] = useState(false)
 
   useEffect(() => {
     async function loadData() {
@@ -286,8 +290,87 @@ export default function ScoringCenterPage() {
     return "LOW"
   }
 
+  // Save score to database without making apply/skip decision
+  async function saveScore() {
+    if (!job || !scoreBreakdown) return
+    
+    setIsSaving(true)
+    const supabase = createClient()
+    
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      toast.error("Please log in to continue")
+      setIsSaving(false)
+      return
+    }
+    
+    const fit = determineFit(weightedOverallScore)
+    
+    // Build score reasoning object
+    const scoreReasoning = {
+      weights_used: weights,
+      selected_role: selectedRole,
+      is_manual_mode: isManualMode,
+      breakdown: {
+        ats_score: scoreBreakdown.ats_score,
+        ats_reasoning: scoreBreakdown.ats_reasoning,
+        truth_score: scoreBreakdown.truth_score,
+        truth_reasoning: scoreBreakdown.truth_reasoning,
+        role_alignment_score: scoreBreakdown.role_alignment_score,
+        role_alignment_reasoning: scoreBreakdown.role_alignment_reasoning,
+        tool_match_score: scoreBreakdown.tool_match_score,
+        tool_match_reasoning: scoreBreakdown.tool_match_reasoning,
+        recruiter_clarity_score: scoreBreakdown.recruiter_clarity_score,
+        recruiter_clarity_reasoning: scoreBreakdown.recruiter_clarity_reasoning,
+        metric_density_score: scoreBreakdown.metric_density_score,
+        metric_density_reasoning: scoreBreakdown.metric_density_reasoning,
+        genericity_penalty: scoreBreakdown.genericity_penalty,
+        genericity_reasoning: scoreBreakdown.genericity_reasoning,
+      },
+      score_explanation: `Weighted score of ${weightedOverallScore}/100 based on ${selectedRole} role weights. ${fit === "HIGH" ? "Strong match" : fit === "MEDIUM" ? "Moderate match with some gaps" : "Significant gaps identified"}.`,
+    }
+    
+    // Extract gaps and strengths from scoreBreakdown
+    const scoreGaps: string[] = []
+    const scoreStrengths: string[] = []
+    
+    if (scoreBreakdown.ats_score < 60) scoreGaps.push(`ATS keywords: ${scoreBreakdown.ats_reasoning}`)
+    else scoreStrengths.push(`ATS keywords: ${scoreBreakdown.ats_reasoning}`)
+    
+    if (scoreBreakdown.truth_score < 60) scoreGaps.push(`Evidence quality: ${scoreBreakdown.truth_reasoning}`)
+    else scoreStrengths.push(`Evidence quality: ${scoreBreakdown.truth_reasoning}`)
+    
+    if (scoreBreakdown.role_alignment_score < 60) scoreGaps.push(`Role alignment: ${scoreBreakdown.role_alignment_reasoning}`)
+    else scoreStrengths.push(`Role alignment: ${scoreBreakdown.role_alignment_reasoning}`)
+    
+    if (scoreBreakdown.tool_match_score < 60) scoreGaps.push(`Skills match: ${scoreBreakdown.tool_match_reasoning}`)
+    else scoreStrengths.push(`Skills match: ${scoreBreakdown.tool_match_reasoning}`)
+    
+    const { error } = await supabase
+      .from("jobs")
+      .update({
+        score: weightedOverallScore,
+        fit: fit,
+        score_reasoning: scoreReasoning,
+        score_gaps: scoreGaps,
+        score_strengths: scoreStrengths,
+        scored_at: new Date().toISOString(),
+      })
+      .eq("id", jobId)
+      .eq("user_id", user.id)
+    
+    setIsSaving(false)
+    
+    if (error) {
+      toast.error("Failed to save score")
+    } else {
+      setScoreSaved(true)
+      toast.success("Score saved to job record")
+    }
+  }
+
   async function makeDecision(choice: "apply" | "skip") {
-    if (!job) return
+    if (!job || !scoreBreakdown) return
     
     const supabase = createClient()
     
@@ -299,13 +382,51 @@ export default function ScoringCenterPage() {
     }
     
     const newStatus = choice === "apply" ? "ready" : "archived"
+    const fit = determineFit(weightedOverallScore)
+    
+    // Build complete score data
+    const scoreReasoning = {
+      weights_used: weights,
+      selected_role: selectedRole,
+      is_manual_mode: isManualMode,
+      breakdown: {
+        ats_score: scoreBreakdown.ats_score,
+        truth_score: scoreBreakdown.truth_score,
+        role_alignment_score: scoreBreakdown.role_alignment_score,
+        tool_match_score: scoreBreakdown.tool_match_score,
+        recruiter_clarity_score: scoreBreakdown.recruiter_clarity_score,
+        metric_density_score: scoreBreakdown.metric_density_score,
+        genericity_penalty: scoreBreakdown.genericity_penalty,
+      },
+      score_explanation: `Weighted score of ${weightedOverallScore}/100 based on ${selectedRole} role weights.`,
+    }
+    
+    // Extract gaps and strengths
+    const scoreGaps: string[] = []
+    const scoreStrengths: string[] = []
+    
+    if (scoreBreakdown.ats_score < 60) scoreGaps.push(`ATS keywords: ${scoreBreakdown.ats_reasoning}`)
+    else scoreStrengths.push(`ATS keywords: ${scoreBreakdown.ats_reasoning}`)
+    
+    if (scoreBreakdown.truth_score < 60) scoreGaps.push(`Evidence quality: ${scoreBreakdown.truth_reasoning}`)
+    else scoreStrengths.push(`Evidence quality: ${scoreBreakdown.truth_reasoning}`)
+    
+    if (scoreBreakdown.role_alignment_score < 60) scoreGaps.push(`Role alignment: ${scoreBreakdown.role_alignment_reasoning}`)
+    else scoreStrengths.push(`Role alignment: ${scoreBreakdown.role_alignment_reasoning}`)
+    
+    if (scoreBreakdown.tool_match_score < 60) scoreGaps.push(`Skills match: ${scoreBreakdown.tool_match_reasoning}`)
+    else scoreStrengths.push(`Skills match: ${scoreBreakdown.tool_match_reasoning}`)
     
     const { error } = await supabase
       .from("jobs")
       .update({ 
         status: newStatus,
         score: weightedOverallScore,
-        fit: determineFit(weightedOverallScore),
+        fit: fit,
+        score_reasoning: scoreReasoning,
+        score_gaps: scoreGaps,
+        score_strengths: scoreStrengths,
+        scored_at: new Date().toISOString(),
       })
       .eq("id", jobId)
       .eq("user_id", user.id)
@@ -557,8 +678,27 @@ export default function ScoringCenterPage() {
               </div>
             </div>
             
-            {/* Decision Buttons */}
+            {/* Action Buttons */}
             <div className="flex flex-col gap-3">
+              {/* Save Score Button - persists without decision */}
+              <Button 
+                size="lg" 
+                variant="default"
+                onClick={saveScore}
+                disabled={isSaving || !scoreBreakdown}
+              >
+                {isSaving ? (
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                ) : scoreSaved ? (
+                  <CheckCircle className="h-5 w-5 mr-2" />
+                ) : (
+                  <Save className="h-5 w-5 mr-2" />
+                )}
+                {isSaving ? "Saving..." : scoreSaved ? "Score Saved" : "Save Score"}
+              </Button>
+              
+              <Separator />
+              
               <Button 
                 size="lg" 
                 className="bg-green-600 hover:bg-green-700"

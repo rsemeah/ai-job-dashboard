@@ -40,9 +40,10 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
       "application/pdf",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "application/msword",
+      "text/plain",
     ]
     if (!allowedTypes.includes(file.type)) {
-      toast.error("Please upload a PDF or Word document")
+      toast.error("Please upload a PDF, Word document, or text file")
       return
     }
 
@@ -171,7 +172,7 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
             <label className="cursor-pointer">
               <input
                 type="file"
-                accept=".pdf,.doc,.docx"
+                accept=".pdf,.doc,.docx,.txt"
                 onChange={handleFileSelect}
                 className="hidden"
                 disabled={isUploading}
@@ -185,7 +186,7 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
           <label className="cursor-pointer">
             <input
               type="file"
-              accept=".pdf,.doc,.docx"
+              accept=".pdf,.doc,.docx,.txt"
               onChange={handleFileSelect}
               className="hidden"
               disabled={isUploading}
@@ -206,7 +207,7 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
               ) : (
                 <>
                   <Upload className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Upload your resume (PDF or Word)</span>
+                  <span className="text-sm text-muted-foreground">Upload your resume (PDF, Word, or TXT)</span>
                 </>
               )}
             </div>
@@ -233,7 +234,7 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
         <label className="cursor-pointer block">
           <input
             type="file"
-            accept=".pdf,.doc,.docx"
+            accept=".pdf,.doc,.docx,.txt"
             onChange={handleFileSelect}
             className="hidden"
             disabled={isUploading}
@@ -264,7 +265,7 @@ export function ResumeUpload({ existingResumes = [], onUploadComplete, compact =
                 </div>
                 <div className="text-center">
                   <p className="font-medium">Drop your resume here or click to browse</p>
-                  <p className="text-sm text-muted-foreground">Supports PDF and Word documents (max 10MB)</p>
+                  <p className="text-sm text-muted-foreground">Supports PDF, Word, and text files (max 10MB)</p>
                 </div>
               </>
             )}

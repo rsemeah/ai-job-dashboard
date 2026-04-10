@@ -367,6 +367,7 @@ export default function EvidenceMatchPage() {
     if (markComplete) {
       evidenceMap.matching_complete = true
       evidenceMap.completed_at = new Date().toISOString()
+      evidenceMap.version = "1.0" // Schema version for forward compatibility
     }
     
     // Update job - filtered by user_id for security
@@ -374,6 +375,7 @@ export default function EvidenceMatchPage() {
       .from("jobs")
       .update({ 
         evidence_map: evidenceMap,
+        evidence_map_version: markComplete ? "1.0" : null, // Track schema version at job level
         status: markComplete ? "analyzed" : job.status
       })
       .eq("id", jobId)

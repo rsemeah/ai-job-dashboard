@@ -1037,6 +1037,12 @@ blocked_evidence: blockedEvidence.map((e: EvidenceRecord) => ({ id: e.id, title:
           ...qualityCheck.ai_filler,
         ],
         quality_passed: qualityPassed,
+        // Store bullet-level provenance for traceability
+        resume_provenance: bulletProvenance.map(b => ({
+          bullet_text: b.bullet_text,
+          source_evidence_id: b.source_evidence_id,
+          evidence_title: b.source_evidence_title,
+        })),
       })
       .eq("id", job_id)
       .eq("user_id", userId)

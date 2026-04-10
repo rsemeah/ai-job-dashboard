@@ -1045,7 +1045,7 @@ export function JobDetail({ job, readiness }: JobDetailProps) {
               <Save className="mr-2 h-4 w-4" />
               Save for Later
             </Button>
-            {hasResume && (
+            {hasResume && canGenerate && (
               <Button variant="outline" onClick={() => handleGenerateMaterials()} disabled={isGenerating}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Regenerate

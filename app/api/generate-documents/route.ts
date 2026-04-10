@@ -416,6 +416,32 @@ export async function POST(request: NextRequest) {
 
     const jobAnalysis = jobData.job_analyses?.[0]
     
+    // GATE: Evidence matching must be complete before generation
+    // Only enforce if job has requirements (some jobs may not have extracted requirements)
+    const hasRequirements = jobAnalysis?.qualifications_required?.length > 0
+    const evidenceMap = jobData.evidence_map as Record<string, unknown> | null
+    const matchingComplete = evidenceMap?.matching_complete === true
+    
+    if (hasRequirements && !matchingComplete) {
+      await supabase
+        .from("jobs")
+        .update({
+          generation_status: "failed",
+          generation_error: "matching_incomplete",
+        })
+        .eq("id", job_id)
+        .eq("user_id", userId)
+      
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: "matching_incomplete",
+          user_message: "Complete evidence matching before generating materials. Go to Evidence Match and click 'Mark Complete & Continue'."
+        },
+        { status: 400 }
+      )
+    }
+    
     // Load gap clarifications for this job (job-specific context)
     const gapClarifications = (jobData.gap_clarifications as Array<{
       gap_requirement: string

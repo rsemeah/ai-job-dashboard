@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
+import { trackEvent } from "@/components/posthog-provider"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -387,6 +388,15 @@ export default function EvidenceMatchPage() {
       if (markComplete) {
         setMatchingMarkedComplete(true)
         toast.success("Evidence mapping complete! You can now generate your materials below.")
+        
+        // Track funnel event: evidence_match_completed
+        const matchedCount = Object.values(evidenceMap).filter(v => Array.isArray(v) && v.length > 0).length
+        trackEvent.evidenceMatchCompleted({
+          job_id: jobId,
+          requirements_matched: matchedCount,
+          total_requirements: requirements.length,
+        })
+        
         // Don't redirect - let user generate from this page
         // Scroll to the generate section
         setTimeout(() => {
@@ -423,6 +433,14 @@ export default function EvidenceMatchPage() {
       
       if (data.success) {
         toast.success("Materials generated successfully!")
+        
+        // Track funnel event: documents_generated
+        trackEvent.documentsGenerated({
+          job_id: jobId,
+          resume_generated: !!data.generated_resume,
+          cover_letter_generated: !!data.generated_cover_letter,
+        })
+        
         // Navigate to job detail to see results
         router.push(`/jobs/${jobId}`)
       } else {

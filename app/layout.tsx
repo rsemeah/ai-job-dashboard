@@ -3,6 +3,7 @@ import { Inter, Playfair_Display, JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { UserProvider } from '@/components/user-provider'
+import { PostHogProvider } from '@/components/posthog-provider'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
@@ -52,7 +53,9 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <UserProvider>
-            {children}
+            <PostHogProvider>
+              {children}
+            </PostHogProvider>
           </UserProvider>
           <Toaster position="bottom-right" richColors closeButton />
         </ThemeProvider>

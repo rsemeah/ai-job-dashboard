@@ -3,6 +3,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { trackEvent } from "@/components/posthog-provider"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -280,6 +281,15 @@ export function JobUrlInput({ onSubmitSuccess, isFirstTime = false }: JobUrlInpu
     } else {
       toast.success("Job analyzed!", {
         description: "Complete your profile to generate materials.",
+      })
+    }
+    
+    // Track funnel event: job_added
+    if (result?.job) {
+      trackEvent.jobAdded({
+        job_id: result.job.id,
+        company: result.job.company,
+        role: result.job.title,
       })
     }
     

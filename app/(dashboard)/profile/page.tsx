@@ -857,14 +857,14 @@ export default function ProfilePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {profile.links.length === 0 ? (
+            {(!profile.links || profile.links.length === 0) ? (
               <div className="text-center py-6 text-muted-foreground">
                 <Link2 className="h-10 w-10 mx-auto mb-3 opacity-50" />
                 <p className="text-sm">No links added yet</p>
                 <p className="text-xs mt-1">Add your LinkedIn, GitHub, portfolio, or other professional links</p>
               </div>
             ) : (
-              profile.links.map((link) => {
+              (profile.links || []).map((link) => {
                 const linkConfig = LINK_TYPES.find(lt => lt.value === link.type) || LINK_TYPES[4]
                 return (
                   <div key={link.id} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
@@ -921,7 +921,7 @@ export default function ProfilePage() {
             )}
             
             {/* Legacy fields migration hint */}
-            {(profile.linkedin_url || profile.github_url || profile.website_url) && profile.links.length === 0 && (
+            {(profile.linkedin_url || profile.github_url || profile.website_url) && (!profile.links || profile.links.length === 0) && (
               <div className="text-xs text-muted-foreground mt-2 p-2 bg-amber-50 border border-amber-200 rounded">
                 You have links in the old format. Click &quot;Add Link&quot; to migrate them to the new format with multiple link support.
               </div>

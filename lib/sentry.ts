@@ -1,10 +1,13 @@
 import * as Sentry from "@sentry/nextjs"
 
+const SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN || 
+  "https://32a951feedae6de655ed74eca53dd886@o4511198112579584.ingest.us.sentry.io/4511198240440320"
+
 // Initialize Sentry for error monitoring
 export function initSentry() {
-  if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+  if (SENTRY_DSN) {
     Sentry.init({
-      dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+      dsn: SENTRY_DSN,
       environment: process.env.NODE_ENV,
       
       // Performance monitoring
@@ -52,7 +55,7 @@ export function captureError(
     level?: Sentry.SeverityLevel
   }
 ) {
-  if (!process.env.NEXT_PUBLIC_SENTRY_DSN) {
+  if (!SENTRY_DSN) {
     console.error("[Sentry not configured]", error)
     return
   }

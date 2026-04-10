@@ -64,7 +64,7 @@ export function CoachChat({ className, conversationId, compact = false, onClose,
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const initialMessageSent = useRef(false)
 
-  const { messages, input, setInput, handleSubmit: submitMessage, isLoading, append } = useChat({
+  const { messages, input, setInput, handleSubmit: submitMessage, isLoading, append, error } = useChat({
     api: "/api/coach",
     body: {
       ...(jobContext ? {
@@ -78,11 +78,30 @@ export function CoachChat({ className, conversationId, compact = false, onClose,
       } : {}),
       ...(gapContext ? { gapContext } : {}),
     },
+    onError: (err) => {
+      console.error("[v0] Coach useChat error:", err)
+    },
   })
+
+  // Debug logging
+  useEffect(() => {
+    console.log("[v0] CoachChat mounted", { 
+      hasJobContext: !!jobContext, 
+      hasGapContext: !!gapContext,
+      hasInitialMessage: !!initialMessage 
+    })
+  }, [])
+  
+  useEffect(() => {
+    if (error) {
+      console.error("[v0] CoachChat error state:", error)
+    }
+  }, [error])
 
   // Send initial message on mount if provided
   useEffect(() => {
     if (initialMessage && !initialMessageSent.current && messages.length === 0) {
+      console.log("[v0] CoachChat sending initial message:", initialMessage.substring(0, 50))
       initialMessageSent.current = true
       append({ role: "user", content: initialMessage })
     }
@@ -99,6 +118,7 @@ export function CoachChat({ className, conversationId, compact = false, onClose,
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
+    console.log("[v0] CoachChat submitting message:", input.substring(0, 50))
     submitMessage(e)
   }
 

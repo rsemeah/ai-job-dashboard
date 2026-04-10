@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
     // Define tools for the coach
     const coachTools = {
       getProfile: tool({
-        description: "Get the user's profile information including experience, skills, and preferences",
+        description: "Get the user's profile including education history, experience, and skills. IMPORTANT: Always check education before asking about degree requirements - a Master's satisfies Bachelor's requirements.",
         parameters: z.object({}),
         execute: async () => {
           const { data } = await adminClient
@@ -119,7 +119,41 @@ export async function POST(req: NextRequest) {
             .select("*")
             .eq("user_id", user.id)
             .single()
-          return data || { message: "No profile found" }
+          
+          if (data) {
+            // Parse education JSONB and surface it clearly for the LLM
+            const education = data.education as Array<{
+              degree?: string
+              field?: string
+              school?: string
+              institution?: string
+              graduation_year?: string
+            }> | null
+            
+            // Create a clear education summary the LLM can understand
+            const educationSummary = education?.map(e => 
+              `${e.degree || "Degree"} in ${e.field || "Unknown Field"} from ${e.school || e.institution || "Unknown School"}${e.graduation_year ? ` (${e.graduation_year})` : ""}`
+            ).join("; ") || "No education on file"
+            
+            return {
+              ...data,
+              // Explicitly surface education for gap matching
+              education_summary: educationSummary,
+              has_bachelors: education?.some(e => {
+                const d = (e.degree || "").toLowerCase()
+                return d.includes("bachelor") || d.includes("bs") || d.includes("ba") || d.includes("b.s") || d.includes("b.a")
+              }) || false,
+              has_masters: education?.some(e => {
+                const d = (e.degree || "").toLowerCase()
+                return d.includes("master") || d.includes("ms") || d.includes("ma") || d.includes("mba") || d.includes("m.s") || d.includes("m.a")
+              }) || false,
+              has_doctorate: education?.some(e => {
+                const d = (e.degree || "").toLowerCase()
+                return d.includes("phd") || d.includes("doctorate") || d.includes("ph.d")
+              }) || false,
+            }
+          }
+          return { message: "No profile found" }
         },
       }),
       

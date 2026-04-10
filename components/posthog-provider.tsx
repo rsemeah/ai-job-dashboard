@@ -98,4 +98,8 @@ export const trackEvent = {
   upgradeStarted: (props?: { plan?: string }) => {
     posthog.capture("upgrade_started", props)
   },
+  // Generic custom event for one-off tracking
+  custom: (eventName: string, props?: Record<string, unknown>) => {
+    posthog.capture(eventName, props)
+  },
 }

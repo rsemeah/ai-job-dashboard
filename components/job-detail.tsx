@@ -62,6 +62,12 @@ import {
   STAGE_DESCRIPTIONS,
   type WorkflowStage,
 } from "@/lib/job-workflow"
+import { 
+  ResumeWithProvenance, 
+  CoverLetterWithProvenance,
+  type BulletProvenance,
+  type ParagraphProvenance,
+} from "@/components/resume-with-provenance"
 
 // Available status transitions
 const STATUS_OPTIONS: JobStatus[] = [
@@ -362,6 +368,20 @@ export function JobDetail({ job }: JobDetailProps) {
   const workflowState = getWorkflowState(job)
   const currentStage = workflowState.stage
   const stageIndex = workflowState.stageIndex
+  
+  // State for provenance display
+  const [showProvenance, setShowProvenance] = useState(false)
+  
+  // Extract provenance data from evidence_map if available
+  const evidenceMapData = job.evidence_map as {
+    bullet_provenance?: BulletProvenance[]
+    paragraph_provenance?: ParagraphProvenance[]
+    selected_evidence_ids?: string[]
+    blocked_evidence?: { id: string; title: string; reason: string }[]
+  } | null
+  
+  const bulletProvenance = evidenceMapData?.bullet_provenance || []
+  const paragraphProvenance = evidenceMapData?.paragraph_provenance || []
 
   // Computed states
   const hasResume = !!job.generated_resume
@@ -1430,11 +1450,12 @@ export function JobDetail({ job }: JobDetailProps) {
                 </div>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[500px] pr-4">
-                  <pre className="whitespace-pre-wrap text-sm font-mono bg-muted p-4 rounded-lg">
-                    {job.generated_resume}
-                  </pre>
-                </ScrollArea>
+                <ResumeWithProvenance
+                  resumeText={job.generated_resume || ""}
+                  bulletProvenance={bulletProvenance}
+                  showProvenance={showProvenance}
+                  onToggleProvenance={setShowProvenance}
+                />
               </CardContent>
             </Card>
           ) : (
@@ -1478,13 +1499,14 @@ export function JobDetail({ job }: JobDetailProps) {
               </div>
             </CardHeader>
             <CardContent>
-              {hasCoverLetter ? (
-                <ScrollArea className="h-[500px] pr-4">
-                  <div className="prose prose-sm max-w-none whitespace-pre-wrap">
-                    {job.generated_cover_letter}
-                  </div>
-                </ScrollArea>
-              ) : (
+          {hasCoverLetter ? (
+          <CoverLetterWithProvenance
+            coverLetterText={job.generated_cover_letter || ""}
+            paragraphProvenance={paragraphProvenance}
+            showProvenance={showProvenance}
+            onToggleProvenance={setShowProvenance}
+          />
+          ) : (
                 <div className="text-center py-8">
                   <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
                   <p className="text-muted-foreground">No cover letter generated yet</p>

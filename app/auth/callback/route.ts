@@ -1,10 +1,34 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
+// SECURITY: Whitelist of allowed redirect paths to prevent open redirect attacks
+const ALLOWED_REDIRECT_PREFIXES = [
+  "/",           // Root and all app paths
+  "/jobs",
+  "/evidence",
+  "/profile",
+  "/settings",
+  "/onboarding",
+  "/dashboard",
+]
+
+function isValidRedirect(path: string): boolean {
+  // Must be a relative path (no protocol, no //)
+  if (!path.startsWith("/") || path.startsWith("//")) return false
+  // Must not contain protocol-like patterns
+  if (path.includes(":") || path.includes("\\")) return false
+  // Must start with an allowed prefix
+  return ALLOWED_REDIRECT_PREFIXES.some(prefix => 
+    path === prefix || path.startsWith(prefix + "/") || path.startsWith(prefix + "?")
+  )
+}
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
-  const redirect = searchParams.get("redirect") || "/"
+  const rawRedirect = searchParams.get("redirect") || "/"
+  // SECURITY: Validate redirect to prevent open redirect attacks
+  const redirect = isValidRedirect(rawRedirect) ? rawRedirect : "/"
   const error = searchParams.get("error")
   const errorDescription = searchParams.get("error_description")
 

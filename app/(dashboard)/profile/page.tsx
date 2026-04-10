@@ -20,8 +20,20 @@ import {
   AlertCircle,
   Camera,
   Upload,
-  Link2
+  Link2,
+  Linkedin,
+  Github,
+  Globe,
+  ExternalLink,
+  Trash2,
 } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import Image from "next/image"
 import { createClient } from "@/lib/supabase/client"
 import { useUser } from "@/components/user-provider"
@@ -44,6 +56,14 @@ interface Education {
   year: string
 }
 
+// Support multiple links per type
+interface ProfileLink {
+  id: string
+  type: "linkedin" | "github" | "portfolio" | "website" | "other"
+  url: string
+  label?: string
+}
+
 interface UserProfile {
   id?: string
   full_name: string
@@ -56,9 +76,12 @@ interface UserProfile {
   education: Education[]
   skills: string[]
   avatar_url: string
+  // Legacy single fields (for backward compatibility)
   linkedin_url: string
   github_url: string
   website_url: string
+  // New: Multiple links support
+  links: ProfileLink[]
 }
 
 const emptyProfile: UserProfile = {
@@ -75,7 +98,17 @@ const emptyProfile: UserProfile = {
   linkedin_url: "",
   github_url: "",
   website_url: "",
+  links: [],
 }
+
+// Link type configuration
+const LINK_TYPES: { value: ProfileLink["type"]; label: string; icon: string; placeholder: string }[] = [
+  { value: "linkedin", label: "LinkedIn", icon: "linkedin", placeholder: "https://linkedin.com/in/yourname" },
+  { value: "github", label: "GitHub", icon: "github", placeholder: "https://github.com/yourname" },
+  { value: "portfolio", label: "Portfolio", icon: "briefcase", placeholder: "https://yourportfolio.com" },
+  { value: "website", label: "Website", icon: "globe", placeholder: "https://yoursite.com" },
+  { value: "other", label: "Other", icon: "link", placeholder: "https://..." },
+]
 
 function getInitials(name: string): string {
   if (!name) return "U"
@@ -178,6 +211,7 @@ export default function ProfilePage() {
             linkedin_url: data.linkedin_url || "",
             github_url: data.github_url || "",
             website_url: data.website_url || "",
+            links: data.links || [],
           })
         }
       }
@@ -352,6 +386,50 @@ export default function ProfilePage() {
       education: prev.education.filter((_, i) => i !== index),
     }))
     setHasChanges(true)
+  }
+
+  // Link management functions
+  const addLink = (type: ProfileLink["type"] = "other") => {
+    const newLink: ProfileLink = {
+      id: crypto.randomUUID(),
+      type,
+      url: "",
+      label: "",
+    }
+    setProfile(prev => ({
+      ...prev,
+      links: [...prev.links, newLink],
+    }))
+    setHasChanges(true)
+  }
+
+  const updateLink = (id: string, field: keyof ProfileLink, value: string) => {
+    setProfile(prev => ({
+      ...prev,
+      links: prev.links.map(link =>
+        link.id === id ? { ...link, [field]: value } : link
+      ),
+    }))
+    setHasChanges(true)
+  }
+
+  const removeLink = (id: string) => {
+    setProfile(prev => ({
+      ...prev,
+      links: prev.links.filter(link => link.id !== id),
+    }))
+    setHasChanges(true)
+  }
+
+  // Helper to get icon for link type
+  const getLinkIcon = (type: ProfileLink["type"]) => {
+    switch (type) {
+      case "linkedin": return <Linkedin className="h-4 w-4" />
+      case "github": return <Github className="h-4 w-4" />
+      case "portfolio": return <Briefcase className="h-4 w-4" />
+      case "website": return <Globe className="h-4 w-4" />
+      default: return <Link2 className="h-4 w-4" />
+    }
   }
 
   if (isLoading) {
@@ -751,48 +829,103 @@ export default function ProfilePage() {
             )}
           </CardContent>
         </Card>
-        {/* External Links */}
+        {/* Professional Links - Multiple links support */}
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <Link2 className="h-5 w-5 text-muted-foreground" />
-              <CardTitle>External Links</CardTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Link2 className="h-5 w-5 text-muted-foreground" />
+                <CardTitle>Professional Links</CardTitle>
+              </div>
+              <Select onValueChange={(value) => addLink(value as ProfileLink["type"])}>
+                <SelectTrigger className="w-[140px]">
+                  <Plus className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Add Link" />
+                </SelectTrigger>
+                <SelectContent>
+                  {LINK_TYPES.map(lt => (
+                    <SelectItem key={lt.value} value={lt.value}>
+                      {lt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <CardDescription>
-              Used by AI Coach and generation to enrich your profile context.
+              Add multiple links to LinkedIn profiles, GitHub repos, portfolios, and websites. 
+              The AI Coach uses these to better understand your background.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="linkedin_url">LinkedIn</Label>
-              <Input
-                id="linkedin_url"
-                type="url"
-                value={profile.linkedin_url}
-                onChange={(e) => updateField("linkedin_url", e.target.value)}
-                placeholder="https://linkedin.com/in/yourname"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="github_url">GitHub</Label>
-              <Input
-                id="github_url"
-                type="url"
-                value={profile.github_url}
-                onChange={(e) => updateField("github_url", e.target.value)}
-                placeholder="https://github.com/yourname"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="website_url">Website / Portfolio</Label>
-              <Input
-                id="website_url"
-                type="url"
-                value={profile.website_url}
-                onChange={(e) => updateField("website_url", e.target.value)}
-                placeholder="https://yoursite.com"
-              />
-            </div>
+          <CardContent className="space-y-3">
+            {profile.links.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <Link2 className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">No links added yet</p>
+                <p className="text-xs mt-1">Add your LinkedIn, GitHub, portfolio, or other professional links</p>
+              </div>
+            ) : (
+              profile.links.map((link) => {
+                const linkConfig = LINK_TYPES.find(lt => lt.value === link.type) || LINK_TYPES[4]
+                return (
+                  <div key={link.id} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
+                    <div className="flex items-center justify-center h-9 w-9 rounded-md bg-background border">
+                      {getLinkIcon(link.type)}
+                    </div>
+                    <div className="flex-1 grid gap-2 sm:grid-cols-[1fr_2fr]">
+                      <Select
+                        value={link.type}
+                        onValueChange={(value) => updateLink(link.id, "type", value)}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LINK_TYPES.map(lt => (
+                            <SelectItem key={lt.value} value={lt.value}>
+                              {lt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="url"
+                        value={link.url}
+                        onChange={(e) => updateLink(link.id, "url", e.target.value)}
+                        placeholder={linkConfig?.placeholder || "https://..."}
+                        className="h-9"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {link.url && (
+                        <a 
+                          href={link.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeLink(link.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+            
+            {/* Legacy fields migration hint */}
+            {(profile.linkedin_url || profile.github_url || profile.website_url) && profile.links.length === 0 && (
+              <div className="text-xs text-muted-foreground mt-2 p-2 bg-amber-50 border border-amber-200 rounded">
+                You have links in the old format. Click &quot;Add Link&quot; to migrate them to the new format with multiple link support.
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

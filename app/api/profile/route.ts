@@ -52,6 +52,8 @@ export async function POST(request: Request) {
     linkedin_url: body.linkedin_url ?? null,
     github_url: body.github_url ?? null,
     website_url: body.website_url ?? null,
+    // Multiple links support
+    links: body.links ?? [],
   }
 
   if (existing) {

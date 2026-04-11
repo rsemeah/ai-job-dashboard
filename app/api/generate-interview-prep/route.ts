@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { generateText, generateObject } from "ai"
+import { generateText, Output } from "ai"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { groq, isGroqConfigured, MODELS } from "@/lib/adapters/groq"
+import { CLAUDE_MODELS } from "@/lib/adapters/anthropic"
 import type { 
   InterviewPrep,
   InterviewSnapshot,
@@ -298,13 +298,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!process.env.GROQ_API_KEY) {
-      return NextResponse.json(
-        { success: false, error: "GROQ_API_KEY not configured" },
-        { status: 500 }
-      )
-    }
-
     const supabase = await createClient()
     const {
       data: { user },
@@ -364,12 +357,12 @@ TRUTH RULES:
       sectionPrompt: string,
       sectionName: string
     ): Promise<T> => {
-      const { object } = await generateObject({
-        model: groq(MODELS.VERSATILE),
-        schema,
+      const result = await generateText({
+        model: CLAUDE_MODELS.SONNET,
+        output: Output.object({ schema }),
         prompt: `${basePrompt}\n\n${sectionPrompt}`,
       })
-      return object as T
+      return result.object! as T
     }
 
     // If regenerating a specific section, only regenerate that one

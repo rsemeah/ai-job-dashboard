@@ -13,7 +13,7 @@ import { streamText, tool } from "ai"
 import { z } from "zod"
 import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { checkSafety, logSafetyAudit } from "@/lib/safety"
-import { groq, MODELS } from "@/lib/adapters/groq"
+import { CLAUDE_MODELS } from "@/lib/adapters/anthropic"
 import { GAP_CLARIFICATION_SYSTEM_PROMPT } from "@/lib/coach-prompts/gap-questions"
 
 export const maxDuration = 60
@@ -220,7 +220,7 @@ export async function POST(req: NextRequest) {
     // Stream the response
     console.log("[v0] Coach API streaming with", messages?.length, "messages")
     const result = streamText({
-      model: groq(MODELS.VERSATILE), // Fixed: LLAMA_70B doesn't exist, use VERSATILE
+      model: CLAUDE_MODELS.SONNET,
       system: systemPrompt,
       messages,
       tools: coachTools,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { generateObject } from "ai"
+import { generateText, Output } from "ai"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { runJobFlow } from "@/lib/orchestrator/runJobFlow"
@@ -12,7 +12,7 @@ import {
   type ExplainableFitScore,
   type FitBand,
 } from "@/lib/canonical-evidence"
-import { groq, isGroqConfigured, MODELS } from "@/lib/adapters/groq"
+import { CLAUDE_MODELS } from "@/lib/adapters/anthropic"
 import { AnalyzeJobInputSchema } from "@/lib/schemas/job-intake"
 import { parseJobPage, detectSource } from "@/lib/parsers"
 import { findJobByUrl } from "@/lib/queries/jobs"
@@ -237,13 +237,7 @@ export async function POST(request: NextRequest) {
     
     const { job_url } = parseResult.data
 
-    // Check for Groq configuration
-    if (!isGroqConfigured()) {
-      return NextResponse.json(
-        { success: false, error: "AI service not configured" },
-        { status: 500 }
-      )
-    }
+    // AI service available via AI Gateway
 
     const supabase = await createClient()
     const {
@@ -315,10 +309,10 @@ ${pageContent}
 Instructions: Extract whatever information is available. For any fields that cannot be determined from this limited content, use null or empty arrays as appropriate. The user will be prompted to add missing details manually.`
     }
 
-    // Analyze with Groq
-    const { object: analysis } = await generateObject({
-      model: groq(MODELS.VERSATILE),
-      schema: JobAnalysisSchema,
+    // Analyze with Claude
+    const analysisResult = await generateText({
+      model: CLAUDE_MODELS.SONNET,
+      output: Output.object({ schema: JobAnalysisSchema }),
       prompt: `Analyze this job posting and extract structured information.
 
 Be precise and extract only what is explicitly stated. Do not invent or assume information.
@@ -341,6 +335,7 @@ ${pageContent}
 
 Extract the job details following the schema. Be accurate with the role_family categorization based on the actual role requirements.`,
     })
+    const analysis = analysisResult.object!
 
     // Validate required fields - provide fallbacks if LLM returned nulls
     const validatedAnalysis = {

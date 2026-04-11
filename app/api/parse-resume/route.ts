@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { generateText, generateObject } from "ai"
+import { generateText, Output } from "ai"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { quickRiskCheck, sanitizeInput } from "@/lib/safety"
-import { groq, MODELS } from "@/lib/adapters/groq"
+import { CLAUDE_MODELS } from "@/lib/adapters/anthropic"
 
 export const maxDuration = 60
 
@@ -68,14 +68,6 @@ export async function POST(req: NextRequest) {
     
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    // Check for GROQ API key
-    if (!process.env.GROQ_API_KEY) {
-      return NextResponse.json(
-        { error: "GROQ_API_KEY not configured" },
-        { status: 500 }
-      )
     }
 
     // Get the resume text from the request
@@ -145,9 +137,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Parse resume with AI
-    const { object: parsedResume } = await generateObject({
-      model: groq(MODELS.VERSATILE),
-      schema: ResumeSchema,
+    const parseResult = await generateText({
+      model: CLAUDE_MODELS.SONNET,
+      output: Output.object({ schema: ResumeSchema }),
       prompt: `You are an expert resume parser. Extract structured information from the following resume text.
 
 IMPORTANT:
@@ -162,6 +154,7 @@ ${resumeText}
 
 Parse this resume and return structured data.`,
     })
+    const parsedResume = parseResult.object!
 
     // Return the parsed resume
     return NextResponse.json({

@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useState, Suspense } from "react"
 import { Loader2, Mail } from "lucide-react"
 import dynamic from "next/dynamic"
+import { WaitlistForm } from "@/components/waitlist-form"
 
 // Email/password inputs are loaded client-only to prevent hydration mismatch
 // caused by password manager extensions (LastPass, 1Password) injecting DOM elements
@@ -212,6 +213,10 @@ function LoginForm() {
             Create an account
           </Link>
         </p>
+        
+        <div className="pt-4 border-t">
+          <WaitlistForm source="login_page" />
+        </div>
       </CardContent>
     </Card>
   )

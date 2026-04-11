@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { generateText, generateObject } from "ai"
 import { z } from "zod"
 import { createAdminClient, createClient } from "@/lib/supabase/server"
-import { groq, isGroqConfigured, MODELS } from "@/lib/adapters/groq"
+import { anthropic, isAnthropicConfigured, CLAUDE_MODELS } from "@/lib/adapters/anthropic"
 import { GenerateDocumentsInputSchema } from "@/lib/schemas/job-intake"
 import {
   BANNED_PHRASES,
@@ -277,10 +277,10 @@ export async function POST(request: NextRequest) {
     const isRetry = _retry_count > 0
     const MAX_RETRIES = 1 // Auto-retry once if quality check fails
 
-    if (!isGroqConfigured()) {
-      return NextResponse.json(
-        { success: false, error: "AI service not configured" },
-        { status: 500 }
+  if (!isAnthropicConfigured()) {
+    return NextResponse.json(
+      { success: false, error: "AI service not configured. ANTHROPIC_API_KEY required." },
+      { status: 500 }
       )
     }
 
@@ -606,9 +606,10 @@ Candidate's response: ${c.answer}
 NOTE: The candidate provided this additional context to address gaps. Use this information when crafting the resume and cover letter, but DO NOT fabricate or exaggerate beyond what they stated.` : ""}
 `
 
-    // Step 1: Create evidence map and determine strategy (with retry for rate limits)
-    const { object: generatedEvidenceMap } = await withRetry(() => generateObject({
-      model: groq(MODELS.VERSATILE),
+  // Step 1: Create evidence map and determine strategy (with retry for rate limits)
+  // Using Claude for higher token limits and better quality
+  const { object: generatedEvidenceMap } = await withRetry(() => generateObject({
+    model: anthropic(CLAUDE_MODELS.SONNET),
       schema: EvidenceMapSchema,
       prompt: `Analyze the match between this candidate and job opportunity.
 
@@ -673,9 +674,10 @@ Be conservative - only include matches that are clearly supported by the evidenc
     const templateGuidance = getTemplateGuidance(selectedTemplate)
 
     // Step 2: Generate resume with bullet-level provenance (with retry for rate limits)
-    // SIMPLIFIED: Reduced prompt verbosity to produce more natural, human-sounding output
-    const { object: resumeWithProvenance } = await withRetry(() => generateObject({
-      model: groq(MODELS.VERSATILE),
+  // SIMPLIFIED: Reduced prompt verbosity to produce more natural, human-sounding output
+  // Using Claude for higher token limits and better quality
+  const { object: resumeWithProvenance } = await withRetry(() => generateObject({
+    model: anthropic(CLAUDE_MODELS.SONNET),
       schema: ResumeWithProvenanceSchema,
       prompt: `Write resume content for this job application. Sound like a sharp professional, not a bot.
 
@@ -768,9 +770,10 @@ Write 5-8 achievement bullets that the candidate could confidently discuss in an
     const projectsSection = generateProjectsSection(knownProducts, 3)
 
     // Step 3: Generate cover letter with paragraph provenance (with retry for rate limits)
-    // SIMPLIFIED: More direct prompt for natural, human-sounding cover letters
-    const { object: coverLetterWithProvenance } = await withRetry(() => generateObject({
-      model: groq(MODELS.VERSATILE),
+  // SIMPLIFIED: More direct prompt for natural, human-sounding cover letters
+  // Using Claude for higher token limits and better quality
+  const { object: coverLetterWithProvenance } = await withRetry(() => generateObject({
+    model: anthropic(CLAUDE_MODELS.SONNET),
       schema: CoverLetterWithProvenanceSchema,
       prompt: `Write a cover letter for this role. Sound confident and human, not like a template.
 
@@ -895,9 +898,10 @@ ${signatureBlock}`
     // Step 5: AI Quality check - use smaller model to avoid rate limits
     // Wrapped in try-catch since smaller models can sometimes fail schema compliance
     let qualityCheck: z.infer<typeof QualityCheckSchema>
-    try {
-      const result = await withRetry(() => generateObject({
-        model: groq(MODELS.FAST),
+  try {
+    // Quality check uses faster model since it's a simpler task
+    const result = await withRetry(() => generateObject({
+      model: anthropic(CLAUDE_MODELS.HAIKU),
         schema: QualityCheckSchema,
         prompt: `You are a resume quality reviewer. Analyze the generated documents and return a JSON object with your findings.
 

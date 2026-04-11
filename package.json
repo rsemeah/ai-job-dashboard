@@ -9,6 +9,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.69",
     "@ai-sdk/groq": "^1.1.0",
     "@ai-sdk/react": "^1.1.0",
     "@hookform/resolvers": "^3.9.1",

@@ -24,6 +24,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
+import { trackApplied } from "@/lib/analytics"
 
 interface ReadyJobActionsProps {
   job: Job
@@ -76,6 +77,7 @@ export function ReadyJobActions({ job }: ReadyJobActionsProps) {
     startTransition(async () => {
       const result = await updateJobStatus(job.id, "APPLIED" as import("@/lib/types").JobStatus)
       if (result.success) {
+        trackApplied({ job_id: job.id })
         toast.success("Marked as applied!")
         router.refresh()
       } else {

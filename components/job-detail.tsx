@@ -1177,8 +1177,12 @@ export function JobDetail({ job, readiness }: JobDetailProps) {
             <Link href={`/jobs/${job.id}/scoring`}>
               <WorkflowStepCard
                 step={2}
-                title="Scoring Center"
-                description="Review detailed fit breakdown and decide"
+                title="Fit Score"
+                description={
+                  job.score !== null
+                    ? "AI-calculated fit score based on your evidence"
+                    : "Score calculated automatically after analysis"
+                }
                 status={
                   job.score === null ? "not_started" :
                   job.score < 40 ? "blocked" :
@@ -1187,9 +1191,9 @@ export function JobDetail({ job, readiness }: JobDetailProps) {
                 }
                 statusReason={
                   job.score === null ? "Not scored yet" :
-                  job.score < 40 ? `Score: ${job.score}/100 - Poor fit` :
-                  job.score < 60 ? `Score: ${job.score}/100 - Stretch fit` :
-                  `Score: ${job.score}/100 - Good fit`
+                  job.score < 40 ? `${job.score}/100 — Weak fit` :
+                  job.score < 75 ? `${job.score}/100 — Moderate fit` :
+                  `${job.score}/100 — Strong fit`
                 }
                 color="green"
               />

@@ -666,7 +666,13 @@ Extract the job details following the schema. Be accurate with the role_family c
     })
   } catch (error) {
     console.error("Error in analyze-job:", error)
-    
+
+    // Report unexpected errors to Sentry
+    const { captureError } = await import("@/lib/sentry")
+    captureError(error instanceof Error ? error : new Error(String(error)), {
+      tags: { route: "analyze" },
+    })
+
     // Check for rate limit errors
     const errorMessage = error instanceof Error ? error.message : "Analysis failed"
     const isRateLimit = errorMessage.includes("rate_limit") || errorMessage.includes("Rate limit")

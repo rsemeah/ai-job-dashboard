@@ -9,6 +9,7 @@ import { CardWireAccent, CTAWireUnderline, BarbedWireLine, EmptyStateWire, Heade
 import { useUser } from "@/components/user-provider"
 import type { Job } from "@/lib/types"
 import { toast } from "sonner"
+import { trackJobAdded, trackJobAnalyzed } from "@/lib/analytics"
 import {
   Search,
   Zap,
@@ -181,11 +182,16 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
       if (data.job_id) {
         if (data.duplicate) {
           toast.info("Already in your pipeline", { description: data.message })
-        } else if (data.limited_content) {
-          toast.warning("Limited content extracted", { 
-            description: "This job site uses JavaScript rendering. Some details may need manual entry.",
-            duration: 5000
-          })
+        } else {
+          // New job — fire funnel events
+          trackJobAdded({ job_id: data.job_id, source: "url" })
+          trackJobAnalyzed({ job_id: data.job_id, role_family: data.analysis?.role_family })
+          if (data.limited_content) {
+            toast.warning("Limited content extracted", {
+              description: "This job site uses JavaScript rendering. Some details may need manual entry.",
+              duration: 5000
+            })
+          }
         }
         router.push(`/jobs/${data.job_id}`)
       }

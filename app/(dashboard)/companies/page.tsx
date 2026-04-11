@@ -58,9 +58,8 @@ export default async function CompaniesPage() {
       job_scores (
         overall_score
       ),
-      generated_documents (
-        document_type
-      )
+      generated_resume,
+      generated_cover_letter
     `)
     .eq("user_id", user.id)
     .is("deleted_at", null)
@@ -90,7 +89,6 @@ export default async function CompaniesPage() {
   // Transform jobs to UI-expected format with materials info
   const jobs = (rawJobs || []).map(j => {
     const scores = (j.job_scores as Array<{overall_score?: number}>) || []
-    const docs = (j.generated_documents as Array<{document_type: string}>) || []
     const score = scores[0]?.overall_score ?? null
     let fit: string | null = null
     if (score !== null) {
@@ -104,8 +102,8 @@ export default async function CompaniesPage() {
       company: j.company_name,
       score,
       fit,
-      has_resume: docs.some(d => d.document_type === "resume"),
-      has_cover_letter: docs.some(d => d.document_type === "cover_letter"),
+      has_resume: !!j.generated_resume,
+      has_cover_letter: !!j.generated_cover_letter,
     }
   })
   

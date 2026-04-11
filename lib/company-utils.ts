@@ -204,7 +204,8 @@ export async function getCompaniesWithStats(
       status,
       created_at,
       job_scores (overall_score),
-      generated_documents (document_type)
+      generated_resume,
+      generated_cover_letter
     `)
     .eq("user_id", userId)
     .is("deleted_at", null)
@@ -267,13 +268,8 @@ export async function getCompaniesWithStats(
       stats.latest_activity = job.created_at
     }
     
-    const docs = job.generated_documents as Array<{ document_type: string }> | undefined
-    if (docs) {
-      for (const doc of docs) {
-        if (doc.document_type === "resume") stats.has_resume = true
-        if (doc.document_type === "cover_letter") stats.has_cover_letter = true
-      }
-    }
+    if (job.generated_resume) stats.has_resume = true
+    if (job.generated_cover_letter) stats.has_cover_letter = true
     
     statsMap.set(companyId, stats)
   }
@@ -374,11 +370,8 @@ export async function getJobsForCompany(
         overall_score,
         confidence_score
       ),
-      generated_documents (
-        document_type,
-        content,
-        created_at
-      )
+      generated_resume,
+      generated_cover_letter
     `)
     .eq("user_id", userId)
     .is("deleted_at", null)

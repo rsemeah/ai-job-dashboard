@@ -114,11 +114,8 @@ export default async function CompanyDetailPage({ params }: CompanyDetailPagePro
         overall_score,
         confidence_score
       ),
-      generated_documents (
-        document_type,
-        content,
-        created_at
-      )
+      generated_resume,
+      generated_cover_letter
     `)
     .eq("user_id", user.id)
     .is("deleted_at", null)
@@ -147,17 +144,16 @@ export default async function CompanyDetailPage({ params }: CompanyDetailPagePro
     })
     .map(j => {
       const scores = (j.job_scores as Array<{overall_score?: number}>) || []
-      const docs = (j.generated_documents as Array<{document_type: string, content: string}>) || []
       const score = scores[0]?.overall_score ?? null
       return {
         ...j,
         title: j.role_title,
         company: j.company_name,
         score,
-        has_resume: docs.some(d => d.document_type === "resume"),
-        has_cover_letter: docs.some(d => d.document_type === "cover_letter"),
-        resume_content: docs.find(d => d.document_type === "resume")?.content,
-        cover_letter_content: docs.find(d => d.document_type === "cover_letter")?.content,
+        has_resume: !!j.generated_resume,
+        has_cover_letter: !!j.generated_cover_letter,
+        resume_content: j.generated_resume as string | null,
+        cover_letter_content: j.generated_cover_letter as string | null,
       }
     })
 

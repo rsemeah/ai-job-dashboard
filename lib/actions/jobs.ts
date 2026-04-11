@@ -413,7 +413,9 @@ export async function getJobById(id: string): Promise<Job | null> {
   const score = scores[0]?.overall_score as number | null ?? null
   const analysis = analyses[0] || {}
   
-  // Find latest resume and cover letter
+  // Find latest resume and cover letter from generated_documents table,
+  // falling back to jobs.generated_resume / generated_cover_letter columns
+  // (generate-documents writes to the jobs columns; generated_documents is a secondary store)
   const resume = documents.find(d => d.document_type === "resume")
   const coverLetter = documents.find(d => d.document_type === "cover_letter")
   
@@ -435,9 +437,9 @@ export async function getJobById(id: string): Promise<Job | null> {
     // Score details
     score_strengths: [],
     score_gaps: analysis.known_gaps || [],
-    // Generated content
-    generated_resume: resume?.content || null,
-    generated_cover_letter: coverLetter?.content || null,
+    // Generated content — prefer generated_documents table, fall back to jobs columns
+    generated_resume: resume?.content || (data.generated_resume as string | null) || null,
+    generated_cover_letter: coverLetter?.content || (data.generated_cover_letter as string | null) || null,
     // Analysis data (flatten for backwards compatibility)
     location: analysis.location || data.location,
     salary_range: analysis.salary_text || data.salary_range,

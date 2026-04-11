@@ -87,8 +87,9 @@ export default function RedTeamReviewPage() {
           ...jobData,
           title: jobData.role_title,
           company: jobData.company_name,
-          generated_resume: resume?.content || null,
-          generated_cover_letter: coverLetter?.content || null,
+          // Prefer generated_documents, fall back to jobs columns
+          generated_resume: resume?.content || jobData.generated_resume || null,
+          generated_cover_letter: coverLetter?.content || jobData.generated_cover_letter || null,
         }
         
         setJob(transformedJob as Job)

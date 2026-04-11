@@ -1177,7 +1177,13 @@ blocked_evidence: blockedEvidence.map((e: EvidenceRecord) => ({ id: e.id, title:
     })
   } catch (error) {
     console.error("Error in generate-documents:", error)
-    
+
+    // Report unexpected errors to Sentry
+    const { captureError } = await import("@/lib/sentry")
+    captureError(error instanceof Error ? error : new Error(String(error)), {
+      tags: { route: "generate-documents" },
+    })
+
     // Check for rate limit errors
     const errorMessage = error instanceof Error ? error.message : "Generation failed"
     const isRateLimit = errorMessage.includes("rate_limit") || errorMessage.includes("Rate limit") || errorMessage.includes("429")
@@ -1193,13 +1199,9 @@ blocked_evidence: blockedEvidence.map((e: EvidenceRecord) => ({ id: e.id, title:
         if (user) {
           await supabase
             .from("jobs")
-            .update({ 
-              status: "error",
-              generation_status: "failed",
-              generation_error: errorMessage
-            })
+            .update({ status: "error" })
             .eq("id", job_id)
-            .eq("user_id", userId)
+            .eq("user_id", user.id)
         }
       }
     } catch {

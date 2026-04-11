@@ -8,6 +8,7 @@ import { STATUS_CONFIG, FIT_CONFIG, ROLE_FAMILIES } from "@/lib/types"
 import { normalizeJobStatus } from "@/lib/job-lifecycle"
 import { updateJobStatus } from "@/lib/actions/jobs"
 import { applyToJob } from "@/lib/actions/apply"
+import { trackDocumentsGenerated, trackQualityPassed, trackApplied } from "@/lib/analytics"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -405,6 +406,9 @@ export function JobDetail({ job, readiness }: JobDetailProps) {
     startTransition(async () => {
       const result = await updateJobStatus(job.id, newStatus)
       if (result.success) {
+        if (newStatus === "applied") {
+          trackApplied({ job_id: job.id })
+        }
         toast.success(`Status updated to ${STATUS_CONFIG[newStatus].label}`)
       } else {
         toast.error(result.error || "Failed to update status")
@@ -511,15 +515,25 @@ export function JobDetail({ job, readiness }: JobDetailProps) {
         const strategyLabel = data.strategy === "direct_match" ? "Direct Match" :
           data.strategy === "adjacent_transition" ? "Adjacent Transition" :
           data.strategy === "stretch_honest" ? "Stretch Fit" : data.strategy
-        
+
         // Check if quality passed and if auto-retry was needed
         const wasRetried = data.was_auto_retried
         const qualityPassed = data.quality_check?.passed
-        
+
+        // Track funnel events
+        trackDocumentsGenerated({
+          job_id: job.id,
+          strategy: data.strategy,
+          overall_score: data.overall_score,
+        })
+        if (qualityPassed) {
+          trackQualityPassed({ job_id: job.id })
+        }
+
         toast.success(`Materials generated (${strategyLabel})`, {
-          description: wasRetried 
-            ? "Auto-improved after quality check" 
-            : qualityPassed 
+          description: wasRetried
+            ? "Auto-improved after quality check"
+            : qualityPassed
               ? "Quality checks passed"
               : `${data.quality_check?.issues?.banned_phrases?.length || 0} issues to review`
         })

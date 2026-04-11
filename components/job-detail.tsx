@@ -47,10 +47,8 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { ExportButtons } from "@/components/export-buttons"
-import { ResumeTemplatePicker, ResumeActionsBar, getRecommendedTemplate } from "@/components/resume-templates"
 import { DeleteJobDialog } from "@/components/delete-job-dialog"
 import { PreGenerationReview } from "@/components/pre-generation-review"
-import { TEMPLATE_CONFIGS } from "@/lib/resume-templates/config/resumeTemplates.config"
 import type { TemplateId } from "@/lib/resume-templates/types/ResumeProps"
 import { detectGaps, type GapAnalysisResult, type DetectedGap } from "@/lib/gap-detection"
 import { GapClarificationModal, type GapClarification } from "@/components/gap-clarification-modal"
@@ -320,13 +318,8 @@ export function JobDetail({ job, readiness }: JobDetailProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [candidateName, setCandidateName] = useState("Candidate")
   
-  // Template state - get recommended template based on job info
-  const recommendedTemplateId = getRecommendedTemplate(
-    job.industry_guess,
-    job.title,
-    job.seniority_level
-  )
-  const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>(recommendedTemplateId)
+  // Fixed template - using tech-engineer as the default (single-column, ATS-safe)
+  const selectedTemplateId: TemplateId = "tech-engineer"
   
   // Pre-generation gap review state
   const [showGapReview, setShowGapReview] = useState(false)
@@ -1469,27 +1462,24 @@ export function JobDetail({ job, readiness }: JobDetailProps) {
           />
           
           {hasResume ? (
-            /* Post-Generation: Show resume with template switcher */
+            /* Post-Generation: Show resume */
             <Card className="mt-4">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-lg">Tailored Resume</CardTitle>
                     <CardDescription>
-                      Using <strong>{TEMPLATE_CONFIGS[selectedTemplateId]?.label}</strong> template
+                      Customized for this role based on your evidence
                     </CardDescription>
                   </div>
-                  <ResumeActionsBar
+                  <ExportButtons
                     jobId={job.id}
+                    hasResume={hasResume}
+                    hasCoverLetter={false}
                     resumeText={job.generated_resume || undefined}
-                    currentTemplateId={selectedTemplateId}
-                    onChangeTemplate={setSelectedTemplateId}
                     candidateName={candidateName}
                     company={job.company}
                     role={job.title}
-                    targetIndustry={job.industry_guess}
-                    targetRole={job.title}
-                    seniorityLevel={job.seniority_level}
                   />
                 </div>
               </CardHeader>
@@ -1503,20 +1493,36 @@ export function JobDetail({ job, readiness }: JobDetailProps) {
               </CardContent>
             </Card>
           ) : (
-            /* Pre-Generation: Show template picker */
-            <div className="mt-4">
-              <ResumeTemplatePicker
-                selectedTemplateId={selectedTemplateId}
-                onSelectTemplate={setSelectedTemplateId}
-                onGenerate={handleGenerateMaterials}
-                isGenerating={isGenerating}
-                targetIndustry={job.industry_guess}
-                targetRole={job.title}
-                seniorityLevel={job.seniority_level}
-                previewData={{ name: candidateName, title: job.title }}
-                hasExistingResume={false}
-              />
-            </div>
+            /* Pre-Generation: Simple generate button */
+            <Card className="mt-4">
+              <CardContent className="pt-6">
+                <div className="text-center py-4">
+                  <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <p className="text-muted-foreground mb-2">No resume generated yet</p>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    Generate a tailored resume based on your evidence and this job&apos;s requirements
+                  </p>
+                  <Button
+                    onClick={() => handleGenerateMaterials()}
+                    disabled={isGenerating}
+                    size="lg"
+                    className="gap-2"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="h-4 w-4" />
+                        Generate Resume &amp; Cover Letter
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 

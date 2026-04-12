@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     const sourceResumeId = sourceResume.id
 
-    // ── 3. Parse via Groq ────────────────────────────────────────────────────
+    // ── 3. Parse via Claude ───────────────────────────────────────────────────
     let parsed
     try {
       parsed = await parseResumeText(rawText)
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
       console.error("Resume parse error:", parseError)
       await supabase.from("source_resumes").delete().eq("id", sourceResumeId)
       return NextResponse.json(
-        { error: "Failed to parse resume. Ensure GROQ_API_KEY is configured." },
+        { error: "Failed to parse resume. Please try again." },
         { status: 500 }
       )
     }

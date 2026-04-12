@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { trackEvent } from "@/components/posthog-provider"
+import { trackEvidenceMatchCompleted, trackDocumentsGenerated } from "@/lib/analytics"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -392,7 +392,7 @@ export default function EvidenceMatchPage() {
         
         // Track funnel event: evidence_match_completed
         const matchedCount = Object.values(evidenceMap).filter(v => Array.isArray(v) && v.length > 0).length
-        trackEvent.evidenceMatchCompleted({
+        trackEvidenceMatchCompleted({
           job_id: jobId,
           requirements_matched: matchedCount,
           total_requirements: requirements.length,
@@ -436,7 +436,7 @@ export default function EvidenceMatchPage() {
         toast.success("Materials generated successfully!")
         
         // Track funnel event: documents_generated
-        trackEvent.documentsGenerated({
+        trackDocumentsGenerated({
           job_id: jobId,
           resume_generated: !!data.generated_resume,
           cover_letter_generated: !!data.generated_cover_letter,

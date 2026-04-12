@@ -328,7 +328,7 @@ export interface NormalizedProfileLinks {
 }
 
 /**
- * Normalize ProfileLink[] (from profile_links table) into a flat object.
+ * Normalize ProfileLink[] (from user_profile_links table) into a flat object.
  * Prefers is_primary=true entries; falls back to first found per type.
  * Also accepts legacy flat object shape for backward compatibility.
  */

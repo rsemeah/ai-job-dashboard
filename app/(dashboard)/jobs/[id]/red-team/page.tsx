@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { trackEvent } from "@/components/posthog-provider"
+import { trackQualityPassed } from "@/lib/analytics"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -171,7 +171,7 @@ export default function RedTeamReviewPage() {
       toast.error(result.error || "Failed to approve")
     } else {
       // Track funnel event: quality_passed
-      trackEvent.qualityPassed({
+      trackQualityPassed({
         job_id: jobId,
         issues_acknowledged: activeIssues.length,
       })

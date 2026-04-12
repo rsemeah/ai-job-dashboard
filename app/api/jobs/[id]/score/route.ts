@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { logWorkflowTransition } from "@/lib/audit"
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
-  const jobId = params.id
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: jobId } = await params
   const body = await request.json().catch(() => ({})) as {
     status?: string
     scorePayload?: Record<string, unknown>

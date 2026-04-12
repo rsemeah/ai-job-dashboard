@@ -1,10 +1,10 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Search, FileText, Send, Inbox, PlusCircle, Building2, BarChart3 } from "lucide-react"
+import { Search, FileText, Send, Inbox, PlusCircle, Building2, BarChart3, User, ListChecks } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 
-type EmptyStateVariant = "jobs" | "documents" | "applications" | "ready" | "companies" | "analytics" | "default"
+type EmptyStateVariant = "jobs" | "documents" | "applications" | "ready" | "companies" | "analytics" | "evidence" | "default"
 
 interface EmptyStateProps {
   variant?: EmptyStateVariant
@@ -13,44 +13,69 @@ interface EmptyStateProps {
   className?: string
 }
 
-const variants: Record<EmptyStateVariant, { 
+type VariantConfig = { 
   icon: typeof Search
   title: string
   message: string
   hint?: string
-  showActions?: boolean 
-}> = {
+  actions?: Array<{
+    label: string
+    href: string
+    icon?: typeof Search
+    variant?: "default" | "outline"
+  }>
+}
+
+const variants: Record<EmptyStateVariant, VariantConfig> = {
   jobs: {
     icon: Search,
-    title: "No jobs reviewed yet",
-    message: "Start by pasting a job URL on the Home page to begin reviewing opportunities.",
-    hint: "Tip: HireWire analyzes job postings to score your fit and generate tailored materials.",
-    showActions: true,
+    title: "No jobs yet",
+    message: "Paste a job URL above to get started.",
+    hint: "HireWire will analyze the posting and score your fit.",
+    actions: [
+      { label: "Add a Job", href: "/#job-input", icon: PlusCircle, variant: "default" },
+    ],
+  },
+  evidence: {
+    icon: FileText,
+    title: "No evidence yet",
+    message: "Upload your resume in Profile to auto-populate, or add items manually.",
+    actions: [
+      { label: "Go to Profile", href: "/profile", icon: User, variant: "default" },
+      { label: "Add Manually", href: "/evidence", icon: PlusCircle, variant: "outline" },
+    ],
   },
   documents: {
     icon: FileText,
-    title: "No materials generated yet",
-    message: "Once you review a job and it scores well, HireWire will generate tailored resumes and cover letters.",
-    hint: "Materials are generated automatically for high-scoring jobs.",
+    title: "No documents generated yet",
+    message: "Analyze a job and generate your resume to see it here.",
+    actions: [
+      { label: "View Jobs", href: "/jobs", icon: Search, variant: "default" },
+    ],
   },
   applications: {
     icon: Send,
-    title: "No applications tracked yet",
-    message: "When you apply to a job, mark it as applied to track your progress.",
-    hint: "Use the status dropdown on any job to mark it as applied.",
+    title: "Nothing applied yet",
+    message: "Jobs you mark as applied will appear here.",
+    actions: [
+      { label: "View Ready Queue", href: "/ready-queue", icon: ListChecks, variant: "default" },
+    ],
   },
   ready: {
-    icon: Search,
+    icon: ListChecks,
     title: "No jobs ready to apply",
-    message: "Jobs that score well and have generated materials will appear here when ready.",
-    hint: "High-fit jobs with complete materials are moved here automatically.",
-    showActions: true,
+    message: "Jobs with generated materials and quality approval will appear here.",
+    actions: [
+      { label: "View Jobs", href: "/jobs", icon: Search, variant: "default" },
+    ],
   },
   companies: {
     icon: Building2,
-    title: "No companies yet",
-    message: "Companies will appear here once you start reviewing jobs.",
-    hint: "Track all your target companies in one place.",
+    title: "No companies tracked yet",
+    message: "They appear automatically when you add a job.",
+    actions: [
+      { label: "Add a Job", href: "/jobs", icon: PlusCircle, variant: "default" },
+    ],
   },
   analytics: {
     icon: BarChart3,
@@ -95,20 +120,24 @@ export function EmptyState({
           </p>
         )}
         
-        {config.showActions && (
+        {config.actions && config.actions.length > 0 && (
           <div className="flex gap-3 mt-4">
-            <Button asChild size="sm">
-              <Link href="/#review-job">
-                <Search className="mr-2 h-4 w-4" />
-                Review a Job
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/jobs/new">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add Manually
-              </Link>
-            </Button>
+            {config.actions.map((action, idx) => {
+              const ActionIcon = action.icon
+              return (
+                <Button 
+                  key={idx} 
+                  asChild 
+                  size="sm" 
+                  variant={action.variant || "default"}
+                >
+                  <Link href={action.href}>
+                    {ActionIcon && <ActionIcon className="mr-2 h-4 w-4" />}
+                    {action.label}
+                  </Link>
+                </Button>
+              )
+            })}
           </div>
         )}
       </CardContent>

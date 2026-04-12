@@ -202,16 +202,29 @@ export default function BillingPage() {
         {/* Usage Card */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Monthly Usage
-            </CardTitle>
-            <CardDescription>
-              {isPro 
-                ? "Unlimited usage with your Pro plan" 
-                : "Usage resets at the start of each month"
-              }
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4" />
+                  Monthly Usage
+                </CardTitle>
+                <CardDescription>
+                  {isPro 
+                    ? "Unlimited usage with your Pro plan" 
+                    : "Usage resets at the start of each month"
+                  }
+                </CardDescription>
+              </div>
+              {!isPro && (
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Resets</p>
+                  <p className="text-sm font-medium flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </p>
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Jobs */}

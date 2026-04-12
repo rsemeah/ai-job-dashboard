@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,8 @@ import {
   CheckCircle2,
   Sparkles,
   MessageSquare,
+  AlertCircle,
+  X,
 } from "lucide-react"
 
 interface DashboardContentProps {
@@ -29,6 +31,13 @@ interface DashboardContentProps {
     byStatus: Record<string, number>
     byFit: Record<string, number>
     bySource: Record<string, number>
+    // Pipeline stats
+    total_jobs: number
+    analyzed_jobs: number
+    jobs_with_materials: number
+    quality_passed_count: number
+    applied_count: number
+    avg_score: number | null
   }
   jobs: Job[]
 }
@@ -128,8 +137,31 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
   const [jobUrl, setJobUrl] = useState("")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [activeTab, setActiveTab] = useState("jobs")
+  const [bannerDismissed, setBannerDismissed] = useState(false)
 
   const firstName = profile?.full_name?.split(" ")[0] || "there"
+  
+  // Check profile completeness
+  const isProfileComplete = Boolean(
+    profile?.full_name && 
+    Array.isArray(profile?.experience) && profile.experience.length > 0 &&
+    Array.isArray(profile?.skills) && profile.skills.length > 0
+  )
+  
+  // Check localStorage for dismissed state on mount
+  useEffect(() => {
+    const dismissed = sessionStorage.getItem("profile_banner_dismissed")
+    if (dismissed === "true") {
+      setBannerDismissed(true)
+    }
+  }, [])
+  
+  const handleDismissBanner = () => {
+    setBannerDismissed(true)
+    sessionStorage.setItem("profile_banner_dismissed", "true")
+  }
+  
+  const showProfileBanner = !isProfileComplete && !bannerDismissed
 
   const isMalformedJob = (job: Job) => {
     const patterns = [/^placeholder/i, /^test/i, /^unknown$/i, /^n\/a$/i]
@@ -227,6 +259,37 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
           </p>
         </div>
       </div>
+      
+      {/* Profile Completeness Banner */}
+      {showProfileBanner && (
+        <div className="mx-6 mb-4 flex items-center justify-between gap-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-900">
+                Complete your profile to unlock better document generation.
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Add your name, experience, and skills for more accurate results.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link href="/profile">
+              <Button size="sm" variant="outline" className="border-amber-300 bg-white hover:bg-amber-100">
+                Finish Profile
+              </Button>
+            </Link>
+            <button 
+              onClick={handleDismissBanner}
+              className="p-1 rounded hover:bg-amber-100 text-amber-600"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Analyze CTA - DOMINANT */}
       <div className="px-6 pb-4">
@@ -384,28 +447,41 @@ export function DashboardContent({ stats, jobs }: DashboardContentProps) {
             )}
           </div>
 
-          {/* Quick Stats */}
+          {/* Pipeline Summary */}
           <div className="hw-card p-5 relative overflow-hidden">
             <CardWireAccent />
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-foreground">Pipeline Summary</h2>
+              {stats.avg_score !== null && (
+                <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded font-medium">
+                  Avg Score: {stats.avg_score}%
+                </span>
+              )}
             </div>
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-foreground">{stats.total}</div>
-                <div className="text-xs text-muted-foreground">Total Jobs</div>
+                <div className="text-2xl font-bold text-foreground">{stats.total_jobs}</div>
+                <div className="text-xs text-muted-foreground">Total</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{highFitCount}</div>
-                <div className="text-xs text-muted-foreground">High Fit</div>
+                <div className="text-2xl font-bold text-blue-600">{stats.analyzed_jobs}</div>
+                <div className="text-xs text-muted-foreground">Analyzed</div>
               </div>
               <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{stats.byStatus["ready"] || 0}</div>
-                <div className="text-xs text-muted-foreground">Ready</div>
+                <div className="text-2xl font-bold text-amber-600">{stats.jobs_with_materials}</div>
+                <div className="text-xs text-muted-foreground">Materials</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">{stats.byStatus["applied"] || 0}</div>
+                <div className="text-2xl font-bold text-green-600">{stats.quality_passed_count}</div>
+                <div className="text-xs text-muted-foreground">Approved</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">{stats.applied_count}</div>
                 <div className="text-xs text-muted-foreground">Applied</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-pink-600">{stats.byStatus["interviewing"] || 0}</div>
+                <div className="text-xs text-muted-foreground">Interviews</div>
               </div>
             </div>
           </div>

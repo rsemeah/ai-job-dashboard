@@ -513,18 +513,25 @@ export default function EvidenceLibraryPage() {
         <Card>
           <CardContent className="py-12 text-center">
             <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No evidence found</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              {searchQuery || filterStatus !== "all" ? "No evidence found" : "No evidence yet"}
+            </h3>
             <p className="text-muted-foreground mb-4">
               {searchQuery || filterStatus !== "all"
                 ? "Try adjusting your search or filters"
-                : "Add your first career achievement to get started"
+                : "Upload your resume in Profile to auto-populate, or add items manually."
               }
             </p>
             {!searchQuery && filterStatus === "all" && (
-              <Button onClick={() => setIsAddDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Your First Evidence
-              </Button>
+              <div className="flex gap-3 justify-center">
+                <Button asChild>
+                  <a href="/profile">Go to Profile</a>
+                </Button>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Manually
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>

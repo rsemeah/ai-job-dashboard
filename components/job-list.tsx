@@ -307,7 +307,10 @@ interface JobsTableProps {
   jobs: Job[]
 }
 
+type StatusFilter = "ALL" | "analyzing" | "ready" | "applied" | "archived"
+
 export function JobsTable({ jobs }: JobsTableProps) {
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL")
   const [fitFilter, setFitFilter] = useState<JobFit | "ALL">("ALL")
   const [roleFamilyFilter, setRoleFamilyFilter] = useState<string>("ALL")
   const [industryFilter, setIndustryFilter] = useState<string>("ALL")
@@ -339,6 +342,24 @@ export function JobsTable({ jobs }: JobsTableProps) {
     let result = jobs.filter((job) => {
       // Hide malformed records
       if (hideMalformed && isMalformedJob(job)) return false
+      
+      // Status filter
+      if (statusFilter !== "ALL") {
+        const normalizedStatus = normalizeJobStatus(job.status)
+        if (statusFilter === "analyzing") {
+          // Show analyzing, queued, draft
+          if (!["analyzing", "queued", "draft", "analyzed"].includes(normalizedStatus)) return false
+        } else if (statusFilter === "ready") {
+          // Show ready and generating
+          if (!["ready", "generating"].includes(normalizedStatus)) return false
+        } else if (statusFilter === "applied") {
+          // Show applied, interviewing, offered
+          if (!["applied", "interviewing", "offered"].includes(normalizedStatus)) return false
+        } else if (statusFilter === "archived") {
+          // Show archived and rejected
+          if (!["archived", "rejected"].includes(normalizedStatus)) return false
+        }
+      }
       
       if (fitFilter !== "ALL" && job.fit !== fitFilter) return false
       if (roleFamilyFilter !== "ALL" && job.role_family !== roleFamilyFilter) return false
@@ -383,7 +404,7 @@ export function JobsTable({ jobs }: JobsTableProps) {
     }
 
     return result
-  }, [jobs, fitFilter, roleFamilyFilter, industryFilter, companyFilter, materialsFilter, searchQuery, hideMalformed, sortBy])
+  }, [jobs, statusFilter, fitFilter, roleFamilyFilter, industryFilter, companyFilter, materialsFilter, searchQuery, hideMalformed, sortBy])
 
   // Group jobs by status
   const groupedJobs = useMemo(() => {
@@ -415,9 +436,10 @@ export function JobsTable({ jobs }: JobsTableProps) {
   // Count malformed
   const malformedCount = useMemo(() => jobs.filter(isMalformedJob).length, [jobs])
 
-  const hasFilters = fitFilter !== "ALL" || roleFamilyFilter !== "ALL" || industryFilter !== "ALL" || companyFilter !== "ALL" || materialsFilter !== "ALL" || searchQuery !== ""
+  const hasFilters = statusFilter !== "ALL" || fitFilter !== "ALL" || roleFamilyFilter !== "ALL" || industryFilter !== "ALL" || companyFilter !== "ALL" || materialsFilter !== "ALL" || searchQuery !== ""
 
   const clearFilters = () => {
+    setStatusFilter("ALL")
     setFitFilter("ALL")
     setRoleFamilyFilter("ALL")
     setIndustryFilter("ALL")
@@ -461,6 +483,23 @@ export function JobsTable({ jobs }: JobsTableProps) {
                   className="w-[180px] pl-9 h-9"
                 />
               </div>
+            </div>
+
+            {/* Status filter */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Status</label>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+                <SelectTrigger className="w-[130px] h-9">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All</SelectItem>
+                  <SelectItem value="analyzing">Analyzing</SelectItem>
+                  <SelectItem value="ready">Ready</SelectItem>
+                  <SelectItem value="applied">Applied</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Fit filter */}

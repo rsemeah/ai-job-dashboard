@@ -258,11 +258,7 @@ export default async function CompaniesPage() {
       </div>
 
       {companies.length === 0 ? (
-        <EmptyState 
-          variant="default" 
-          title="No companies yet"
-          message="Companies will appear here once you start analyzing jobs."
-        />
+        <EmptyState variant="companies" />
       ) : (
         <div className="space-y-3">
           {companies.map((company) => (

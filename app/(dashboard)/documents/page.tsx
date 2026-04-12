@@ -381,15 +381,21 @@ export default function DocumentsPage() {
           <CardContent className="py-12">
             <div className="text-center">
               <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="font-medium mb-2">No documents found</h3>
+              <h3 className="font-medium mb-2">
+                {searchQuery || statusFilter !== "all" ? "No documents found" : "No documents generated yet"}
+              </h3>
               <p className="text-sm text-muted-foreground mb-4">
                 {searchQuery || statusFilter !== "all" 
                   ? "Try adjusting your filters"
-                  : "Generate documents from job listings to see them here"}
+                  : "Analyze a job and generate your resume to see it here."}
               </p>
-              {statusFilter !== "all" && (
+              {statusFilter !== "all" ? (
                 <Button variant="outline" onClick={() => setStatusFilter("all")}>
                   Clear Filters
+                </Button>
+              ) : (
+                <Button asChild>
+                  <Link href="/jobs">View Jobs</Link>
                 </Button>
               )}
             </div>

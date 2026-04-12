@@ -1,6 +1,7 @@
 // HireWire Dashboard - Premium Editorial Design
 import { redirect } from "next/navigation"
 import { getJobStats, getJobs } from "@/lib/actions/jobs"
+import { createClient } from "@/lib/supabase/server"
 import { ErrorState } from "@/components/error-state"
 import { DashboardContent } from "@/components/dashboard-content"
 
@@ -8,6 +9,25 @@ export const dynamic = "force-dynamic"
 export const revalidate = 0
 
 export default async function DashboardPage() {
+  // Check onboarding status first (lightweight query)
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    redirect("/login")
+  }
+  
+  const { data: profile } = await supabase
+    .from("user_profile")
+    .select("id, onboarding_complete")
+    .eq("user_id", user.id)
+    .single()
+  
+  // Redirect to onboarding if no profile or not complete
+  if (!profile || !profile.onboarding_complete) {
+    redirect("/onboarding")
+  }
+
   const [statsResult, jobsResult] = await Promise.all([getJobStats(), getJobs()])
 
   // If not authenticated, redirect to login

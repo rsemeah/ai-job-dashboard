@@ -498,6 +498,13 @@ export type StatsResult = {
   bySource: Record<string, number>
   lastJobCreated?: string | null
   hasWorkflowOutputs: boolean
+  // Pipeline stats
+  total_jobs: number
+  analyzed_jobs: number
+  jobs_with_materials: number
+  quality_passed_count: number
+  applied_count: number
+  avg_score: number | null
 }
 
 export async function getJobStats(): Promise<StatsResult> {
@@ -507,15 +514,21 @@ export async function getJobStats(): Promise<StatsResult> {
     // Get current user
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
-      return {
-        success: false,
-        error: "Not authenticated",
-        total: 0,
-        byStatus: {},
-        byFit: {},
-        bySource: {},
-        hasWorkflowOutputs: false,
-      }
+    return {
+      success: false,
+      error: "Not authenticated",
+      total: 0,
+      byStatus: {},
+      byFit: {},
+      bySource: {},
+      hasWorkflowOutputs: false,
+      total_jobs: 0,
+      analyzed_jobs: 0,
+      jobs_with_materials: 0,
+      quality_passed_count: 0,
+      applied_count: 0,
+      avg_score: null,
+    }
     }
 
     // Query jobs with their scores from job_scores table
@@ -527,9 +540,14 @@ export async function getJobStats(): Promise<StatsResult> {
         status,
         source,
         created_at,
+        generated_resume,
+        quality_passed,
         job_scores (
           overall_score,
           confidence_score
+        ),
+        job_analyses (
+          id
         )
       `)
       .eq("user_id", user.id)
@@ -546,6 +564,12 @@ export async function getJobStats(): Promise<StatsResult> {
         byFit: {},
         bySource: {},
         hasWorkflowOutputs: false,
+        total_jobs: 0,
+        analyzed_jobs: 0,
+        jobs_with_materials: 0,
+        quality_passed_count: 0,
+        applied_count: 0,
+        avg_score: null,
       }
     }
 
@@ -582,6 +606,31 @@ export async function getJobStats(): Promise<StatsResult> {
       return scores?.[0]?.overall_score !== null && scores?.[0]?.overall_score !== undefined
     })
 
+    // Calculate pipeline stats
+    const total_jobs = jobs.length
+    const analyzed_jobs = jobs.filter(j => {
+      const analyses = j.job_analyses as Array<{ id: string }> | null
+      return Array.isArray(analyses) && analyses.length > 0
+    }).length
+    const jobs_with_materials = jobs.filter(j => j.generated_resume != null).length
+    const quality_passed_count = jobs.filter(j => j.quality_passed === true).length
+    const applied_count = jobs.filter(j => {
+      const status = normalizeJobStatus(j.status)
+      return ["applied", "interviewing", "offered"].includes(status)
+    }).length
+    
+    // Calculate average score
+    const scoredJobs = jobs.filter(j => {
+      const scores = j.job_scores as Array<{ overall_score?: number }> | null
+      return scores?.[0]?.overall_score != null
+    })
+    const avg_score = scoredJobs.length > 0
+      ? Math.round(scoredJobs.reduce((sum, j) => {
+          const scores = j.job_scores as Array<{ overall_score?: number }>
+          return sum + (scores[0]?.overall_score || 0)
+        }, 0) / scoredJobs.length)
+      : null
+
     return {
       success: true,
       total: jobs.length,
@@ -590,6 +639,13 @@ export async function getJobStats(): Promise<StatsResult> {
       bySource,
       lastJobCreated: jobs[0]?.created_at || null,
       hasWorkflowOutputs,
+      // Pipeline stats
+      total_jobs,
+      analyzed_jobs,
+      jobs_with_materials,
+      quality_passed_count,
+      applied_count,
+      avg_score,
     }
   } catch (err) {
     console.error("Connection error:", err)
@@ -601,6 +657,12 @@ export async function getJobStats(): Promise<StatsResult> {
       byFit: {},
       bySource: {},
       hasWorkflowOutputs: false,
+      total_jobs: 0,
+      analyzed_jobs: 0,
+      jobs_with_materials: 0,
+      quality_passed_count: 0,
+      applied_count: 0,
+      avg_score: null,
     }
   }
 }

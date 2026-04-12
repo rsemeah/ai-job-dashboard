@@ -746,6 +746,7 @@ export async function regenerateSection(
       .select("*")
       .eq("id", jobId)
       .eq("user_id", user.id)
+      .is("deleted_at", null)
       .single()
 
     if (error || !job) {

@@ -95,13 +95,15 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
         .from("jobs")
         .select("*", { count: "exact", head: true })
         .eq("user_id", user.id)
+        .is("deleted_at", null)
         .gte("created_at", monthStart)
-      
+
       // Count jobs with generated materials this month (canonical source: jobs columns)
       const { count: generationsCount } = await supabase
         .from("jobs")
         .select("*", { count: "exact", head: true })
         .eq("user_id", user.id)
+        .is("deleted_at", null)
         .not("generated_resume", "is", null)
         .gte("created_at", monthStart)
       

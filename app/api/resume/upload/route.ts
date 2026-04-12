@@ -163,12 +163,24 @@ export async function POST(request: NextRequest) {
       }
       if (!profile.email && parsed.email) updates.email = parsed.email
       if (!profile.phone && parsed.phone) updates.phone = parsed.phone
-      const currentLinks = (profile.links as Record<string, string>) || {}
-      const newLinks = { ...currentLinks }
-      if (!currentLinks.linkedin && parsed.linkedin_url) newLinks.linkedin = parsed.linkedin_url
-      if (!currentLinks.github && parsed.github_url) newLinks.github = parsed.github_url
-      if (!currentLinks.website && parsed.website_url) newLinks.website = parsed.website_url
-      if (Object.keys(newLinks).length > Object.keys(currentLinks).length) updates.links = newLinks
+      // Write parsed links into user_profile_links (canonical table), not legacy JSONB
+      const linkCandidates: { link_type: string; url: string }[] = []
+      if (parsed.linkedin_url) linkCandidates.push({ link_type: "linkedin", url: parsed.linkedin_url })
+      if (parsed.github_url) linkCandidates.push({ link_type: "github", url: parsed.github_url })
+      if (parsed.website_url) linkCandidates.push({ link_type: "website", url: parsed.website_url })
+      if (linkCandidates.length > 0) {
+        const { data: existingLinks } = await supabase
+          .from("user_profile_links")
+          .select("link_type, url")
+          .eq("user_id", userId)
+        const existingTypes = new Set((existingLinks || []).map(l => l.link_type))
+        const toInsert = linkCandidates
+          .filter(l => !existingTypes.has(l.link_type))
+          .map(l => ({ user_id: userId, link_type: l.link_type, url: l.url, is_primary: true, source: "parsed_resume", parse_status: "pending" }))
+        if (toInsert.length > 0) {
+          await supabase.from("user_profile_links").insert(toInsert)
+        }
+      }
       if (Object.keys(updates).length > 0) {
         updates.updated_at = new Date().toISOString()
         await supabase.from("user_profile").update(updates).eq("user_id", userId)

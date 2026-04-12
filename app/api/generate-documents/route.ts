@@ -327,6 +327,7 @@ export async function POST(request: NextRequest) {
         .from("jobs")
         .select("*", { count: "exact", head: true })
         .eq("user_id", userId)
+        .is("deleted_at", null)
         .not("generated_resume", "is", null)
         .gte("generation_timestamp", monthStart.toISOString())
       

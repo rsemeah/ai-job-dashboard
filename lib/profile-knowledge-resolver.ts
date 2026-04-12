@@ -316,6 +316,50 @@ function bulletContextMatchesMetricContext(bullet: string, metricContext: string
 // FULL PROFILE KNOWLEDGE EXTRACTION
 // ============================================================================
 
+// ============================================================================
+// PROFILE LINK NORMALIZATION
+// ============================================================================
+
+export interface NormalizedProfileLinks {
+  linkedin?: string
+  github?: string
+  portfolio?: string
+  website?: string
+}
+
+/**
+ * Normalize ProfileLink[] (from profile_links table) into a flat object.
+ * Prefers is_primary=true entries; falls back to first found per type.
+ * Also accepts legacy flat object shape for backward compatibility.
+ */
+export function normalizeProfileLinks(
+  links: Array<{ link_type: string; url: string; is_primary?: boolean }> | { portfolio?: string; linkedin?: string; github?: string } | null | undefined
+): NormalizedProfileLinks {
+  if (!links) return {}
+
+  // Legacy flat object shape
+  if (!Array.isArray(links)) {
+    return {
+      linkedin: links.linkedin,
+      github: links.github,
+      portfolio: links.portfolio,
+    }
+  }
+
+  const result: NormalizedProfileLinks = {}
+  // Process primary links first, then non-primary
+  const sorted = [...links].sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0))
+  for (const link of sorted) {
+    const type = link.link_type as keyof NormalizedProfileLinks
+    if (!result[type]) result[type] = link.url
+  }
+  return result
+}
+
+// ============================================================================
+// FULL PROFILE KNOWLEDGE EXTRACTION
+// ============================================================================
+
 /**
  * Build complete profile knowledge from all sources
  */
@@ -327,7 +371,7 @@ export function buildProfileKnowledge(
     location?: string
     summary?: string
     skills?: string[]
-    links?: { portfolio?: string; linkedin?: string; github?: string }
+    links?: Array<{ link_type: string; url: string; is_primary?: boolean }> | { portfolio?: string; linkedin?: string; github?: string } | null
     experience?: Array<{ title: string; company: string; description?: string }>
   },
   evidence: EvidenceRecord[]
@@ -341,19 +385,28 @@ export function buildProfileKnowledge(
     tools: [],
     domains: [],
   }
-  
+
+  const normalizedLinks = normalizeProfileLinks(profile.links)
+
   // Extract from profile links
-  if (profile.links?.portfolio) {
+  if (normalizedLinks.portfolio) {
     knowledge.websites.push({
-      name: extractDomainName(profile.links.portfolio),
-      url: profile.links.portfolio,
+      name: extractDomainName(normalizedLinks.portfolio),
+      url: normalizedLinks.portfolio,
       purpose: "portfolio",
     })
   }
-  if (profile.links?.github) {
+  if (normalizedLinks.github) {
     knowledge.repos.push({
       name: "GitHub Profile",
-      url: profile.links.github,
+      url: normalizedLinks.github,
+    })
+  }
+  if (normalizedLinks.website) {
+    knowledge.websites.push({
+      name: extractDomainName(normalizedLinks.website),
+      url: normalizedLinks.website,
+      purpose: "website",
     })
   }
   

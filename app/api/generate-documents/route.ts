@@ -125,17 +125,20 @@ const QualityCheckSchema = z.object({
 })
 
 async function loadUserProfile(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
-  const { data: profile, error } = await supabase
-    .from("user_profile")
-    .select("*")
-    .eq("user_id", userId)
-    .maybeSingle()
+  const [profileResult, linksResult] = await Promise.all([
+    supabase.from("user_profile").select("*").eq("user_id", userId).maybeSingle(),
+    supabase.from("profile_links").select("id,link_type,url,is_primary").eq("user_id", userId).order("is_primary", { ascending: false }),
+  ])
 
-  if (error || !profile) {
+  if (profileResult.error || !profileResult.data) {
     return null
   }
 
-  return profile
+  // Attach canonical links array to profile (replaces legacy jsonb links column)
+  return {
+    ...profileResult.data,
+    links: linksResult.data || [],
+  }
 }
 
 async function loadEvidenceLibrary(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
@@ -756,7 +759,7 @@ Write 5-8 achievement bullets that the candidate could confidently discuss in an
         location: effectiveLocation,
         summary: effectiveSummary,
         skills: effectiveSkills,
-        links: profile?.links as { portfolio?: string; linkedin?: string; github?: string } | undefined,
+        links: Array.isArray(profile?.links) ? profile.links : [],
         experience: effectiveExperience.map((exp: { title?: string; company?: string; description?: string }) => ({
           title: exp.title || "",
           company: exp.company || "",

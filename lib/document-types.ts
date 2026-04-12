@@ -256,6 +256,9 @@ export function parseResumeToStructured(
     email?: string
     phone?: string
     location?: string
+    linkedinUrl?: string
+    githubUrl?: string
+    portfolioUrl?: string
     education?: { degree: string; school: string; year?: string }[]
     skills?: string[]
   },
@@ -309,6 +312,9 @@ export function parseResumeToStructured(
       email: profile.email || "",
       phone: profile.phone,
       location: profile.location,
+      linkedinUrl: profile.linkedinUrl,
+      githubUrl: profile.githubUrl,
+      portfolioUrl: profile.portfolioUrl,
     },
     summary,
     skills: skills.length > 0 ? [{ category: "Skills", skills }] : [],

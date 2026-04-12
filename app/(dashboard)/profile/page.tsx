@@ -41,6 +41,7 @@ import { toast } from "sonner"
 import { BackButton } from "@/components/back-button"
 import { ResumeUpload } from "@/components/resume-upload"
 import { PendingChangeCard } from "@/components/pending-change-card"
+import { migrateLegacyLinks } from "@/lib/actions/profile-links"
 
 interface Experience {
   title: string
@@ -213,6 +214,16 @@ export default function ProfilePage() {
             website_url: data.website_url || "",
             links: Array.isArray(data.links) ? data.links : [],
           })
+
+          // Silently migrate legacy links to profile_links table if legacy data exists
+          const hasLegacyLinks =
+            data.linkedin_url || data.github_url || data.website_url ||
+            (Array.isArray(data.links) && data.links.length > 0)
+          if (hasLegacyLinks) {
+            migrateLegacyLinks().catch(() => {
+              // fire-and-forget — never block UX
+            })
+          }
         }
       }
     } catch (error) {

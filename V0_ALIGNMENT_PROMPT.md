@@ -1,8 +1,8 @@
 # HireWire v0 Alignment Prompt
 ## Canonical Contract for Every v0 Build Session
 
-**Version**: 1.0.0
-**Last Updated**: 2026-04-11
+**Version**: 1.1.0
+**Last Updated**: 2026-04-12
 
 ---
 
@@ -132,13 +132,13 @@ handles unauthorized redirect and error responses consistently.
 
 ### 7. Quality Pass Route
 The canonical quality-pass endpoint is:
-`app/api/jobs/[jobId]/quality-pass/route.ts`
+`app/api/jobs/[id]/quality-pass/route.ts`
 
 - POST: approve (sets `quality_passed=true`, `quality_passed_at`, audit event)
 - DELETE: revoke
 
-The old route at `app/api/jobs/[id]/quality-pass/route.ts` has been deleted.
-Do not recreate it. Do not add a competing route that writes `status: "ready"`.
+All job API routes use `[id]` as the dynamic segment (standardized in PR #67).
+Do not add a competing route that writes `status: "ready"`.
 Status is derived from artifacts by the readiness engine — never written directly
 to gate a job into "ready".
 
@@ -185,7 +185,8 @@ Call the readiness engine. Trust its output.
 | Table | Critical Columns | Always Filter |
 |---|---|---|
 | `jobs` | `generated_resume`, `generated_cover_letter`, `quality_passed`, `evidence_map`, `deleted_at` | `user_id` + `deleted_at IS NULL` |
-| `user_profile` | `links(jsonb)`, `education(jsonb)`, `experience(jsonb)`, `skills[]` | `user_id` |
+| `user_profile` | `links(jsonb)` — **legacy, do not write**, `education(jsonb)`, `experience(jsonb)`, `skills[]` | `user_id` |
+| `user_profile_links` | `link_type`, `url`, `is_primary`, `label`, `source`, `parse_status` | `user_id` |
 | `job_analyses` | `qualifications_required`, `qualifications_preferred`, `keywords` | `user_id` |
 | `job_scores` | `overall_score`, `skills_match`, `experience_relevance` | via jobs RLS subquery |
 | `evidence_library` | `source_type`, `outcomes[]`, `tools_used[]`, `is_active` | `user_id` |

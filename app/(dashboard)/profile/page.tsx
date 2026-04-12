@@ -42,6 +42,7 @@ import { BackButton } from "@/components/back-button"
 import { ResumeUpload } from "@/components/resume-upload"
 import { PendingChangeCard } from "@/components/pending-change-card"
 import {
+  migrateLegacyLinks,
   getProfileLinks,
   addProfileLink,
   updateProfileLink,
@@ -71,6 +72,7 @@ interface ProfileLink {
   url: string
   label?: string
   isPending?: boolean // true when link has not been saved to DB yet
+  isPending?: boolean  // true = not yet persisted to DB
 }
 
 interface UserProfile {
@@ -258,6 +260,28 @@ export default function ProfilePage() {
               })
             }
           })
+
+          // Silently migrate legacy links to user_profile_links table if legacy data exists
+          const hasLegacyLinks =
+            data.linkedin_url || data.github_url || data.website_url ||
+            (Array.isArray(data.links) && data.links.length > 0)
+          if (hasLegacyLinks) {
+            migrateLegacyLinks().catch(() => {
+              // fire-and-forget — never block UX
+            })
+          }
+
+          // Load canonical links from user_profile_links table
+          const { links: dbLinks } = await getProfileLinks()
+          setProfile(prev => ({
+            ...prev,
+            links: dbLinks.map(l => ({
+              id: l.id,
+              type: l.link_type as ProfileLink["type"],
+              url: l.url,
+              label: l.label || "",
+            })),
+          }))
         }
       }
     } catch (error) {
@@ -442,9 +466,12 @@ export default function ProfilePage() {
       label: "",
       isPending: true, // Mark as unsaved
     }
+  // Link management functions — DB-backed via server actions
+  const addLink = (type: ProfileLink["type"] = "other") => {
+    const tempId = crypto.randomUUID()
     setProfile(prev => ({
       ...prev,
-      links: [...prev.links, newLink],
+      links: [...prev.links, { id: tempId, type, url: "", label: "", isPending: true }],
     }))
   }
 
@@ -479,6 +506,31 @@ export default function ProfilePage() {
           ),
         }))
         toast.success("Link saved")
+    // If type changed on a persisted link, update DB immediately
+    if (field === "type") {
+      const link = profile.links.find(l => l.id === id)
+      if (link && !link.isPending) {
+        updateProfileLink({ id, link_type: value as ProfileLink["type"] }).catch(() => {
+          toast.error("Failed to update link type")
+        })
+      }
+    }
+  }
+
+  const persistLink = async (id: string) => {
+    const link = profile.links.find(l => l.id === id)
+    if (!link) return
+    if (link.isPending) {
+      if (!link.url) return // nothing to save yet
+      const result = await addProfileLink({ link_type: link.type, url: link.url, label: link.label })
+      if (result.success && result.link) {
+        // Swap temp ID for real DB ID
+        setProfile(prev => ({
+          ...prev,
+          links: prev.links.map(l =>
+            l.id === id ? { id: result.link!.id, type: l.type, url: l.url, label: l.label } : l
+          ),
+        }))
       } else {
         toast.error(result.error || "Failed to save link")
       }
@@ -494,6 +546,9 @@ export default function ProfilePage() {
       if (result.success) {
         toast.success("Link updated")
       } else {
+      // Update existing persisted link URL/label
+      const result = await updateProfileLink({ id, url: link.url, label: link.label })
+      if (!result.success) {
         toast.error(result.error || "Failed to update link")
       }
     }
@@ -502,9 +557,12 @@ export default function ProfilePage() {
   const removeLink = async (id: string) => {
     // Optimistic UI removal
     const linkToRemove = profile.links.find(l => l.id === id)
+    const link = profile.links.find(l => l.id === id)
+    if (!link) return
+    // Remove from local state immediately (optimistic)
     setProfile(prev => ({
       ...prev,
-      links: prev.links.filter(link => link.id !== id),
+      links: prev.links.filter(l => l.id !== id),
     }))
 
     // If it's a pending link (not saved yet), no server call needed
@@ -523,6 +581,13 @@ export default function ProfilePage() {
         }))
       }
       toast.error(result.error || "Failed to remove link")
+    if (!link.isPending) {
+      const result = await removeProfileLink(id)
+      if (!result.success) {
+        toast.error(result.error || "Failed to remove link")
+        // Restore on failure
+        setProfile(prev => ({ ...prev, links: [...prev.links, link] }))
+      }
     }
   }
 
@@ -1037,12 +1102,6 @@ export default function ProfilePage() {
               })
             )}
             
-            {/* Legacy fields migration hint */}
-            {(profile.linkedin_url || profile.github_url || profile.website_url) && (!Array.isArray(profile.links) || profile.links.length === 0) && (
-              <div className="text-xs text-muted-foreground mt-2 p-2 bg-amber-50 border border-amber-200 rounded">
-                You have links in the old format. Click &quot;Add Link&quot; to migrate them to the new format with multiple link support.
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>

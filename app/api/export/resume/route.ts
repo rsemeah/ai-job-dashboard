@@ -62,12 +62,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Load user profile for contact info
-    const { data: profile } = await supabase
-      .from("user_profile")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle()
+    // Load user profile and canonical links in parallel
+    const [{ data: profile }, { data: profileLinks }] = await Promise.all([
+      supabase.from("user_profile").select("*").eq("user_id", user.id).maybeSingle(),
+      supabase.from("user_profile_links").select("link_type,url,is_primary").eq("user_id", user.id).order("is_primary", { ascending: false }),
+    ])
+
+    // Resolve primary link per type (profile_links canonical; fall back to user_profile flat fields)
+    const links = profileLinks || []
+    const primaryByType = (type: string) => links.find(l => l.link_type === type && l.is_primary)?.url || links.find(l => l.link_type === type)?.url
+    const linkedinUrl = primaryByType("linkedin") || profile?.linkedin_url || undefined
+    const githubUrl = primaryByType("github") || profile?.github_url || undefined
+    const portfolioUrl = primaryByType("portfolio") || primaryByType("website") || profile?.website_url || undefined
 
     // Build provenance from stored data or empty
     const provenance: BulletProvenanceEntry[] = job.resume_provenance || []
@@ -80,6 +86,9 @@ export async function POST(request: NextRequest) {
         email: profile?.email,
         phone: profile?.phone,
         location: profile?.location,
+        linkedinUrl,
+        githubUrl,
+        portfolioUrl,
         education: profile?.education,
         skills: profile?.skills,
       },

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import { getJob } from "@/lib/actions/jobs"
+import { getJobById } from "@/lib/actions/jobs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -58,7 +58,7 @@ export default async function ScoringPage({ params }: Props) {
   const { data: { user }, error: userError } = await supabase.auth.getUser()
   if (userError || !user) redirect("/login")
 
-  const job = await getJob(jobId)
+  const job = await getJobById(jobId)
   if (!job) redirect("/jobs")
 
   const scores = (job.job_scores as Array<{

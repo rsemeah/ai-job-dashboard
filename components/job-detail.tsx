@@ -1520,24 +1520,39 @@ export function JobDetail({ job, readiness }: JobDetailProps) {
                   <p className="text-sm text-muted-foreground mb-6">
                     Generate a tailored resume based on your evidence and this job&apos;s requirements
                   </p>
-                  <Button
-                    onClick={() => handleGenerateMaterials()}
-                    disabled={isGenerating}
-                    size="lg"
-                    className="gap-2"
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="h-4 w-4" />
-                        Generate Resume &amp; Cover Letter
-                      </>
-                    )}
-                  </Button>
+                  {!canGenerate ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-amber-600">
+                        <AlertTriangle className="h-4 w-4 inline mr-1" />
+                        Complete evidence matching before generating
+                      </p>
+                      <Button asChild variant="outline">
+                        <Link href={`/jobs/${job.id}/evidence-match`}>
+                          <Target className="h-4 w-4 mr-2" />
+                          Match Evidence First
+                        </Link>
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={() => handleGenerateMaterials()}
+                      disabled={isGenerating}
+                      size="lg"
+                      className="gap-2"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="h-4 w-4" />
+                          Generate Resume &amp; Cover Letter
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

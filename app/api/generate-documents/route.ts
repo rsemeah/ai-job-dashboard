@@ -127,7 +127,7 @@ const QualityCheckSchema = z.object({
 async function loadUserProfile(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const [profileResult, linksResult] = await Promise.all([
     supabase.from("user_profile").select("*").eq("user_id", userId).maybeSingle(),
-    supabase.from("profile_links").select("id,link_type,url,is_primary").eq("user_id", userId).order("is_primary", { ascending: false }),
+    supabase.from("user_profile_links").select("id,link_type,url,is_primary").eq("user_id", userId).order("is_primary", { ascending: false }),
   ])
 
   if (profileResult.error || !profileResult.data) {

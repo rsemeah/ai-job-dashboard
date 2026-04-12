@@ -66,7 +66,7 @@ export async function getProfileLinks(linkType?: LinkType): Promise<{
     }
 
     let query = supabase
-      .from("profile_links")
+      .from("user_profile_links")
       .select("*")
       .eq("user_id", user.id)
       .order("is_primary", { ascending: false })
@@ -112,7 +112,7 @@ export async function addProfileLink(input: AddLinkInput): Promise<{
     }
 
     const { data, error } = await supabase
-      .from("profile_links")
+      .from("user_profile_links")
       .insert({
         user_id: user.id,
         link_type: input.link_type,
@@ -165,7 +165,7 @@ export async function updateProfileLink(input: UpdateLinkInput): Promise<{
     if (input.link_type !== undefined) updateData.link_type = input.link_type
 
     const { data, error } = await supabase
-      .from("profile_links")
+      .from("user_profile_links")
       .update(updateData)
       .eq("id", input.id)
       .eq("user_id", user.id) // Security: only update own links
@@ -201,7 +201,7 @@ export async function removeProfileLink(id: string): Promise<{
     }
 
     const { error } = await supabase
-      .from("profile_links")
+      .from("user_profile_links")
       .delete()
       .eq("id", id)
       .eq("user_id", user.id) // Security: only delete own links
@@ -236,7 +236,7 @@ export async function setPrimaryLink(id: string): Promise<{
 
     // The database trigger will handle unsetting other primary links
     const { error } = await supabase
-      .from("profile_links")
+      .from("user_profile_links")
       .update({ is_primary: true })
       .eq("id", id)
       .eq("user_id", user.id)
@@ -352,7 +352,7 @@ export async function migrateLegacyLinks(): Promise<{
 
     // Check for existing links to avoid duplicates
     const { data: existingLinks } = await supabase
-      .from("profile_links")
+      .from("user_profile_links")
       .select("url")
       .eq("user_id", user.id)
 
@@ -364,7 +364,7 @@ export async function migrateLegacyLinks(): Promise<{
     }
 
     const { error } = await supabase
-      .from("profile_links")
+      .from("user_profile_links")
       .insert(newLinks)
 
     if (error) {

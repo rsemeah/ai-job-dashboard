@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     // Load user profile and canonical links in parallel
     const [{ data: profile }, { data: profileLinks }] = await Promise.all([
       supabase.from("user_profile").select("*").eq("user_id", user.id).maybeSingle(),
-      supabase.from("profile_links").select("link_type,url,is_primary").eq("user_id", user.id).order("is_primary", { ascending: false }),
+      supabase.from("user_profile_links").select("link_type,url,is_primary").eq("user_id", user.id).order("is_primary", { ascending: false }),
     ])
 
     // Resolve primary link per type (profile_links canonical; fall back to user_profile flat fields)

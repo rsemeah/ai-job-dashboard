@@ -99,8 +99,9 @@ export default function EvidenceMatchPage() {
         `)
         .eq("id", jobId)
         .eq("user_id", user.id)
+        .is("deleted_at", null)
         .single()
-      
+
       if (jobData) {
         // Merge job_analyses qualifications into job object for easier access
         const analysis = jobData.job_analyses?.[0]

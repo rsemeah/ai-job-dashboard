@@ -202,6 +202,7 @@ export async function POST(req: NextRequest) {
             .select("*, job_analyses(*)")
             .eq("id", jobId)
             .eq("user_id", user.id)
+            .is("deleted_at", null)
             .single()
           return job || { message: "Job not found" }
         },

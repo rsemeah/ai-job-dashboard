@@ -169,6 +169,7 @@ async function loadJobAnalysis(supabase: Awaited<ReturnType<typeof createClient>
     `)
     .eq("id", jobId)
     .eq("user_id", userId)
+    .is("deleted_at", null)
     .single()
 
   if (error || !job) {
@@ -631,7 +632,7 @@ Create an evidence map that:
 
 Be conservative - only include matches that are clearly supported by the evidence. Do not exaggerate or invent connections.`,
   }))
-  const generatedEvidenceMap = evidenceMapResult.object!
+  const generatedEvidenceMap = evidenceMapResult.experimental_output!
 
     // Determine generation strategy based on fit
     const evidenceQuality = resumeEvidence.filter((e: { confidence_level: string }) => e.confidence_level === "high").length / (resumeEvidence.length || 1) * 100
@@ -732,7 +733,7 @@ KEEP IT SPECIFIC:
 
 Write 5-8 achievement bullets that the candidate could confidently discuss in an interview. Every metric must be traceable to evidence.`,
   }))
-  const resumeWithProvenance = resumeResult.object!
+  const resumeWithProvenance = resumeResult.experimental_output!
 
     // Step 2.5: PRE-GENERATION ENHANCEMENT PASS
     // Strengthen bullets with known profile data before final formatting
@@ -803,7 +804,7 @@ TONE: Write like a sharp professional sending a letter to someone they respect.
 - Never say "I am excited to apply" or "I would be thrilled"
 - 3-4 paragraphs total`,
   }))
-  const coverLetterWithProvenance = coverLetterResult.object!
+  const coverLetterWithProvenance = coverLetterResult.experimental_output!
 
     // Build final formatted documents - Premium Clean Minimalist format
   const effectiveEmail = profile?.email || sourceResumeData?.email || ""
@@ -928,7 +929,7 @@ Return a JSON object with these exact fields:
 
 If no issues found, return empty arrays and overall_passed: true.`,
     }))
-    qualityCheck = qualityResult.object!
+    qualityCheck = qualityResult.experimental_output!
     } catch (qualityCheckError) {
       console.error("Quality check failed, using defaults:", qualityCheckError)
       // Default to passing quality check if the AI model fails

@@ -44,6 +44,7 @@ export async function POST(
     .select("id, gap_clarifications, gaps_addressed")
     .eq("id", jobId)
     .eq("user_id", user.id)
+    .is("deleted_at", null)
     .single()
 
   if (jobError || !job) {
@@ -178,6 +179,7 @@ export async function GET(
     .select("gap_clarifications, gaps_addressed")
     .eq("id", jobId)
     .eq("user_id", user.id)
+    .is("deleted_at", null)
     .single()
 
   if (error || !job) {

@@ -68,28 +68,19 @@ export default function RedTeamReviewPage() {
         supabase.from("jobs").select(`
           *,
           job_scores (*),
-          job_analyses (*),
-          generated_documents (
-            document_type,
-            content
-          )
-        `).eq("id", jobId).eq("user_id", user.id).single(),
+          job_analyses (*)
+        `).eq("id", jobId).eq("user_id", user.id).is("deleted_at", null).single(),
         supabase.from("evidence_library").select("*").eq("is_active", true).eq("user_id", user.id),
       ])
       
       if (jobData) {
         // Transform to UI-expected format
-        const documents = (jobData.generated_documents as Array<{document_type: string, content: string}>) || []
-        const resume = documents.find(d => d.document_type === "resume")
-        const coverLetter = documents.find(d => d.document_type === "cover_letter")
-        
         const transformedJob = {
           ...jobData,
           title: jobData.role_title,
           company: jobData.company_name,
-          // Prefer generated_documents, fall back to jobs columns
-          generated_resume: resume?.content || jobData.generated_resume || null,
-          generated_cover_letter: coverLetter?.content || jobData.generated_cover_letter || null,
+          generated_resume: jobData.generated_resume || null,
+          generated_cover_letter: jobData.generated_cover_letter || null,
         }
         
         setJob(transformedJob as Job)

@@ -390,15 +390,10 @@ export async function getJobById(id: string): Promise<Job | null> {
         missing_keywords,
         ats_match_score
       ),
-      generated_documents (
-        document_type,
-        content,
-        version,
-        created_at
-      )
     `)
     .eq("id", id)
     .eq("user_id", user.id)
+    .is("deleted_at", null)
     .single()
 
   if (error) {
@@ -408,17 +403,9 @@ export async function getJobById(id: string): Promise<Job | null> {
   // Transform to UI-expected format
   const scores = (data.job_scores as Array<Record<string, unknown>>) || []
   const analyses = (data.job_analyses as Array<Record<string, unknown>>) || []
-  const documents = (data.generated_documents as Array<Record<string, unknown>>) || []
-  
   const score = scores[0]?.overall_score as number | null ?? null
   const analysis = analyses[0] || {}
-  
-  // Find latest resume and cover letter from generated_documents table,
-  // falling back to jobs.generated_resume / generated_cover_letter columns
-  // (generate-documents writes to the jobs columns; generated_documents is a secondary store)
-  const resume = documents.find(d => d.document_type === "resume")
-  const coverLetter = documents.find(d => d.document_type === "cover_letter")
-  
+
   // Derive fit from score
   let fit: string | null = null
   if (score !== null) {
@@ -426,7 +413,7 @@ export async function getJobById(id: string): Promise<Job | null> {
     else if (score >= 50) fit = "MEDIUM"
     else fit = "LOW"
   }
-  
+
   return {
     ...data,
     // Map normalized columns to legacy names for UI compatibility
@@ -437,9 +424,9 @@ export async function getJobById(id: string): Promise<Job | null> {
     // Score details
     score_strengths: [],
     score_gaps: analysis.known_gaps || [],
-    // Generated content — prefer generated_documents table, fall back to jobs columns
-    generated_resume: resume?.content || (data.generated_resume as string | null) || null,
-    generated_cover_letter: coverLetter?.content || (data.generated_cover_letter as string | null) || null,
+    // Canonical document content — jobs columns are the source of truth
+    generated_resume: (data.generated_resume as string | null) || null,
+    generated_cover_letter: (data.generated_cover_letter as string | null) || null,
     // Analysis data (flatten for backwards compatibility)
     location: analysis.location || data.location,
     salary_range: analysis.salary_text || data.salary_range,
@@ -453,7 +440,6 @@ export async function getJobById(id: string): Promise<Job | null> {
     company_name: data.company_name,
     job_scores: scores,
     job_analyses: analyses,
-    generated_documents: documents,
   } as Job
 }
 

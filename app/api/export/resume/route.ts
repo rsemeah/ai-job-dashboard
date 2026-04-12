@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
       .select("*")
       .eq("id", job_id)
       .eq("user_id", user.id)
+      .is("deleted_at", null)
       .single()
 
     if (jobError || !job) {

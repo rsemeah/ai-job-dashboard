@@ -154,7 +154,7 @@ ${resumeText}
 
 Parse this resume and return structured data.`,
     })
-    const parsedResume = parseResult.object!
+    const parsedResume = parseResult.experimental_output!
 
     // Return the parsed resume
     return NextResponse.json({

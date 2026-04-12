@@ -138,6 +138,7 @@ export default async function LogsPage() {
       )
     `)
     .eq("user_id", user.id)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .limit(50)
 

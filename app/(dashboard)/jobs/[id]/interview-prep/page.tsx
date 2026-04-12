@@ -20,6 +20,7 @@ async function getJobWithInterviewPrep(jobId: string, userId: string) {
       .select(`*, job_analyses (*)`)
       .eq("id", jobId)
       .eq("user_id", userId)
+      .is("deleted_at", null)
       .single(),
     supabase
       .from("interview_prep")

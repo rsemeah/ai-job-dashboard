@@ -335,7 +335,7 @@ ${pageContent}
 
 Extract the job details following the schema. Be accurate with the role_family categorization based on the actual role requirements.`,
     })
-    const analysis = analysisResult.object!
+    const analysis = analysisResult.experimental_output!
 
     // Validate required fields - provide fallbacks if LLM returned nulls
     const validatedAnalysis = {
@@ -598,6 +598,7 @@ Extract the job details following the schema. Be accurate with the role_family c
       .select("*")
       .eq("id", job.id)
       .eq("user_id", user.id)
+      .is("deleted_at", null)
       .single()
 
     return NextResponse.json({

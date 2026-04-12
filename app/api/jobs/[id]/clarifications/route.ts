@@ -21,9 +21,9 @@ interface GapClarification {
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ jobId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { jobId } = await params
+  const { id: jobId } = await params
   const supabase = await createClient()
   
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -163,9 +163,9 @@ export async function POST(
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ jobId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { jobId } = await params
+  const { id: jobId } = await params
   const supabase = await createClient()
   
   const { data: { user }, error: authError } = await supabase.auth.getUser()

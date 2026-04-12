@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { NextRequest, NextResponse } from "next/server"
 
 /**
- * POST /api/jobs/[jobId]/quality-pass
+ * POST /api/jobs/[id]/quality-pass
  * 
  * Centralized endpoint for marking a job as quality-approved.
  * Called from Red Team review after human approval of generated materials.
@@ -12,10 +12,10 @@ import { NextRequest, NextResponse } from "next/server"
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ jobId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { jobId } = await params
+    const { id: jobId } = await params
     const supabase = await createClient()
     
     // Authenticate user
@@ -118,16 +118,16 @@ export async function POST(
 }
 
 /**
- * DELETE /api/jobs/[jobId]/quality-pass
+ * DELETE /api/jobs/[id]/quality-pass
  * 
  * Revoke quality approval (e.g., if materials need regeneration)
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ jobId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { jobId } = await params
+    const { id: jobId } = await params
     const supabase = await createClient()
     
     const { data: { user }, error: authError } = await supabase.auth.getUser()

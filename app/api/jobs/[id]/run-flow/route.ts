@@ -4,10 +4,10 @@ import { runJobFlow } from "@/lib/orchestrator/runJobFlow"
 
 export async function POST(
   request: NextRequest,
-  context: { params: Promise<{ jobId: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { jobId } = await context.params
+    const { id: jobId } = await context.params
 
     if (!jobId) {
       return NextResponse.json({ success: false, error: "jobId is required" }, { status: 400 })

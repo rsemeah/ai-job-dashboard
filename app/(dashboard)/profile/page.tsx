@@ -47,7 +47,6 @@ import {
   addProfileLink,
   updateProfileLink,
   removeProfileLink,
-  migrateLegacyLinks,
   type LinkType,
 } from "@/lib/actions/profile-links"
 
@@ -71,7 +70,6 @@ interface ProfileLink {
   type: "linkedin" | "github" | "portfolio" | "website" | "other"
   url: string
   label?: string
-  isPending?: boolean // true when link has not been saved to DB yet
   isPending?: boolean  // true = not yet persisted to DB
 }
 
@@ -241,47 +239,26 @@ export default function ProfilePage() {
           })
         }
         
-        // Auto-migrate legacy links (fire-and-forget)
+        // Auto-migrate legacy links — if migration produces new rows, reload
         if (data?.linkedin_url || data?.github_url || data?.website_url) {
           migrateLegacyLinks().then(result => {
             if (result.migratedCount > 0) {
-              // Reload links after migration
               getProfileLinks().then(freshLinks => {
                 if (freshLinks.success) {
-                  const migrated = freshLinks.links.map(l => ({
-                    id: l.id,
-                    type: l.link_type as ProfileLink["type"],
-                    url: l.url,
-                    label: l.label || "",
-                    isPending: false,
+                  setProfile(prev => ({
+                    ...prev,
+                    links: freshLinks.links.map(l => ({
+                      id: l.id,
+                      type: l.link_type as ProfileLink["type"],
+                      url: l.url,
+                      label: l.label || "",
+                      isPending: false,
+                    })),
                   }))
-                  setProfile(prev => ({ ...prev, links: migrated }))
                 }
               })
             }
-          })
-
-          // Silently migrate legacy links to user_profile_links table if legacy data exists
-          const hasLegacyLinks =
-            data.linkedin_url || data.github_url || data.website_url ||
-            (Array.isArray(data.links) && data.links.length > 0)
-          if (hasLegacyLinks) {
-            migrateLegacyLinks().catch(() => {
-              // fire-and-forget — never block UX
-            })
-          }
-
-          // Load canonical links from user_profile_links table
-          const { links: dbLinks } = await getProfileLinks()
-          setProfile(prev => ({
-            ...prev,
-            links: dbLinks.map(l => ({
-              id: l.id,
-              type: l.link_type as ProfileLink["type"],
-              url: l.url,
-              label: l.label || "",
-            })),
-          }))
+          }).catch(() => { /* fire-and-forget */ })
         }
       }
     } catch (error) {
@@ -457,21 +434,11 @@ export default function ProfilePage() {
     setHasChanges(true)
   }
 
-  // Link management functions - using server actions with isPending indicator
-  const addLink = (type: ProfileLink["type"] = "other") => {
-    const newLink: ProfileLink = {
-      id: `temp-${crypto.randomUUID()}`, // temp prefix indicates pending
-      type,
-      url: "",
-      label: "",
-      isPending: true, // Mark as unsaved
-    }
   // Link management functions — DB-backed via server actions
   const addLink = (type: ProfileLink["type"] = "other") => {
-    const tempId = crypto.randomUUID()
     setProfile(prev => ({
       ...prev,
-      links: [...prev.links, { id: tempId, type, url: "", label: "", isPending: true }],
+      links: [...prev.links, { id: `temp-${crypto.randomUUID()}`, type, url: "", label: "", isPending: true }],
     }))
   }
 
@@ -482,35 +449,11 @@ export default function ProfilePage() {
         link.id === id ? { ...link, [field]: value } : link
       ),
     }))
-  }
-
-  // Persist link on blur - handles both new (add) and existing (update)
-  const persistLink = async (id: string) => {
-    const link = profile.links.find(l => l.id === id)
-    if (!link || !link.url.trim()) return // Don't save empty URLs
-
-    if (link.isPending || id.startsWith("temp-")) {
-      // New link - add to database
-      const result = await addProfileLink({
-        link_type: link.type as LinkType,
-        url: link.url,
-        label: link.label,
-      })
-      
-      if (result.success && result.link) {
-        // Swap temp ID with real DB ID and clear isPending
-        setProfile(prev => ({
-          ...prev,
-          links: prev.links.map(l =>
-            l.id === id ? { ...l, id: result.link!.id, isPending: false } : l
-          ),
-        }))
-        toast.success("Link saved")
-    // If type changed on a persisted link, update DB immediately
+    // Type change on a persisted link: update DB immediately
     if (field === "type") {
       const link = profile.links.find(l => l.id === id)
-      if (link && !link.isPending) {
-        updateProfileLink({ id, link_type: value as ProfileLink["type"] }).catch(() => {
+      if (link && !link.isPending && !id.startsWith("temp-")) {
+        updateProfileLink({ id, link_type: value as LinkType }).catch(() => {
           toast.error("Failed to update link type")
         })
       }
@@ -519,75 +462,39 @@ export default function ProfilePage() {
 
   const persistLink = async (id: string) => {
     const link = profile.links.find(l => l.id === id)
-    if (!link) return
-    if (link.isPending) {
-      if (!link.url) return // nothing to save yet
-      const result = await addProfileLink({ link_type: link.type, url: link.url, label: link.label })
+    if (!link || !link.url.trim()) return
+    if (link.isPending || id.startsWith("temp-")) {
+      const result = await addProfileLink({ link_type: link.type as LinkType, url: link.url, label: link.label })
       if (result.success && result.link) {
-        // Swap temp ID for real DB ID
         setProfile(prev => ({
           ...prev,
           links: prev.links.map(l =>
-            l.id === id ? { id: result.link!.id, type: l.type, url: l.url, label: l.label } : l
+            l.id === id ? { ...l, id: result.link!.id, isPending: false } : l
           ),
         }))
+        toast.success("Link saved")
       } else {
         toast.error(result.error || "Failed to save link")
       }
     } else {
-      // Existing link - update in database
-      const result = await updateProfileLink({
-        id,
-        url: link.url,
-        label: link.label,
-        link_type: link.type as LinkType,
-      })
-      
+      const result = await updateProfileLink({ id, url: link.url, label: link.label, link_type: link.type as LinkType })
       if (result.success) {
         toast.success("Link updated")
       } else {
-      // Update existing persisted link URL/label
-      const result = await updateProfileLink({ id, url: link.url, label: link.label })
-      if (!result.success) {
         toast.error(result.error || "Failed to update link")
       }
     }
   }
 
   const removeLink = async (id: string) => {
-    // Optimistic UI removal
     const linkToRemove = profile.links.find(l => l.id === id)
-    const link = profile.links.find(l => l.id === id)
-    if (!link) return
-    // Remove from local state immediately (optimistic)
-    setProfile(prev => ({
-      ...prev,
-      links: prev.links.filter(l => l.id !== id),
-    }))
-
-    // If it's a pending link (not saved yet), no server call needed
-    if (linkToRemove?.isPending || id.startsWith("temp-")) {
-      return
-    }
-
-    // Otherwise, delete from server
+    if (!linkToRemove) return
+    setProfile(prev => ({ ...prev, links: prev.links.filter(l => l.id !== id) }))
+    if (linkToRemove.isPending || id.startsWith("temp-")) return
     const result = await removeProfileLink(id)
     if (!result.success) {
-      // Restore on failure
-      if (linkToRemove) {
-        setProfile(prev => ({
-          ...prev,
-          links: [...prev.links, linkToRemove],
-        }))
-      }
+      setProfile(prev => ({ ...prev, links: [...prev.links, linkToRemove] }))
       toast.error(result.error || "Failed to remove link")
-    if (!link.isPending) {
-      const result = await removeProfileLink(id)
-      if (!result.success) {
-        toast.error(result.error || "Failed to remove link")
-        // Restore on failure
-        setProfile(prev => ({ ...prev, links: [...prev.links, link] }))
-      }
     }
   }
 

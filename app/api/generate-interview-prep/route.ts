@@ -362,7 +362,7 @@ TRUTH RULES:
         output: Output.object({ schema }),
         prompt: `${basePrompt}\n\n${sectionPrompt}`,
       })
-      return result.object! as T
+      return result.experimental_output! as T
     }
 
     // If regenerating a specific section, only regenerate that one

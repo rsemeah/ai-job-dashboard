@@ -184,7 +184,7 @@ export default function ProfilePage() {
       profile.full_name &&
       profile.summary &&
       profile.skills.length > 0 &&
-      profile.experience.length > 0
+      Array.isArray(profile.experience) && profile.experience.length > 0
     )
     setProfileStatus(isComplete ? "complete" : "incomplete")
   }, [profile])
@@ -204,8 +204,8 @@ export default function ProfilePage() {
             phone: data.phone || "",
             location: data.location || "",
             summary: data.summary || "",
-            experience: data.experience || [],
-            education: data.education || [],
+            experience: Array.isArray(data.experience) ? data.experience : [],
+            education: Array.isArray(data.education) ? data.education : [],
             skills: data.skills || [],
             avatar_url: data.avatar_url || "",
             linkedin_url: data.linkedin_url || "",
@@ -696,7 +696,7 @@ export default function ProfilePage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            {profile.experience.length === 0 ? (
+            {(!Array.isArray(profile.experience) || profile.experience.length === 0) ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Briefcase className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No work experience added yet</p>
@@ -705,7 +705,7 @@ export default function ProfilePage() {
                 </Button>
               </div>
             ) : (
-              profile.experience.map((exp, index) => (
+              (Array.isArray(profile.experience) ? profile.experience : []).map((exp, index) => (
                 <div key={index} className="space-y-4 p-4 border rounded-lg relative">
                   <Button
                     variant="ghost"
@@ -779,7 +779,7 @@ export default function ProfilePage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {profile.education.length === 0 ? (
+            {(!Array.isArray(profile.education) || profile.education.length === 0) ? (
               <div className="text-center py-8 text-muted-foreground">
                 <GraduationCap className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No education added yet</p>
@@ -788,7 +788,7 @@ export default function ProfilePage() {
                 </Button>
               </div>
             ) : (
-              profile.education.map((edu, index) => (
+              (Array.isArray(profile.education) ? profile.education : []).map((edu, index) => (
                 <div key={index} className="flex gap-4 p-4 border rounded-lg relative">
                   <Button
                     variant="ghost"

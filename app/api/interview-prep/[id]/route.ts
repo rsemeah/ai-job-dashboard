@@ -3,10 +3,10 @@ import { createClient } from "@/lib/supabase/server"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ jobId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { jobId } = await params
+    const { id: jobId } = await params
     
     if (!jobId) {
       return NextResponse.json(
@@ -60,10 +60,10 @@ export async function GET(
 // Mark a story as strong/weak/needs_proof
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ jobId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { jobId } = await params
+    const { id: jobId } = await params
     const body = await request.json()
     const { story_id, rating } = body
 

@@ -1176,13 +1176,7 @@ blocked_evidence: blockedEvidence.map((e: EvidenceRecord) => ({ id: e.id, title:
       })),
     })
   } catch (error) {
-    console.error("Error in generate-documents:", error)
-
-    // Report unexpected errors to Sentry
-    const { captureError } = await import("@/lib/sentry")
-    captureError(error instanceof Error ? error : new Error(String(error)), {
-      tags: { route: "generate-documents" },
-    })
+  console.error("Error in generate-documents:", error)
 
     // Check for rate limit errors
     const errorMessage = error instanceof Error ? error.message : "Generation failed"

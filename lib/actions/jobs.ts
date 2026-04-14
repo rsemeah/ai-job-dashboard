@@ -389,7 +389,7 @@ export async function getJobById(id: string): Promise<Job | null> {
         matched_keywords,
         missing_keywords,
         ats_match_score
-      ),
+      )
     `)
     .eq("id", id)
     .eq("user_id", user.id)

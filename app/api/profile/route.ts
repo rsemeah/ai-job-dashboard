@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     education: body.education,
     skills: body.skills,
     avatar_url: body.avatar_url,
-    linkedin_url: body.linkedin_url ?? null,
+    // linkedin_url does not exist on user_profile — owned by user_profile_links
     github_url: body.github_url ?? null,
     website_url: body.website_url ?? null,
     // links is owned by profile_links table — do not write here

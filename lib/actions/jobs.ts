@@ -2,8 +2,10 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
+import { headers } from "next/headers"
 import type { Job, JobStatus } from "@/lib/types"
 import { normalizeJobStatus } from "@/lib/job-lifecycle"
+import { analyzeJobCore } from "@/lib/analyze/analyze-job-core"
 
 export type JobsResult =
   | { success: true; data: Job[] }
@@ -66,8 +68,9 @@ export type GenerateDocumentsResult =
 export type CreateJobResult = AnalyzeJobResult
 
 /**
- * Analyzes a job URL directly using Groq AI.
- * No n8n dependency - all processing happens in-app.
+ * Analyzes a job URL directly in the current server context.
+ * Does NOT call /api/analyze via fetch — executes the core logic inline.
+ * user_id is derived from supabase.auth.getUser() only, never from input.
  */
 export async function analyzeJobFromUrl(url: string): Promise<AnalyzeJobResult> {
   try {
@@ -88,32 +91,34 @@ export async function analyzeJobFromUrl(url: string): Promise<AnalyzeJobResult> 
       return { success: false, error: "URL must use http or https protocol." }
     }
 
-    // Call the direct analyze-job API route
-    const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL 
-      ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-      : process.env.VERCEL_URL 
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000"
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    const response = await fetch(`${baseUrl}/api/analyze`, {
-      method: "POST",
+    if (authError || !user) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    // Build a RequestLike from next/headers so runJobFlow can forward cookies
+    // and resolve the base URL without a real NextRequest object.
+    const requestHeaders = await headers()
+    const requestLike = {
       headers: {
-        "Content-Type": "application/json",
+        get: (name: string) => requestHeaders.get(name),
       },
-      body: JSON.stringify({ job_url: normalizedUrl }),
-    })
+    }
 
-    const result = await response.json()
+    const result = await analyzeJobCore(normalizedUrl, supabase, user, requestLike)
 
     if (!result.success) {
-      return { success: false, error: result.error || "Analysis failed" }
+      return { success: false, error: result.error }
     }
 
     revalidatePath("/")
     revalidatePath("/jobs")
-    if (result.job_id) {
-      revalidatePath(`/jobs/${result.job_id}`)
-    }
+    revalidatePath(`/jobs/${result.job_id}`)
 
     return {
       success: true,
@@ -197,35 +202,34 @@ export async function analyzeAndGenerateForJob(url: string): Promise<
       return { success: false, error: "Please provide a job URL." }
     }
 
-    // Call the analyze API which now handles generation internally
-    const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL 
-      ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-      : process.env.VERCEL_URL 
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000"
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    const response = await fetch(`${baseUrl}/api/analyze`, {
-      method: "POST",
+    if (authError || !user) {
+      return { success: false, error: "Not authenticated" }
+    }
+
+    const requestHeaders = await headers()
+    const requestLike = {
       headers: {
-        "Content-Type": "application/json",
+        get: (name: string) => requestHeaders.get(name),
       },
-      body: JSON.stringify({ job_url: normalizedUrl }),
-    })
+    }
 
-    const result = await response.json()
+    const result = await analyzeJobCore(normalizedUrl, supabase, user, requestLike)
 
     if (!result.success) {
-      return { success: false, error: result.error || "Analysis failed" }
+      return { success: false, error: result.error }
     }
 
     revalidatePath("/")
     revalidatePath("/jobs")
     revalidatePath("/ready-queue")
-    if (result.job_id) {
-      revalidatePath(`/jobs/${result.job_id}`)
-    }
+    revalidatePath(`/jobs/${result.job_id}`)
 
-    // If duplicate, return early
     if (result.duplicate) {
       return {
         success: true,
@@ -236,28 +240,24 @@ export async function analyzeAndGenerateForJob(url: string): Promise<
       }
     }
 
-    // Map the generation result from the API response
-    const generation = result.generation?.success && result.job?.generated_resume ? {
-      job_id: result.job_id,
-      evidence_map: {
-        fit_score: result.job?.score || 0,
-        fit_rationale: result.job?.score_reasoning || "",
-        matched_skills: result.job?.score_strengths || [],
-        matched_tools: result.analysis?.tech_stack || [],
-        gaps: result.job?.score_gaps || [],
-      },
-      generated_resume: result.job.generated_resume,
-      generated_cover_letter: result.job.generated_cover_letter || "",
-      quality_check: {
-        passed: result.job?.quality_passed || false,
-        issues: {
-          invented_claims: [],
-          vague_bullets: [],
-          ai_filler: result.job?.generation_quality_issues || [],
-        },
-        suggestions: [],
-      },
-    } : null
+    const generation = result.generation?.success && result.job?.generated_resume
+      ? {
+          job_id: result.job_id,
+          evidence_map: {
+            fit_score: (result.job as Record<string, unknown>)?.score as number || 0,
+            matched_skills: [],
+            matched_tools: result.analysis?.tech_stack || [],
+            gaps: [],
+          },
+          generated_resume: result.job.generated_resume as string,
+          generated_cover_letter: (result.job.generated_cover_letter as string) || "",
+          quality_check: {
+            passed: (result.job as Record<string, unknown>)?.quality_passed as boolean || false,
+            issues: { invented_claims: [], vague_bullets: [], ai_filler: [] },
+            suggestions: [],
+          },
+        }
+      : null
 
     return {
       success: true,

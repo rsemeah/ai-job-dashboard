@@ -394,8 +394,8 @@ export default function EvidenceMatchPage() {
         const matchedCount = Object.values(evidenceMap).filter(v => Array.isArray(v) && v.length > 0).length
         trackEvidenceMatchCompleted({
           job_id: jobId,
-          requirements_matched: matchedCount,
-          total_requirements: requirements.length,
+          evidence_count: requirements.length,
+          selected_count: matchedCount,
         })
         
         // Don't redirect - let user generate from this page

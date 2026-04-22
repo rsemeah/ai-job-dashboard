@@ -59,7 +59,7 @@ export default function StripeCancelPage() {
             <Button 
               variant="outline" 
               className="flex-1"
-              onClick={() => router.push("/")}
+              onClick={() => router.push("/jobs")}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Dashboard

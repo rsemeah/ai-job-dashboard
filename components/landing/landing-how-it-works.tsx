@@ -53,7 +53,7 @@ export function LandingHowItWorks() {
               className="group grid md:grid-cols-[120px_1fr_200px] gap-6 items-start py-10 border-t border-border hover:bg-card/60 transition-colors px-2 -mx-2 rounded-sm"
             >
               {/* Step number */}
-              <span className="font-mono text-5xl font-bold text-muted-foreground/20 group-hover:text-primary/20 transition-colors leading-none select-none">
+              <span className="font-mono text-5xl font-bold leading-none select-none transition-colors" style={{ color: "#7B1212" }}>
                 {step.number}
               </span>
 

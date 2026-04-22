@@ -139,7 +139,7 @@ export default function StripeSuccessPage() {
             className="w-full" 
             size="lg"
             disabled={isVerifying}
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/jobs")}
           >
             {isVerifying ? (
               <>

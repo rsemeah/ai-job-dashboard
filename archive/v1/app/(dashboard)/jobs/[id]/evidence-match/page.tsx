@@ -153,7 +153,12 @@ export default function EvidenceMatchPage() {
       let confidenceReason: string | undefined
       
       if (matched.length > 0) {
-        if (matched.some(e => e.confidence_level === "high")) {
+        const hasEducationMatch = isEducation && matched.some(e => e.source_type === "education")
+        if (hasEducationMatch) {
+          // Education matched via degree hierarchy — always satisfied
+          status = "satisfied"
+          confidenceReason = "Degree requirement met by uploaded credentials"
+        } else if (matched.some(e => e.confidence_level === "high")) {
           status = "satisfied"
           confidenceReason = "Strong evidence directly supports this requirement"
         } else if (matched.some(e => e.confidence_level === "medium")) {
@@ -164,9 +169,8 @@ export default function EvidenceMatchPage() {
           confidenceReason = "Some evidence found but may need clarification"
         }
       } else if (isEducation) {
-        // Special handling for education - check if user might have equivalent
         status = "ambiguous"
-        confidenceReason = "Education requirement - check profile for qualifying credentials"
+        confidenceReason = "Education requirement - upload resume or add degree to evidence library"
       } else {
         status = "not_found"
         confidenceReason = "No matching evidence in library"
@@ -234,6 +238,23 @@ export default function EvidenceMatchPage() {
     setSelectedEvidence(preSelected)
   }, [job, evidence])
 
+  // Degree hierarchy: higher index = higher degree level
+  const DEGREE_HIERARCHY = [
+    ["associate", "a.s.", "a.a."],
+    ["bachelor", "b.s.", "b.a.", "bs", "ba", "undergraduate", "baccalaureate"],
+    ["master", "m.s.", "m.a.", "mba", "ms", "ma", "graduate"],
+    ["phd", "ph.d", "doctorate", "doctoral"],
+  ]
+
+  function getDegreeLevel(text: string | null | undefined): number {
+    if (!text) return -1
+    const lower = text.toLowerCase()
+    for (let i = DEGREE_HIERARCHY.length - 1; i >= 0; i--) {
+      if (DEGREE_HIERARCHY[i].some(d => lower.includes(d))) return i
+    }
+    return -1
+  }
+
   // UX FIDELITY: Detect education requirements for special handling
   function isEducationRequirement(requirement: string): boolean {
     const eduKeywords = [
@@ -245,23 +266,60 @@ export default function EvidenceMatchPage() {
     return eduKeywords.some(kw => reqLower.includes(kw))
   }
 
+  // Check if an education evidence row satisfies a degree requirement via hierarchy
+  function educationRowSatisfiesRequirement(
+    e: EvidenceRecord,
+    requirement: string
+  ): boolean {
+    if (e.source_type !== "education") return false
+    // Combine all searchable text on the education row
+    const evidenceText = [
+      e.source_title,
+      e.role_name,
+      e.company_name,
+      ...(e.responsibilities || []),
+    ].filter(Boolean).join(" ")
+    const requiredLevel = getDegreeLevel(requirement)
+    const evidenceLevel = getDegreeLevel(evidenceText)
+    // A higher or equal degree satisfies the requirement
+    if (requiredLevel >= 0 && evidenceLevel >= requiredLevel) return true
+    return false
+  }
+
   // TRUST FIX: Now returns which keywords actually matched
   function findMatchingEvidenceWithKeywords(
-    requirement: string, 
+    requirement: string,
     allEvidence: EvidenceRecord[]
   ): { matched: EvidenceRecord[], keywords: string[] } {
     const reqLower = requirement.toLowerCase()
-    // TRUST FIX: Only use words > 4 chars and filter common words
     const stopWords = new Set(["with", "have", "that", "this", "from", "will", "been", "were", "they", "their", "about", "would", "could", "should", "which", "there", "where", "what", "when", "make", "like", "just", "over", "such", "into", "year", "some", "them", "than", "then", "only", "come", "made", "find", "work", "part", "take", "most", "know", "need", "want", "give", "more", "also", "able", "must"])
     const keywords = reqLower
       .split(/\s+/)
       .filter(w => w.length > 4 && !stopWords.has(w))
-    
+
     const matchedKeywords: Set<string> = new Set()
-    
+
     const matchedEvidence = allEvidence.filter(e => {
       let foundMatch = false
-      
+
+      // Education rows: use degree hierarchy matching against source_title + role_name
+      if (e.source_type === "education" && isEducationRequirement(requirement)) {
+        if (educationRowSatisfiesRequirement(e, requirement)) {
+          matchedKeywords.add("degree")
+          return true
+        }
+      }
+
+      // Check source_title and role_name (critical for education and certifications)
+      const sourceTitle = (e.source_title || "").toLowerCase()
+      const roleName = (e.role_name || "").toLowerCase()
+      for (const kw of keywords) {
+        if (sourceTitle.includes(kw) || roleName.includes(kw)) {
+          matchedKeywords.add(kw)
+          foundMatch = true
+        }
+      }
+
       // Check tools
       const tools = (e.tools_used || []).map(t => t.toLowerCase())
       for (const tool of tools) {
@@ -272,8 +330,8 @@ export default function EvidenceMatchPage() {
           }
         }
       }
-      
-      // Check skills/keywords
+
+      // Check approved_keywords
       const approved = (e.approved_keywords || []).map(k => k.toLowerCase())
       for (const a of approved) {
         for (const kw of keywords) {
@@ -283,7 +341,7 @@ export default function EvidenceMatchPage() {
           }
         }
       }
-      
+
       // Check responsibilities
       const resps = (e.responsibilities || []).join(" ").toLowerCase()
       for (const kw of keywords) {
@@ -292,7 +350,7 @@ export default function EvidenceMatchPage() {
           foundMatch = true
         }
       }
-      
+
       // Check outcomes
       const outcomes = (e.outcomes || []).join(" ").toLowerCase()
       for (const kw of keywords) {
@@ -301,13 +359,13 @@ export default function EvidenceMatchPage() {
           foundMatch = true
         }
       }
-      
+
       return foundMatch
-    }).slice(0, 3) // Max 3 matches per requirement
-    
-    return { 
-      matched: matchedEvidence, 
-      keywords: Array.from(matchedKeywords) 
+    }).slice(0, 3)
+
+    return {
+      matched: matchedEvidence,
+      keywords: Array.from(matchedKeywords),
     }
   }
 

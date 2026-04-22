@@ -56,6 +56,10 @@ export function buildEducationEvidenceRows(
     source_title: entry.normalized_label,
     source_url: null,
     proof_snippet: buildEducationProofSnippet(entry),
+    normalized_label: entry.normalized_label,
+    credential_type: entry.credential_type,
+    confidence_score: 1.0,
+    raw_resume_section: "education",
     confidence_level: "high",
     evidence_weight: "medium",
     is_active: true,
@@ -70,9 +74,15 @@ export function buildEducationEvidenceRows(
 
 // ── Main extractor ────────────────────────────────────────────────────────────
 
-const EXTRACTION_PROMPT = `
-You are a precise resume parser. Extract ALL education credentials and certifications
-from the resume text below. Include every degree, certification, license, and course.
+export async function extractEducationFromResumeText(
+  rawText: string
+): Promise<EducationEntry[]> {
+  try {
+    const result = await generateText({
+      model: CLAUDE_MODELS.SONNET,
+      output: Output.object({ schema: EducationResultSchema }),
+      prompt: `Extract ALL education credentials and certifications from the resume text below.
+Include every degree, certification, license, and course. Do not invent information not present in the text.
 
 For each entry return:
 - normalized_label: Full credential name (e.g. "Bachelor of Science in Information Technology")
@@ -83,18 +93,8 @@ For each entry return:
 - end_date: YYYY-MM format if present, otherwise null
 - honors: Any honors, GPA, distinction — or null if none
 
-Return ONLY the JSON object. No explanation, no markdown.
-`.trim()
-
-export async function extractEducationFromResumeText(
-  rawText: string
-): Promise<EducationEntry[]> {
-  try {
-    const result = await generateText({
-      model: CLAUDE_MODELS.SONNET,
-      output: Output.object({ schema: EducationResultSchema }),
-      system: EXTRACTION_PROMPT,
-      prompt: `RESUME TEXT:\n${rawText}`,
+RESUME TEXT:
+${rawText}`,
     })
     const data = result.experimental_output
     return Array.isArray(data?.entries) ? data.entries : []

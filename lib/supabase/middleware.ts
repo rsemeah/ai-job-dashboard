@@ -11,6 +11,7 @@ const PUBLIC_ROUTES = [
   '/landing',
   '/terms',
   '/privacy',
+  '/waitlist',
 ]
 
 // Routes that should redirect to dashboard if already authenticated
@@ -81,8 +82,14 @@ export async function updateSession(request: NextRequest) {
 
   // If user is not logged in and trying to access protected routes
   if (!user && !isPublicRoute) {
-    // Store the original URL to redirect back after login
     const url = request.nextUrl.clone()
+    // Root path unauthenticated users → landing page
+    if (pathname === '/') {
+      url.pathname = '/landing'
+      url.search = ''
+      return NextResponse.redirect(url)
+    }
+    // All other protected routes → login with redirect back
     const redirectTo = encodeURIComponent(pathname + request.nextUrl.search)
     url.pathname = '/login'
     url.search = `?redirect=${redirectTo}`

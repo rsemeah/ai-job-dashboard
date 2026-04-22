@@ -38,6 +38,36 @@ export async function POST(request: Request) {
     .eq("user_id", user.id)
     .maybeSingle()
 
+  // Validate linkedin_raw_text: if provided it must be at least 200 chars
+  const linkedinRawText = body.linkedin_raw_text ?? null
+  if (linkedinRawText !== null && linkedinRawText.trim().length > 0 && linkedinRawText.trim().length < 200) {
+    return NextResponse.json(
+      { error: "LinkedIn text must be at least 200 characters or left empty." },
+      { status: 400 }
+    )
+  }
+
+  // Normalize education to canonical shape {degree, school, year} and deduplicate
+  const rawEducation: Array<Record<string, unknown>> = Array.isArray(body.education) ? body.education : []
+  const seenEdu = new Set<string>()
+  const normalizedEducation = rawEducation
+    .map((edu) => {
+      const degree = String(edu.degree || "")
+      const school = String(edu.school || "")
+      let year = String(edu.year || "")
+      if (!year && edu.date_range) {
+        const match = String(edu.date_range).match(/\d{4}/)
+        if (match) year = match[0]
+      }
+      return { degree, school, year }
+    })
+    .filter((edu) => {
+      const key = `${edu.degree.toLowerCase()}|${edu.school.toLowerCase()}`
+      if (seenEdu.has(key)) return false
+      seenEdu.add(key)
+      return true
+    })
+
   const profileFields = {
     full_name: body.full_name,
     title: body.title ?? null,
@@ -46,12 +76,13 @@ export async function POST(request: Request) {
     location: body.location,
     summary: body.summary,
     experience: body.experience,
-    education: body.education,
+    education: normalizedEducation,
     skills: body.skills,
     avatar_url: body.avatar_url,
-    linkedin_url: body.linkedin_url ?? null,
+    // linkedin_url does not exist on user_profile — owned by user_profile_links
     github_url: body.github_url ?? null,
     website_url: body.website_url ?? null,
+    linkedin_raw_text: linkedinRawText?.trim() || null,
     // links is owned by profile_links table — do not write here
   }
 

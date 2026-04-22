@@ -91,6 +91,8 @@ interface UserProfile {
   website_url: string
   // New: Multiple links support
   links: ProfileLink[]
+  // Raw LinkedIn text for AI enrichment
+  linkedin_raw_text: string
 }
 
 const emptyProfile: UserProfile = {
@@ -108,6 +110,7 @@ const emptyProfile: UserProfile = {
   github_url: "",
   website_url: "",
   links: [],
+  linkedin_raw_text: "",
 }
 
 // Link type configuration
@@ -219,6 +222,29 @@ export default function ProfilePage() {
         }))
         
         if (data) {
+          // Normalize education entries: coerce any parser-shaped entries
+          // ({date_range, field, honors}) to the UI shape ({degree, school, year})
+          // and deduplicate by degree+school to prevent double entries from
+          // prior incorrect writes.
+          const rawEducation: Array<Record<string, unknown>> = Array.isArray(data.education) ? data.education : []
+          const seenEdu = new Set<string>()
+          const normalizedEducation: Education[] = []
+          for (const edu of rawEducation) {
+            const degree = String(edu.degree || "")
+            const school = String(edu.school || "")
+            // Coerce year: prefer 'year', fall back to extracting a 4-digit year
+            // from 'date_range' (e.g. "2015 – 2019" → "2019")
+            let year = String(edu.year || "")
+            if (!year && edu.date_range) {
+              const match = String(edu.date_range).match(/\d{4}/)
+              if (match) year = match[0]
+            }
+            const key = `${degree.toLowerCase()}|${school.toLowerCase()}`
+            if (seenEdu.has(key)) continue
+            seenEdu.add(key)
+            normalizedEducation.push({ degree, school, year })
+          }
+
           setProfile({
             ...emptyProfile,
             id: data.id,
@@ -229,13 +255,14 @@ export default function ProfilePage() {
             location: data.location || "",
             summary: data.summary || "",
             experience: Array.isArray(data.experience) ? data.experience : [],
-            education: Array.isArray(data.education) ? data.education : [],
+            education: normalizedEducation,
             skills: data.skills || [],
             avatar_url: data.avatar_url || "",
             linkedin_url: data.linkedin_url || "",
             github_url: data.github_url || "",
             website_url: data.website_url || "",
             links: serverLinks,
+            linkedin_raw_text: data.linkedin_raw_text || "",
           })
         }
         
@@ -966,7 +993,7 @@ export default function ProfilePage() {
               </Select>
             </div>
             <CardDescription>
-              Add multiple links to LinkedIn profiles, GitHub repos, portfolios, and websites. 
+              Add multiple links to LinkedIn profiles, GitHub repos, portfolios, and websites.
               The AI Coach uses these to better understand your background.
             </CardDescription>
           </CardHeader>
@@ -1045,7 +1072,31 @@ export default function ProfilePage() {
                 )
               })
             )}
-            
+
+            <Separator className="my-2" />
+
+            {/* LinkedIn raw text for AI enrichment */}
+            <div className="space-y-2">
+              <Label htmlFor="linkedin_raw_text" className="flex items-center gap-2">
+                <Linkedin className="h-4 w-4 text-muted-foreground" />
+                LinkedIn Profile Text
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Paste the full text of your LinkedIn profile. The AI uses this to enrich your evidence library and scoring context. Must be at least 200 characters if provided.
+              </p>
+              <Textarea
+                id="linkedin_raw_text"
+                value={profile.linkedin_raw_text}
+                onChange={(e) => updateField("linkedin_raw_text", e.target.value)}
+                placeholder="Paste your LinkedIn About section, experience, and skills here..."
+                className="min-h-[140px] font-mono text-xs"
+              />
+              {profile.linkedin_raw_text.trim().length > 0 && profile.linkedin_raw_text.trim().length < 200 && (
+                <p className="text-xs text-destructive">
+                  Must be at least 200 characters ({profile.linkedin_raw_text.trim().length}/200)
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>

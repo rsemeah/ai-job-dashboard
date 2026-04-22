@@ -84,7 +84,6 @@ export interface MappedEvidenceRow {
   confidence_level: "high" | "medium" | "low"
   evidence_weight: "highest" | "high" | "medium" | "low"
   is_user_approved: boolean
-  visibility_status: "active" | "hidden" | "archived"
   is_active: boolean
   priority_rank: number
 }
@@ -114,7 +113,6 @@ export function mapResumeToEvidence(parsed: ParsedResume): MappedEvidenceRow[] {
       confidence_level: "high",
       evidence_weight: "high",
       is_user_approved: false,
-      visibility_status: "active",
       is_active: true,
       priority_rank: 0,
     })
@@ -139,7 +137,6 @@ export function mapResumeToEvidence(parsed: ParsedResume): MappedEvidenceRow[] {
       confidence_level: "high",
       evidence_weight: "medium",
       is_user_approved: false,
-      visibility_status: "active",
       is_active: true,
       priority_rank: 0,
     })
@@ -167,7 +164,6 @@ export function mapResumeToEvidence(parsed: ParsedResume): MappedEvidenceRow[] {
       confidence_level: "medium",
       evidence_weight: "medium",
       is_user_approved: false,
-      visibility_status: "active",
       is_active: true,
       priority_rank: 0,
     })
@@ -189,7 +185,6 @@ export function mapResumeToEvidence(parsed: ParsedResume): MappedEvidenceRow[] {
       confidence_level: "high",
       evidence_weight: "medium",
       is_user_approved: false,
-      visibility_status: "active",
       is_active: true,
       priority_rank: 0,
     })
@@ -211,7 +206,6 @@ export function mapResumeToEvidence(parsed: ParsedResume): MappedEvidenceRow[] {
       confidence_level: "medium",
       evidence_weight: "medium",
       is_user_approved: false,
-      visibility_status: "active",
       is_active: true,
       priority_rank: 0,
     })

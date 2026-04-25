@@ -1,6 +1,6 @@
 "use client"
 
-import { useTransition, useState } from "react"
+import { useTransition, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import {
   addProfileLink,
@@ -25,6 +25,7 @@ export function ProfileLinksWidget({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const formRef = useRef<HTMLFormElement>(null)
 
   function handleDelete(id: string) {
     setError(null)
@@ -48,6 +49,7 @@ export function ProfileLinksWidget({
       if (!result.success) {
         setError(result.error ?? "Failed to add link")
       } else {
+        formRef.current?.reset()
         router.refresh()
       }
     })
@@ -76,7 +78,7 @@ export function ProfileLinksWidget({
                   {LINK_TYPE_LABELS[link.link_type] ?? link.link_type}
                 </span>
                 <a
-                  href={link.url}
+                  href={link.url.startsWith("http") ? link.url : `https://${link.url}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block text-sm text-primary hover:underline truncate mt-0.5"
@@ -97,6 +99,7 @@ export function ProfileLinksWidget({
       )}
 
       <form
+        ref={formRef}
         action={handleAdd}
         className="px-6 py-4 flex flex-col gap-2 sm:flex-row sm:items-center"
       >

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getProfileLinks } from '@/lib/actions/profile-links'
 import { ProfileLinksWidget } from '@/components/profile-links-widget'
+import { LinkedInImportWidget } from '@/components/dashboard/LinkedInImportWidget'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -96,6 +97,8 @@ export default async function DashboardPage() {
       </div>
 
       <ProfileLinksWidget initialLinks={profileLinks} />
+
+      <LinkedInImportWidget />
 
       {jobList.length > 0 ? (
         <div className="rounded-xl border border-border bg-card">

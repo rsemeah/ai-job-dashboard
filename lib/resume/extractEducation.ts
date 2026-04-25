@@ -47,7 +47,7 @@ export function buildEducationProofSnippet(entry: EducationEntry): string {
 export function buildEducationEvidenceRows(
   entries: EducationEntry[],
   userId: string,
-  sourceResumeId: string
+  sourceResumeId: string | null
 ): Record<string, unknown>[] {
   return entries.map((entry) => ({
     user_id: userId,

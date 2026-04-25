@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     let educationInserted = 0
 
     if (educationEntries.length > 0) {
-      const educationRows = buildEducationEvidenceRows(educationEntries, userId, "linkedin_import")
+      const educationRows = buildEducationEvidenceRows(educationEntries, userId, null)
       const { error: eduError } = await supabase
         .from("evidence_library")
         .upsert(educationRows, {

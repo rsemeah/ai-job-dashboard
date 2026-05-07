@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { HireWireLogo } from '@/components/hirewire-logo'
 
 export default async function DashboardLayout({
   children,
@@ -20,18 +21,18 @@ export default async function DashboardLayout({
       <header className="border-b border-border bg-card">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-semibold tracking-tight">HireWire</span>
-            </div>
+            <a href="/jobs" aria-label="HireWire home">
+              <HireWireLogo size="sm" variant="dark" />
+            </a>
             <nav className="flex items-center gap-6 text-sm text-muted-foreground">
-              <a href="/dashboard" className="hover:text-foreground transition-colors">
-                Dashboard
-              </a>
               <a href="/jobs" className="hover:text-foreground transition-colors">
                 Jobs
               </a>
               <a href="/profile" className="hover:text-foreground transition-colors">
                 Profile
+              </a>
+              <a href="/billing" className="hover:text-foreground transition-colors">
+                Billing
               </a>
             </nav>
           </div>
@@ -44,12 +45,8 @@ export default async function DashboardLayout({
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 flex items-center justify-between text-xs text-muted-foreground">
           <span>© {new Date().getFullYear()} HireWire</span>
           <div className="flex gap-4">
-            <a href="/privacy" className="hover:text-foreground transition-colors">
-              Privacy
-            </a>
-            <a href="/terms" className="hover:text-foreground transition-colors">
-              Terms
-            </a>
+            <a href="/privacy" className="hover:text-foreground transition-colors">Privacy</a>
+            <a href="/terms" className="hover:text-foreground transition-colors">Terms</a>
           </div>
         </div>
       </footer>

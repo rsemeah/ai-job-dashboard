@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { ArrowRight } from 'lucide-react'
+import { HireWireLogo } from '@/components/hirewire-logo'
 
 export default function HomePage() {
   const scrollToSection = (id: string) => {
@@ -15,7 +16,7 @@ export default function HomePage() {
       {/* Sticky Navigation */}
       <nav className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="font-semibold text-lg">HireWire</div>
+          <HireWireLogo size="sm" variant="dark" />
           <div className="hidden md:flex items-center gap-8">
             <button
               onClick={() => scrollToSection('how-it-works')}
@@ -183,7 +184,7 @@ export default function HomePage() {
       {/* Minimal Footer */}
       <footer className="border-t border-border bg-muted/30 py-8">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <div>HireWire — Job-first. Coach-calibrated. Evidence-backed.</div>
+          <HireWireLogo size="sm" variant="dark" />
           <div className="flex gap-6">
             <Link href="/login" className="hover:text-foreground transition-colors">
               Sign In

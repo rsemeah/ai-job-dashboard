@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { coverLetterDate } from "@/lib/humanizer"
 import { generateText, Output } from "ai"
 import { z } from "zod"
 import { createAdminClient, createClient } from "@/lib/supabase/server"
@@ -844,11 +845,7 @@ ${effectiveEducation.map((edu: { degree: string; school: string; year?: string }
 ).join("\n")}`
 
     // Build premium formatted cover letter with professional signature
-    const today = new Date().toLocaleDateString("en-US", { 
-      month: "long", 
-      day: "numeric", 
-      year: "numeric" 
-    })
+    const today = coverLetterDate()
     
     // Build professional signature block with phone number
     const signatureBlock = [

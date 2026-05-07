@@ -24,15 +24,10 @@ export default async function DashboardLayout({
               <span className="text-lg font-semibold tracking-tight">HireWire</span>
             </div>
             <nav className="flex items-center gap-6 text-sm text-muted-foreground">
-              <a href="/dashboard" className="hover:text-foreground transition-colors">
-                Dashboard
-              </a>
-              <a href="/jobs" className="hover:text-foreground transition-colors">
-                Jobs
-              </a>
-              <a href="/profile" className="hover:text-foreground transition-colors">
-                Profile
-              </a>
+              <a href="/dashboard" className="hover:text-foreground transition-colors">Dashboard</a>
+              <a href="/jobs" className="hover:text-foreground transition-colors">Jobs</a>
+              <a href="/evidence" className="hover:text-foreground transition-colors">Evidence</a>
+              <a href="/profile" className="hover:text-foreground transition-colors">Profile</a>
             </nav>
           </div>
         </div>

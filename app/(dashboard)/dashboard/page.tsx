@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { getProfileLinks } from '@/lib/actions/profile-links'
 import { ProfileLinksWidget } from '@/components/profile-links-widget'
 import { LinkedInImportWidget } from '@/components/dashboard/LinkedInImportWidget'
+import { humanizeJobStatus } from '@/lib/humanizer'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -42,33 +43,6 @@ export default async function DashboardPage() {
   const appliedCount = jobList.filter(j => j.status === 'applied').length
 
   const displayName = profile?.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
-
-  const STATUS_LABELS: Record<string, string> = {
-    draft: 'Draft',
-    queued: 'Queued',
-    analyzing: 'Analyzing…',
-    analyzed: 'Analyzed',
-    generating: 'Generating…',
-    ready: 'Ready',
-    needs_review: 'Needs review',
-    applied: 'Applied',
-    interviewing: 'Interviewing',
-    offered: 'Offered',
-    rejected: 'Rejected',
-    archived: 'Archived',
-    error: 'Error',
-  }
-
-  const STATUS_COLORS: Record<string, string> = {
-    ready: 'bg-green-100 text-green-800',
-    needs_review: 'bg-yellow-100 text-yellow-800',
-    generating: 'bg-blue-100 text-blue-800',
-    analyzing: 'bg-blue-100 text-blue-800',
-    applied: 'bg-purple-100 text-purple-800',
-    interviewing: 'bg-purple-100 text-purple-800',
-    offered: 'bg-green-100 text-green-800',
-    error: 'bg-red-100 text-red-800',
-  }
 
   return (
     <div className="space-y-8">
@@ -111,8 +85,9 @@ export default async function DashboardPage() {
           <ul className="divide-y divide-border">
             {jobList.map(job => {
               const hasDocs = !!job.generated_resume
-              const statusLabel = STATUS_LABELS[job.status] ?? job.status
-              const statusColor = STATUS_COLORS[job.status] ?? 'bg-gray-100 text-gray-700'
+              const statusDisplay = humanizeJobStatus(job.status)
+              const statusLabel = statusDisplay.label
+              const statusColor = statusDisplay.color
 
               return (
                 <li key={job.id} className="flex items-center justify-between px-6 py-4 gap-4">
@@ -163,6 +138,16 @@ export default async function DashboardPage() {
               <div>
                 <p className="font-medium text-sm">Complete your profile</p>
                 <p className="text-sm text-muted-foreground">Add work history and evidence to power document generation</p>
+              </div>
+              <span className="text-muted-foreground">→</span>
+            </a>
+            <a
+              href="/evidence"
+              className="flex items-center justify-between rounded-lg border border-border p-4 hover:bg-muted/50 transition-colors"
+            >
+              <div>
+                <p className="font-medium text-sm">Manage your evidence</p>
+                <p className="text-sm text-muted-foreground">View, edit, and add evidence items that power document generation</p>
               </div>
               <span className="text-muted-foreground">→</span>
             </a>

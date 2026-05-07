@@ -2,35 +2,10 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { JobInputForm } from "./JobInputForm"
+import { humanizeJobStatus } from "@/lib/humanizer"
 
 export const dynamic = "force-dynamic"
 
-const STATUS_LABELS: Record<string, string> = {
-  draft: "Draft",
-  queued: "Queued",
-  analyzing: "Analyzing…",
-  analyzed: "Analyzed",
-  generating: "Generating…",
-  ready: "Ready",
-  needs_review: "Needs review",
-  applied: "Applied",
-  interviewing: "Interviewing",
-  offered: "Offered",
-  rejected: "Rejected",
-  archived: "Archived",
-  error: "Error",
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  ready: "bg-green-100 text-green-800",
-  needs_review: "bg-yellow-100 text-yellow-800",
-  generating: "bg-blue-100 text-blue-800",
-  analyzing: "bg-blue-100 text-blue-800",
-  applied: "bg-purple-100 text-purple-800",
-  interviewing: "bg-purple-100 text-purple-800",
-  offered: "bg-green-100 text-green-800",
-  error: "bg-red-100 text-red-800",
-}
 
 export default async function JobsPage() {
   const supabase = await createClient()
@@ -70,8 +45,9 @@ export default async function JobsPage() {
           </div>
           <ul className="divide-y divide-border">
             {jobList.map((job) => {
-              const statusLabel = STATUS_LABELS[job.status] ?? job.status
-              const statusColor = STATUS_COLORS[job.status] ?? "bg-gray-100 text-gray-700"
+              const statusDisplay = humanizeJobStatus(job.status)
+              const statusLabel = statusDisplay.label
+              const statusColor = statusDisplay.color
               const hasDocs = !!job.generated_resume
 
               return (

@@ -210,6 +210,14 @@ export default async function JobDetailPage({
               </Link>
             ) : (
               <>
+                {isAnalyzed && (
+                  <Link
+                    href={`/jobs/${job.id}/evidence-match`}
+                    className="text-sm text-primary hover:underline block mb-3"
+                  >
+                    Review evidence match →
+                  </Link>
+                )}
                 <GenerateButton jobId={job.id} />
                 {isFreePlan && (
                   <p className="mt-2 text-xs text-muted-foreground">

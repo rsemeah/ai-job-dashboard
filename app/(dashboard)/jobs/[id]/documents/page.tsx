@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import DocumentsEditor from './DocumentsEditor'
+import ApplyButton from './ApplyButton'
+import { fullDateTime } from '@/lib/humanizer'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,7 +26,7 @@ export default async function DocumentsPage({
       `id, role_title, company_name, job_url, status,
        generated_resume, generated_cover_letter,
        edited_resume, edited_cover_letter, last_edited_at,
-       generation_timestamp`
+       generation_timestamp, quality_passed`
     )
     .eq('id', id)
     .eq('user_id', user.id)
@@ -63,16 +65,21 @@ export default async function DocumentsPage({
         </h1>
         <div className="mt-1 text-sm text-gray-500">
           {job.generation_timestamp && (
-            <span>Generated {new Date(job.generation_timestamp).toLocaleString()}</span>
+            <span>Generated {fullDateTime(job.generation_timestamp)}</span>
           )}
           {job.last_edited_at && (
             <span className="ml-3">
-              · Last edited {new Date(job.last_edited_at).toLocaleString()}
+              · Last edited {fullDateTime(job.last_edited_at)}
             </span>
           )}
         </div>
       </div>
       <DocumentsEditor job={job} />
+      {hasDocs && (
+        <div className="mt-6">
+          <ApplyButton jobId={job.id} currentStatus={job.status} />
+        </div>
+      )}
     </div>
   )
 }

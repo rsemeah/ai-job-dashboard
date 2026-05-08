@@ -34,7 +34,10 @@ export default async function JobsPage() {
       </div>
 
       <div className="rounded-xl border border-border bg-card p-6">
-        <h2 className="text-base font-medium mb-4">Analyze a job</h2>
+        <h2 className="text-base font-medium">Analyze a job</h2>
+        <p className="text-sm text-muted-foreground mt-0.5 mb-4">
+          Paste a job posting URL — not a LinkedIn profile. Works with Greenhouse, Lever, Workday, Indeed, and LinkedIn Jobs links.
+        </p>
         <JobInputForm />
       </div>
 

@@ -53,7 +53,7 @@ export function JobInputForm() {
           type="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://jobs.lever.co/company/role-id"
+          placeholder="Paste a job posting URL (Greenhouse, Lever, Workday, Indeed…)"
           required
           disabled={isLoading}
           className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground disabled:opacity-50 min-w-0"

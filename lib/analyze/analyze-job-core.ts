@@ -202,14 +202,26 @@ export async function analyzeJobCore(
     }
   }
 
+  // Reject LinkedIn profile URLs — they return 999 (anti-bot) and aren't job postings
+  if (/linkedin\.com\/in\//i.test(job_url)) {
+    return {
+      success: false,
+      error: "That's a LinkedIn profile URL, not a job posting. Paste a job posting URL — e.g. from LinkedIn Jobs, Greenhouse, Lever, or Workday.",
+    }
+  }
+
   // Fetch the job page
   let pageContent: string
   try {
     pageContent = await fetchJobPage(job_url)
   } catch (fetchError) {
+    const msg = fetchError instanceof Error ? fetchError.message : "Unknown error"
+    const is999 = msg.includes("999")
     return {
       success: false,
-      error: `Failed to fetch job page: ${fetchError instanceof Error ? fetchError.message : "Unknown error"}`,
+      error: is999
+        ? "This page blocked our fetch (LinkedIn and some job boards do this). Try copying the job description text and using the paste option instead, or use a direct job board link (Greenhouse, Lever, Workday, Indeed)."
+        : `Could not fetch job page: ${msg}`,
     }
   }
 

@@ -13,7 +13,7 @@ export default async function ApplicationsPage() {
   const { data: applications } = await supabase
     .from('applications')
     .select(`
-      id, applied_at, method, notes, status,
+      id, applied_at, method, status,
       jobs (id, role_title, company_name, job_url, status)
     `)
     .eq('user_id', user.id)
